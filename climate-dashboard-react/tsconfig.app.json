@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["vite/client"],
+    "allowArbitraryExtensions": true,
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Mirrors the Vite alias so `tsc -b` type-checks the design system's imports too */
+    "paths": {
+      "@syena/ds": ["../../syena-design-system/src/index.ts"],
+      "@syena/ds/styles.css": ["../../syena-design-system/src/styles.css"]
+    },
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  /* The design system's ambient declarations (its plotting library has none of its own). */
+  "include": ["src", "../../syena-design-system/src/**/*.d.ts"],
+  /* Test files have their own project (tsconfig.test.json) with vitest/testing-library
+     globals in scope — excluded here so `tsc -b` (the production build) doesn't choke
+     on `vi`/`describe`/`expect` being undefined ambient types. */
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test"]
+}

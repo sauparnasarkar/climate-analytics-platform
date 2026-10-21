@@ -1,0 +1,1307 @@
+# Climate Emissions Conversational Agent — Specification
+
+**Status: Implementation in progress (Stage 2 — follows MCP server, Stage 1, `services/mcp-server`)**
+
+Companion to [`services/mcp-server/SPEC.md`](../mcp-server/SPEC.md) (tool layer) and root
+[`SPEC.md`](../../SPEC.md) §5.22 (API layer — corrected citation, see "Corrections applied"
+below). This document covers the LangGraph agent and generative-UI layer built on top of both —
+`services/agent` in the monorepo.
+
+Brought into the repo from the original design doc (`~/Downloads/agent-spec.md`), verified
+against real current state, and corrected where verification surfaced drift. See root
+[`CLAUDE.md`](../../CLAUDE.md) for the scope note shared by every `services/*` sub-project —
+part of the reference architecture, not the notebook project, Stage 2 of the
+conversational-agent project that `services/mcp-server` began.
+
+---
+
+## Corrections applied (found during verification, not assumed)
+
+1. **`SPEC.md` §5.21 → §5.22.** The original design doc cited root `SPEC.md` §5.21 for the API
+   layer (`scope` param, sovereign-tier gas coverage, `/countries` sovereign count). Root
+   `SPEC.md`'s current section for that work is §5.22 — the same stale-citation pattern
+   `services/mcp-server`'s own design doc had when it arrived, corrected the same way.
+2. **Choropleth prop is `locations` (ISO-3 code array), not `iso_code`.** §3.1 below says
+   `get_top_emitters`'s response should carry a country's ISO code "so no separate map-only tool
+   is needed" — that data-shape point stands, but the real `Chart` prop to map it into is
+   `locations: string[]` on the series object (`locationmode` defaults to `'ISO-3'`), not
+   `iso_code`. `ui_selection` (§8) must emit the real prop name.
+3. **`Tile` has no built-in kicker/prompt/arrow composition.** It's a plain container
+   (`interactive`, `secondary`, `size`, `disabled`, `fullHeight` + spread `HTMLAttributes`).
+   §4's starter-prompt grid and §6's opinion-guardrail suggested reframes both need a small local
+   composition (`StarterPromptTile`) built from `Tile` + text + an icon — not a pre-built variant.
+4. **Trust boundary: co-located B3, not B4.** `services/agent` is deployed on the same Mac Mini
+   as `services/mcp-server` (not an external client), so it reaches `services/mcp-server` over
+   `127.0.0.1:8765` unauthenticated — the same B3 boundary `services/mcp-server`→`api/` already
+   uses — rather than the Cloudflare-Access-gated public URL + Service Token originally sketched
+   in `services/mcp-server/SPEC.md` §8.4 for "the LangGraph agent." See
+   [`ARCHITECTURE.md`](ARCHITECTURE.md) for the corrected boundary diagram.
+5. **Public endpoint abuse protection: the Cloudflare edge rate limit first, plus in-app admission limits.**
+   `syena.io` already has a domain-level Cloudflare rate-limiting rule matching
+   `http.request.uri.path contains "/app-prefix"` (50 requests / 10s per IP,
+   confirmed live 2026-08-13). `services/agent`'s public endpoint deploys under that same path
+   prefix (`labs.syena.io/app-prefix/agent`), so it inherits this protection
+   automatically. The edge rule only stops bursts, so `limits.py` also caps concurrent queries, queries per
+   client per hour and queries per day before any LLM work (`AGENT_MAX_CONCURRENT_QUERIES`,
+   `AGENT_QUERIES_PER_IP_PER_HOUR`, `AGENT_DAILY_QUERY_BUDGET`).
+6. **LLM test hermeticity.** Every LLM node needs `ChatAnthropic`, which needs
+   `ANTHROPIC_API_KEY`. The test suite must pass with no key set (matching
+   `services/mcp-server`'s own test suite, which needs no external credentials) — so the graph is
+   built with an injectable LLM seam (`build_graph(llm=...)` / `get_llm()`), and unit tests for
+   graph routing use a fake/stub LLM. Exactly one real-call smoke test exists
+   (`tests/test_llm_smoke.py`), skipped automatically when `ANTHROPIC_API_KEY` is unset.
+7. **A checkpointer + stable `thread_id` is required, not optional, for §7/§9's persistence to
+   actually work.** `build_graph()` defaults to an in-process `MemorySaver` — this service is a
+   single, unreplicated process, so losing in-flight conversations on restart is acceptable,
+   matching this project's "no server-side caching beyond what's explicit" bias. Callers must
+   invoke the compiled graph with a **partial update dict** (e.g. `{"current_query": "..."}"`),
+   not a fresh `AgentState(...)` instance, under a stable
+   `config={"configurable": {"thread_id": ...}}` — passing a full model instance overwrites
+   every channel, including `tool_cache`, on every turn, silently defeating the whole point of
+   persisting it. Confirmed empirically (`tests/test_graph.py`'s
+   `test_turn_reset_fields_and_thread_scoped_cache_persist`) before this became load-bearing
+   across three steps. Step 3's SSE endpoint mints/holds this `thread_id` per browser session;
+   Step 4's frontend carries it across queries in the docked state.
+8. **`agent`/`tools` process a whole batch of parallel tool calls per step, not one at a time.**
+   §9's pseudocode shows a single `call`, but this isn't a simplification available to skip:
+   Anthropic requires every `tool_use` block in an assistant message to have a matching
+   `tool_result` in the very next turn, and a model routinely requests several tools in one
+   response. `tools_node` iterates every entry in the last message's `tool_calls`; a call that
+   the §10 cap blocks mid-batch still gets a synthetic `status="error"` `ToolMessage` (never a
+   missing `tool_result`), and the guard's `scope_notes` note is written by a dedicated
+   `call_cap_notice` node between `agent`'s conditional edge and `ui_selection` — a conditional-
+   edge function can only choose a route, a state write inside one is silently discarded.
+9. **`WidgetSpec.props` carries each tool's raw result through unshaped in Step 2.** Building
+   the exact per-component prop shape (`Chart`'s `locations`/`colorValues`, `DataTable`'s
+   `columns`, etc.) is Step 4's job, once a renderer exists to consume and be tested against it —
+   nothing in Step 2 exercises that shape, so it isn't built yet.
+10. **A real MCP tool's successful/failed `ToolMessage.content` is a list of content blocks,
+    not a plain string.** `langchain_mcp_adapters`'s wire-protocol conversion wraps a tool's
+    result as `[{"type": "text", "text": "<json>"}]` (and the same shape for an error's
+    message), unlike a locally-built `StructuredTool.from_function`'s plain-string content. Only
+    surfaced by testing against a real `services/mcp-server` subprocess
+    (`tests/test_graph.py`'s `test_data_query_against_real_mcp_server`) — a suite built only
+    against local fake tools would never have caught this. `graph.py`'s
+    `_tool_result_from_message` unwraps both shapes into the same raw dict/string result.
+11. **§3's tool→intent table itself was missing `get_forecast_comparison`** — carried over from
+    the original pasted spec, not introduced during Step 2's own implementation. Caught by
+    Copilot's review of the Step 2 PR (`ui_selection.py`'s `_TOOL_INTENT` dict had the same gap,
+    which would have silently produced a `text` widget instead of a `chart` for this tool); fixed
+    in both places, plus a regression test pinning the correct `chart`/`line` mapping. A reminder
+    that a table copied from an external design doc still needs to be cross-checked against the
+    real tool catalog, not just internally consistent with itself.
+12. **Progress events (§5) are read from `graph.astream(..., stream_mode="updates")` in
+    `server.py`, not a callback threaded into `tools_node`.** The original Step 2 design (an
+    `on_progress` callback baked into the graph at `build_graph()` time) doesn't survive contact
+    with Step 3's actual serving shape: the graph is built once at startup and reused across
+    every request, so a callback bound once at construction time would have concurrent requests'
+    progress interleave into whichever caller's queue was bound first. `ToolCallRecord` already
+    carries its own `progress_label`, so `server.py`'s `stream_query` reads it straight off the
+    `tools` node's per-superstep update, diffed against what it's already streamed (that update
+    always carries the full accumulated `tool_calls` list, not just the newest entries — no
+    reducer on that field). One consequence: a label surfaces after that tool call finishes, not
+    before it starts (`stream_mode="updates"` emits post-node), and a cache-hit's progress event
+    is no longer distinguishable from a fresh fetch's (§9's pseudocode's "Reusing: ..." prefix
+    has no live callback to attach to anymore) — both acceptable per §5's own "running estimate"
+    framing, not a functional regression.
+13. **The checkpointer needs `allowed_msgpack_modules` registered, not just a bare
+    `MemorySaver()`.** `tool_cache: dict[str, ToolCallRecord]` round-tripping through a
+    checkpoint logged "Deserializing unregistered type ... will be blocked in a future version"
+    during Step 2's own persistence verification — filtered out as noise at the time, but it's
+    exactly the field §7 requires to persist, so it would have broken outright on a future
+    `langgraph` upgrade. `graph.py`'s `_default_checkpointer()` registers both `ToolCallRecord`
+    and `WidgetSpec` explicitly.
+14. **A client-supplied `thread_id` is a real input-validation boundary on a public,
+    unauthenticated endpoint, not just a UUID nicety.** `MemorySaver` holds full `messages`
+    history and `tool_cache` per thread with no eviction, so `server.py` rejects any `thread_id`
+    that isn't a well-formed UUID (400) and bounds the number of distinct threads the process
+    will ever track (`MAX_LIVE_THREADS`). At the cap the least recently used thread is evicted together with its
+    saved history (`checkpointer.delete_thread`), so a flood of throwaway ids never blocks a new conversation;
+    a running query is never the one evicted. A malformed id is refused before the per-client and daily
+    allowances are charged.
+    **A real bug caught by testing this path directly**: the first version's `None`-input branch
+    (minting a fresh id for a brand-new conversation — the common case, since every conversation's
+    *first* query takes it) returned early without ever registering the minted id or checking the
+    cap, meaning the cap only ever bounded client-supplied ids on later queries in an existing
+    thread, never the primary path. Fixed and pinned with a regression test
+    (`tests/test_server_validation.py`'s `test_freshly_minted_thread_id_is_also_subject_to_the_cap`).
+15. **`server.py`'s `DEPLOY_BASE_PATH` handling mirrors `api/main.py`'s
+    `StripDeployPrefixMiddleware`, not `services/mcp-server`'s `_streamable_http_settings`.**
+    Both are real "third hand-mirrored copy" precedents in this repo, but they're different
+    mechanisms for different transports — `api/`'s is the direct precedent for a FastAPI app
+    (this one); `mcp-server`'s passes a path into the MCP SDK's own transport layer, which
+    doesn't apply here.
+16. **`stream_query` needs a terminal `error` SSE event on an unhandled exception** — Copilot's
+    review of the Step 3 PR caught that a `graph.astream()`/`graph.aget_state()` failure after
+    the SSE stream had already started (HTTP 200 already sent) tore the connection down with no
+    machine-readable signal, leaving the client with a silently truncated stream. Fixed with a
+    `try/except Exception` wrapping the generator body, yielding
+    `{"event": "error", "data": {"message": str(exc)}}`. Also added `max_length=4096` on
+    `QueryRequest.query` — the `MAX_LIVE_THREADS` cap bounds thread *count*, not
+    per-thread payload size, and `MemorySaver` never evicts either way. **Flagged, not fixed,
+    for Step 5**: this yields the raw `str(exc)` of *any* exception, broader than `api/`'s own
+    convention of surfacing a specific, curated exception `.message` on a 503 — reconsider
+    whether error text needs sanitizing/genericizing before it reaches a public,
+    unauthenticated client.
+17. **`get_top_emitters`'s "current + forecast" query no longer resolves to `treemap`.** Found
+    while building Step 4's widget renderer: the original design's treemap tile size/color pair
+    assumed two metrics, but `get_top_emitters`'s real result (`composed.py`) carries exactly one
+    (`co2`) — coloring tiles by the value that already sizes them isn't a second dimension, it's
+    decoration. `select_top_emitters_chart_kind` now falls back to `bar` for that case (same as
+    any other non-geographic query); `WidgetSpec.chart_kind`'s `Literal` no longer includes
+    `"treemap"`. A genuine dual-metric treemap is deferred to §12 open item 5 — it needs a merged
+    result from two tool calls, which `ui_selection` doesn't build.
+18. **Resolved (was: `PromptBar` has no imperative focus API, so the §4 starter-prompt "prefill
+    and focus" behavior only prefills).** `PromptBar`'s prop surface at the time was `value`,
+    `onChange`, `onSubmit`, `variant`, `placeholder`, `loading`, `disabled`, `actions`,
+    `ariaLabel`, `className` — no ref forwarding, no exposed `.focus()`; `AgentPage.tsx`'s
+    `handleStarterClick` could only set `value`, not move focus, and this repo's own
+    against-hacks convention ruled out a DOM-query workaround keyed to `syena-design-system`'s internal
+    CSS class names. Fixed properly instead of worked around: `PromptBar` now exposes its
+    textarea via `React.forwardRef<HTMLTextAreaElement, ...>` (a design system change, same
+    pattern `Textarea` itself already used) — see §4's current text for how `handleStarterClick`
+    uses it.
+19. **`stream_query`'s terminal `error` event no longer surfaces `str(exc)` directly (Step 5,
+    resolving the earlier "flagged, not fixed" item).** A Step 5 security review (automated
+    vulnerability scan + independent verification, not just the earlier Copilot pass) confirmed
+    the risk #16 already named: a bare `except Exception as exc: ... str(exc)` on a public,
+    unauthenticated endpoint can leak internal details (an MCP connection failure's own
+    `127.0.0.1:8765` address, LangChain/Anthropic SDK error text) to any client. Fixed by
+    replacing the client-facing message with a fixed, generic `QUERY_STREAM_ERROR_MESSAGE`
+    (`server.py`) and logging the real exception server-side via `logger.exception` instead —
+    matching `api/`'s own established convention of never forwarding a bare exception's text,
+    just a curated one (`DataNotFoundError` → `HTTPException(..., detail=e.message)`), adapted
+    here since this endpoint's failure modes aren't one small enumerable exception type the way
+    `DataNotFoundError` is. `tests/test_server.py`'s `test_query_streams_error_event_on_graph_failure`
+    now asserts the generic message *and* (via `caplog`) that the real exception was logged, not
+    silently dropped.
+20. **A turn where every tool call fails was indistinguishable from one that genuinely matched no
+    widget.** Found investigating a live "no widgets generated" bug report that turned out not to
+    be reliably reproducible, and — because `tools_node` logged nothing on either of its error
+    branches — not diagnosable from logs either. Fixed on both sides: `tools_node` now logs a
+    `logger.warning` when a tool is unknown or a real tool call errors; `ui_selection_node` now
+    checks whether every `ToolCallRecord` in the turn errored and, if so, appends a `scope_notes`
+    entry naming it a transient backend failure, so `compose_response_node` stops synthesizing a
+    generic "try rephrasing" apology that looks identical to an honest no-match case. The
+    cause was found by live testing on the deployed host.
+21. **A `data_query` turn with zero tool calls isn't a bug — the model reusing already-fetched
+    context is correct, expected behavior, and the pipeline discarding its answer was the actual
+    defect.** Found reproducing a second, live "no widgets" report the user pinned to a specific
+    sequence (India query submitted right after the China starter prompt, same thread) —
+    correction #20's fix didn't cover it, since `state.tool_calls` was genuinely empty (zero tool
+    calls attempted, not "attempted and failed"). The first hypothesis, root-caused via controlled
+    variant testing directly against the real Anthropic API (Mac Mini, key handled server-side
+    only), was that a single prior turn's `get_historical_emissions(scope="sovereign")` result
+    (~31KB, all ~215 sovereign countries' full history) left in context was confusing the model
+    into skipping tool calls — truncating that one payload in isolation, everything else
+    untouched, did flip the model back to calling tools. **That hypothesis was wrong**, caught by
+    the user comparing against Claude Desktop's own MCP client: the identical two-turn sequence
+    there also produces zero tool calls on turn 2, and Desktop still answers correctly — because
+    it *reuses* turn 1's already-fetched sovereign data rather than re-fetching it, exactly the
+    efficient behavior a model should exhibit. Confirmed directly: `agent_node`'s own discarded
+    turn-2 text (captured via tracing, never previously surfaced anywhere) was a fully correct,
+    detailed, data-grounded answer about India's growth built from turn 1's context. The truncation
+    experiment "worked" only because shrinking the payload removed the *data* the model needed,
+    forcing a redundant re-fetch — not because it fixed a defect in the model's judgment. The real
+    defect: `ui_selection_node`/`compose_response_node` assumed a data_query turn always produces
+    fresh `state.tool_calls` to build widgets and a response from, and silently discarded
+    `agent_node`'s own answer whenever it didn't, synthesizing a misleading "no data" apology that
+    actively contradicted what the model had just said. Fixed by giving that answer somewhere to
+    go instead of erasing it: `ui_selection_node` now extracts `agent_node`'s final message text
+    (handling both plain-string and content-block-list shapes, since extended thinking makes the
+    latter the common case) and sets it as `response_text` directly when `state.tool_calls` is
+    empty; a new `route_after_ui_selection` conditional edge sends that case straight to
+    `finalize`, skipping `compose_response_node` entirely (it has no widgets to synthesize from
+    and would otherwise overwrite a good answer). **A first draft of this fix pruned all
+    prior-turn tool history in `finalize_node` instead** (via `RemoveMessage`), which also
+    "worked" empirically but for the wrong reason: it prevented the model from ever having old
+    context to reuse, forcing a fresh tool call on every follow-up regardless of whether one was
+    actually needed. Reverted once the reuse behavior was understood to be correct and worth
+    preserving — for the full sequence of both hypotheses. (Correction #22
+    below adds a widget to this path after all, for a frontend reason unrelated to this point.)
+22. **A widget-free zero-tool-call answer (correction #21) rendered inside `climate-dashboard-
+    react`'s InlineAlert — off_topic/opinion's short guardrail-text component — instead of as a
+    normal response, and with raw markdown syntax showing through.** `AgentPage.tsx`'s
+    `!hasWidgets` check was written when the only zero-widget shape was off_topic/opinion's brief
+    apology text; correction #21 introduced a second, unrelated zero-widget shape (a substantive,
+    often markdown-table-rich answer) that the same check couldn't distinguish. Fixed on both
+    sides: `ui_selection_node` now builds a `WidgetSpec(intent="text", source_tool_call=
+    "context_reuse", ...)` for this path — a distinct tag from `general_climate_node`'s
+    `"general_climate"` (semantically different: this path did reuse tool data at some point;
+    general_climate never calls a tool at all) even though both render identically — so
+    `hasWidgets` is true and the normal response path renders it instead of InlineAlert.
+    Separately, neither `response_text` nor any text widget was ever rendered as markdown
+    anywhere in the frontend; agent_node's largely unconstrained answers on this path routinely
+    include headers/bold/GFM tables (confirmed live), unlike `compose_response_node`'s
+    tightly-scoped plain-prose summaries, so the raw `##`/`**`/`|---|` syntax showed through as
+    literal text. Fixed via a new `MarkdownText` component (`react-markdown` + `remark-gfm`,
+    real React elements throughout, never `dangerouslySetInnerHTML`); headers/paragraphs/lists
+    map onto the design system's `syn-title-*`/`syn-text-*` classes (no page in this app uses
+    the design system's `Typography` component yet, so adopting it only here would be an unexplained
+    inconsistency, not a real improvement), and GFM tables specifically render through
+    the design system's real `Table` component — reshaping react-markdown's already-rendered
+    `<thead>`/`<tbody>` tree into `Table`'s `columns`/`rows` props (preserving inline formatting
+    like a bolded cell) rather than a plain `<table>`, matching this project's "real components,
+    never generated markup" principle. Live-verified end to end (backend + frontend together,
+    same India-after-China repro sequence): the answer renders as a normal card with a real,
+    sortable table — not an alert box, not raw syntax.
+23. **`PromptBar`'s auto-refocus-after-loading effect (design system, added alongside the §4
+    expandable-content work) stole focus back into the bar the instant a response landed,**
+    which — because focus entering the bar is also the `expandedContent` show trigger — popped
+    the starter-prompt grid back open right as the answer rendered underneath it. The refocus was
+    originally meant to support a "keep asking" loop (land back in the textarea, ready to type a
+    follow-up, without reclicking), but the side effect of re-surfacing the starter grid after
+    every single turn was worse than the convenience it bought. Removed entirely rather than
+    patched to suppress just the expand — `loading` returning to `false` no longer calls
+    `textareaRef.current?.focus()` at all, so focus (and expandedContent's visibility) now stays
+    exactly wherever the user actually left it.
+24. **On iOS Safari, submitting a query left a large blank scrollable gap below the page's real
+    content** — reported directly, with screenshots from a real device. Root cause was in
+    `App.tsx`'s shell, not this page: the root div's `min-height: 100vh` is sized against the
+    *largest* possible viewport (URL bar collapsed), not whatever's actually visible, and
+    submitting disables (therefore blurs) `PromptBar`'s focused textarea, which dismisses the
+    on-screen keyboard abruptly rather than through iOS's normal tap-away animation. WebKit's
+    internal layout snapshot taken while the keyboard was still up didn't get recomputed on
+    this abrupt a close, leaving blank space the height of the vacated keyboard until something
+    else forced a reflow. Fixed by giving the shell's root div a `.app-shell` class with a
+    `min-height: 100dvh` stylesheet override (100vh kept as the inline-style fallback for
+    browsers without `dvh` support) — `dvh` tracks the actual visible viewport continuously, so
+    it can't get stuck stale the way a `vh` snapshot can. App-shell-level fix, not `/ask`-page-
+    specific, even though this page's submit-disables-the-textarea interaction is what surfaces
+    it — any other page with a focused, disable-on-submit input would hit the same bug.
+    **A real, correct improvement, but user follow-up (with a real device, "not resolved") showed
+    it wasn't the actual cause of the reported symptom** — see correction #25, which found and
+    fixed the genuine root cause. Kept anyway: `dvh` is still objectively more correct than `vh`
+    for a PWA with an on-screen keyboard, independent of whether it explains this particular
+    report.
+25. **The real root cause of correction #24's report: iOS Safari auto-zooms the whole page in
+    when a focused text input renders below 16px font-size** — user's exact words once asked to
+    clarify what "overflow" meant: "the screen automatically zoomed in and expanded beyond the
+    viewport... the top and menu icons are no longer visible... one has to manually zoom it back
+    into view." Not a height-calculation bug at all — a genuine pinch-zoom the browser applied
+    and didn't cleanly undo. `PromptBar`'s textarea uses the underlying `Textarea` 'm' size,
+    which is `body-3-short` (14px, below iOS's 16px no-zoom threshold). The same submit-disables-
+    the-textarea abrupt blur from #24 is what triggers it: iOS's zoom-restore-on-blur doesn't
+    reliably run when focus is lost via `disabled` rather than a natural tap-away, so the
+    zoomed-in state sticks. Fixed in the design system: `fontSize: 16` on the textarea's
+    inline style, overriding the 14px class token, scoped to just this one field rather than the
+    shared `Textarea`/`Input` 'm' token (other consumers of that token share the same latent
+    risk but weren't reported and are out of scope here). Live-verified two ways beyond reading
+    the source: `getComputedStyle` on the deployed page confirmed `fontSize: 16px` reached the
+    real `<textarea>` element (not just a wrapper — Copilot's PR review specifically asked this
+    to be double-checked), and the user confirmed on their actual iPhone that the bug is gone.
+    Correction #24's own diagnosis (100vh vs 100dvh) turned out to be plausible-sounding but
+    wrong for this specific report — a lesson in verifying against the user's exact words
+    ("zoomed in," not "gap" or "overflow" in the generic sense) rather than pattern-matching to
+    the first plausible-looking bug class and shipping before confirming.
+26. **The §4 starter-prompt grid's forecast row auto-submitting while the historical-trends row
+    only prefilled was itself the bug — reported live as an inconsistency between the grid's two
+    rows.** This was a deliberate, documented design choice at ship time (SPEC.md previously read
+    "the two forecast prompts have no placeholder and submit immediately on click"), not a
+    regression — but it read as a surprise once both rows sat in the same grid: clicking one row
+    edits, clicking the other fires immediately with no chance to change the country/scope first.
+    Changed so all four tiles prefill + focus, none auto-submit (`AgentPage.tsx`'s
+    `STARTER_PROMPTS` dropped its `prefill: boolean` field entirely — no longer a per-item choice
+    — and `handleStarterClick` lost its now-dead auto-submit branch). The design system
+    `PromptBar` collapse-on-external-submit behavior this used to exercise
+    (`AgentPage.test.tsx`) moved to a §6 suggested-prompt "Try instead" reframe tile instead,
+    which at the time still called `submit()` directly rather than going through `PromptBar`'s
+    own `trySubmit` — superseded by correction #27 below, which made those tiles prefill too.
+27. **The §6 suggested-prompt "Try instead" reframe tiles had the identical auto-submit
+    inconsistency correction #26 just fixed for the starter grid, plus a second bug: a resolved
+    turn's tiles stayed clickable forever.** Reported live, same session as #26: selecting a
+    reframe tile submitted immediately instead of prefilling (the exact pattern an earlier correction fixed one
+    section earlier, left standing here because correction #26 explicitly kept this tile as "the
+    one remaining instant-submit path in the app" — reasonable at the time, wrong once reported
+    directly). Separately: every past turn's own `suggested_prompts` tiles remained fully
+    rendered and clickable in the scrolled-back result list indefinitely, with no equivalent of
+    the starter grid's collapse-once-you've-moved-on behavior — a user could click a "Try
+    instead" tile from several turns back. Fixed both in one change: `AgentPage.tsx` gained a
+    shared `prefillAndFocus` helper used by both `handleStarterClick` and the reframe tiles'
+    `onSuggestedPromptClick` (no more `handleSubmit` call from a tile click at all), and
+    `ResultSectionView` gained a `showSuggestedPrompts` prop — originally `sections[0] && \
+!loading`, refined during PR review (Copilot, verified before merging) to
+    `section.result === useAgentStream's result && !loading` instead: comparing by the hook's
+    own result-object identity rather than array index closes a transitional-render gap where
+    the *previous* turn's tiles could briefly re-appear the instant a new result lands, since
+    the `useEffect` that prepends the new section to `sections` runs one render after `result`
+    itself updates — during that single render, `sections[0]` was still the old section even
+    though the new, already-non-loading result had arrived. Older turns keep their decline text
+    as chat history; only the now-stale tiles stop rendering.
+
+    Consequence for test coverage: with this change, `AgentPage.tsx` no longer has *any* UI
+    element that calls `submit()` directly, bypassing `PromptBar`'s own `trySubmit` — the
+    suggested-prompt tile correction #26 repurposed as that trigger no longer qualifies now that
+    it prefills too. The `AgentPage.test.tsx` test built on that trigger was removed rather than
+    given a new one to bypass with, since none exists in this component anymore; the underlying
+    `PromptBar` collapse-on-external-submit contract itself isn't newly uncovered — it's already
+    exercised directly by the design system's own `PromptBar.stories.tsx`
+    (`ExpandedContentCollapsesOnExternalSubmit`), which is where that generic behavior belongs
+    regardless of whether any one consuming app currently has an external-submit call site.
+28. **A `data_query` turn's own answer text could leak raw internal tool/function names to the
+    user — reported live with a real example.** `agent_node` binds the real MCP tools
+    (`llm.bind_tools(mcp_tools)`), so the model has each tool's exact snake_case name in
+    context. When no single tool call fully satisfies a request, the model can fall into the
+    zero-tool-call `context_reuse` path (correction #21/#22) and explain what it can offer
+    instead — and with nothing telling it not to, it named its own tools verbatim (confirmed:
+    ``get_gas_composition_by_decade``, ``get_country_profile``, ``get_historical_emissions``
+    all appeared in backticks in a real answer explaining there's no sector-level breakdown
+    tool). Not a frontend bug — `WidgetRenderer`'s own titles are unaffected and already
+    human-readable everywhere else; this was the model's own generated prose passing straight
+    through as `response_text`. Fixed with one added sentence in `AGENT_SYSTEM_PROMPT`
+    (`prompts.py`) instructing the model to describe capabilities in plain, non-technical
+    language and never reference its own tool/function names to the user. `test_prompts.py`
+    (new) is a regression guard asserting the instruction text is present — prompt wording
+    itself isn't otherwise unit-testable without a real LLM call, so this only catches the
+    instruction being silently deleted later, not a model choosing to ignore it.
+29. **`opinion_node`'s `suggested_prompts` reframes had zero grounding in the real tool
+    catalog, so a reframe could itself be unanswerable — reported live: selecting a suggested
+    "which sectors contribute most" reframe got a "no, I don't have a sector-breakdown tool"
+    answer.** `opinion_node` called the LLM with only `OPINION_SYSTEM_PROMPT` and the user's raw
+    query — unlike `agent_node`, which is bound to the real MCP tools, it had no way to know the
+    dataset only tracks gas type (CO2/methane/nitrous oxide), not economic sector, so "which
+    sectors contribute most" sounded like a perfectly reasonable data question in general even
+    though this dataset can't answer it. Fixed by wiring `mcp_tools` into `opinion_node`
+    (`build_graph`'s own `functools.partial(opinion_node, llm=llm, mcp_tools=mcp_tools)`, mirroring
+    `agent_node`'s registration one line above it) and adding a new `_capability_summary()`
+    helper that turns the tool list into a plain-language grounding block: first paragraph of
+    each tool's own docstring only, whitespace-collapsed — every tool docstring in
+    `services/mcp-server` already leads with a one-sentence plain-language summary before its
+    IMPORTANT/edge-case detail paragraphs (written for the tool-calling model, not a reframe
+    prompt) — and never the tool's own name, so this doesn't reopen correction #28's leak one
+    node over. `OPINION_SYSTEM_PROMPT` gained one instruction to ground every reframe in that
+    summary and prefer a supported reframe over a plausible-sounding unsupported one. Guards
+    against an empty `mcp_tools` list (e.g. existing tests, and any future caller that doesn't
+    pass real tools) by leaving the prompt byte-for-byte unchanged rather than appending an empty
+    section.
+
+    This meaningfully reduces, but can't fully eliminate, mismatched suggestions — it's still one
+    LLM judgment call, just a grounded one instead of an ungrounded one, not a hard validation
+    that dry-runs each candidate reframe through the real agent before showing it (a real
+    dry-run would be more robust but adds a full extra agent turn's worth of latency/cost per
+    guardrail hit — deferred unless grounding alone proves insufficient in practice; explicit
+    scope decision, not an oversight).
+
+    Test coverage: `_capability_summary()` is unit-tested directly (first-paragraph extraction,
+    no tool name leak) rather than through `opinion_node`'s own LLM call — `ScriptedChatModel`
+    (`tests/fakes.py`)'s `with_structured_output()` returns a genuinely new clone object, so a
+    test holding the original `llm` it constructed can't see what a `with_structured_output`-only
+    node like `opinion_node` actually sent it (unlike `agent_node`'s `bind_tools()`, which
+    returns `self` and lets `test_agent_node_marks_system_prompt_cacheable` inspect
+    `llm.last_messages` directly). `test_opinion_routing_with_real_tools_present` instead proves
+    the `build_graph` wiring itself doesn't crash and still returns `suggested_prompts` correctly
+    with a real tool list present, the same level `test_opinion_routing` already tests the
+    empty-list case at.
+30. **Correction #27's own Copilot-pushed refinement (`section.result === result`, dropping
+    `index`) left `sections.map((section, index) => ...)` with an unused `index` parameter —
+    caught by the Mac Mini deploy's real `npm run build`, not by this session's own pre-merge
+    verification.** Root cause of the miss: `climate-dashboard-react/tsconfig.json` is a
+    solution-style file (`"files": []`, only `references`) — `tsc --noEmit -p tsconfig.json`
+    against it validates the reference graph but does **not** actually type-check the referenced
+    projects' source files, so it reported clean while the real build command
+    (`tsc -b && vite build`, which does check them, `tsconfig.app.json`'s
+    `noUnusedLocals`/`noUnusedParameters` included) would have failed on this exact line. Fixed
+    by dropping the now-unused `index` param. Process lesson for this repo going forward: verify
+    a solution-style TS project with `tsc -b` (or the real `npm run build`), not `tsc --noEmit -p
+    tsconfig.json` — the latter is a false-negative-prone check here specifically because of the
+    `"files": []` root config shape, not a general TS caveat.
+31. **Correction #29's own grounding fix crashed the entire turn in production — caught by
+    live testing against the deployed Mac Mini right after that PR's own deploy, not by its
+    tests.** Grounding `suggested_prompts` in the real tool catalog narrowed the model down to a
+    single good reframe for some queries, and it returned that reframe as a bare string instead
+    of a one-element list — `_OpinionOutput.suggested_prompts: list[str]` rejected it outright
+    (`pydantic_core.ValidationError: Input should be a valid list`), which
+    `stream_query`'s own exception handling (correction #19) turned into the generic
+    "Something went wrong" message with the real cause hidden from the user and only visible in
+    `~/Library/Logs/ghgemissions-agent.error.log` on the Mac Mini. Strictly worse than the
+    ungrounded-but-valid suggestions correction #29 was fixing — a hard failure instead of a
+    merely suboptimal one. Fixed two ways: (1) `_OpinionOutput` gained a `field_validator` on
+    `suggested_prompts` (`mode="before"`) that coerces a bare string into a one-element list
+    rather than rejecting it — the real, load-bearing fix, since it tolerates the model's output
+    shape regardless of wording; (2) `OPINION_SYSTEM_PROMPT` also gained a reinforcing sentence
+    ("always a list of strings even if the capability summary only leaves room for one good
+    reframe") as a secondary nudge to reduce how often the validator needs to step in, not a
+    substitute for it. `test_opinion_routing_survives_a_bare_string_suggested_prompt_from_the_model`
+    reproduces the exact crash shape end-to-end via `ScriptedChatModel`'s own `_schema(**value)`
+    construction (`fakes.py`), the same code path the real `langchain_core` structured-output
+    parser uses. General lesson for any future structured-output node here: a schema that's
+    correct on the happy path doesn't guarantee the model always honors it once the surrounding
+    prompt gets more constraining — plan for graceful coercion of near-miss shapes, not just
+    tighter wording, especially for anything that reaches a public, unauthenticated endpoint
+    (`server.py`'s `/query`) where a crash is a worse failure mode than a slightly-off answer.
+32. **A "compare countries under BAU/Moderate/Aggressive" query rendered three grid widgets
+    that looked identical, all titled "Fetching cumulative scenario impact" — reported live
+    with a screenshot.** Root cause, two compounding defects: (1) `get_scenario_cumulative_impact`
+    (`services/mcp-server`) already returns every scenario's cumulative value per country in a
+    single call — `sort_by` only changes row order/top-10 trim membership, never which
+    scenarios' values come back — but its docstring gave the model no reason not to call it
+    once per scenario, unlike its sibling `get_scenario_projection`, which explicitly warns
+    against the equivalent per-country pattern. The model made 3 calls where 1 already answers
+    the question. (2) Moderate/Aggressive are a uniform `BAU × (1 − rate)^years` decay applied
+    identically to every country (`notebook/week5_scenarios.ipynb` §5.2) — for dominant
+    emitters, that barely reshuffles ranking, so the 3 (already redundant) calls' results looked
+    near-identical on top of being redundant. (3) `progress_labels.py`'s
+    `get_scenario_cumulative_impact` builder was hardcoded to a fixed string regardless of
+    `sort_by`, unlike every sibling builder in the same dict — so even distinguishable results
+    would've rendered under identical, non-differentiating titles. Fixed both: added "call this
+    once" guidance to the tool's docstring (mirrors `get_scenario_projection`'s existing
+    pattern), and made the title builder interpolate `sort_by`
+    (`test_progress_labels.py`'s new `test_progress_label_scenario_cumulative_interpolates_sort_by`).
+    Doesn't add call-deduplication logic to `ui_selection_node` itself — the docstring fix
+    targets the actual cause (the model choosing to call 3×), not a symptom-level backstop.
+33. **A "how many countries increased/decreased emissions since 1990" query rendered a
+    ~209-series line chart with an unreadable legend, and a widget title that permanently read
+    "Fetching historical emissions for Afghanistan, Albania, ... Zimbabwe" — reported live with
+    screenshots, compared unfavorably against the same question answered directly against
+    `services/mcp-server`'s tools via Claude Desktop.** Two distinct, compounding UX defects,
+    fixed independently of the deeper "no aggregate tool exists for this question" gap (tracked
+    separately, not yet fixed): (1) `ui_selection.py`'s `_title_for()` built every `WidgetSpec`'s
+    permanent `title` by calling `progress_labels.py`'s `progress_label()` directly — the same
+    verb-phrased text meant for the in-flight SSE progress bar ("Fetching..."), rendered by
+    `ChartCard`/`CardHeader` as static header content with no relationship to `loading` state at
+    all. Not a stale-progress-bar race condition; the widget never had a noun-phrase title to
+    begin with. Fixed with a parallel `_TITLE_BUILDERS` dict, phrased as labels ("Historical
+    emissions -- China, India") not actions. (2) `progress_labels.py`'s `join_countries` (renamed
+    from `_join_countries`, now also used by `_TITLE_BUILDERS`) had no length cap — an explicit
+    209-country tool call joined every name into one string, both in the SSE progress text and,
+    via defect (1), the permanent title. Capped at 5 names + "and N more". (3) No chart in
+    `climate-dashboard-react/src/agent/WidgetRenderer.tsx` capped its rendered series count —
+    `HistoricalEmissionsWidget`/`ForecastComparisonWidget` now fall back to a `GridWidget` table
+    past `MAX_CHART_SERIES=10`; `CompareScenariosWidget` caps on country count specifically
+    (its series count is countries × scenarios, so a flat series-count cap would wrongly
+    degrade a reasonable 4-country comparison).
+
+    **The deeper gap closed in a follow-up (same investigation, shipped as three
+    dependency-ordered changes across `api/`, `services/mcp-server`, and this sub-project):**
+    no tool existed to actually *count* increases/decreases, so the agent's only path to
+    answer the triggering question was passing every sovereign country to
+    `get_historical_emissions` and getting back raw per-country series it had no way to
+    reduce to a number. Added `GET /historical/change-summary` (`api/`, counts + a bounded
+    top-N movers per direction, ranked by absolute Mt change, default `scope="sovereign"`),
+    a composed `get_emissions_change_summary` tool wrapping it (`services/mcp-server`,
+    steers both this agent and Claude Desktop away from misusing
+    `get_historical_emissions` for count-shaped questions), and a `ui_selection.py` special
+    case that builds this one widget's title from the tool's *result* rather than its args —
+    the only way the real counts reach `compose_response_node`, which never sees any
+    widget's `props` at all (§3's UI-intent table, "one exception" note). Live-verified: the
+    new endpoint returns 154 increased / 55 decreased at sovereign scope, matching Claude
+    Desktop's own answer to the original triggering question exactly.
+34. **After the correction #33 follow-up deployed, the same query's composed answer claimed
+    "the data reflects broad sovereign-level coverage, so it captures nearly the full set of
+    recognized nations rather than a partial sample" — false; the grid only ever holds
+    `top_increases`/`top_decreases`, capped at `top_n` (default 10) per direction, 20 rows
+    total out of 209 countries.** Root cause: `get_emissions_change_summary`'s title (the
+    only field `compose_response_node` sees, per correction #33) disclosed the real
+    increased/decreased *counts* but said nothing about the *table* being a bounded sample —
+    the model had zero signal either way and invented a plausible-sounding but wrong claim
+    about table completeness, conflating "the counts cover all 209 countries" with "the table
+    shows all 209 countries." Fixed by appending `"-- table shows the {n} biggest movers"` to
+    the same title, `n` computed as `len(top_increases) + len(top_decreases)` (the actual
+    rows returned) rather than echoing the `top_n` request param, since a scope with fewer
+    real movers than `top_n` in one direction returns fewer rows than requested and the
+    disclosure must match what's actually shown, not what was asked for.
+    (Also confirmed, not fixed here: this same blind spot — a tool's own `scope_note`
+    trimming disclaimer, e.g. from `services/mcp-server`'s `trim()` helper, never reaches
+    `state.scope_notes` or `compose_response_node` for any tool, not just this one; `tools_node`
+    never reads a result's `scope_note` field at all. Pre-existing, wider than this one
+    correction — flagged as a separate future fix, not folded in here.)
+
+---
+
+## 1. Purpose
+
+A conversational agent, surfaced in the React dashboard (`climate-dashboard-react/`), restricted
+to the climate-emissions domain, that answers by calling `services/mcp-server`'s tools and renders
+results using the existing the design system's chart/grid/card components — not a generic chatbot.
+Originally a `NAV_ITEMS` entry like every other page; now a `SidebarNav.persistentAction` instead
+(direct instruction: "persistent, always-visible action," a design system change) — an icon+label
+button next to the menu toggle, present in every sidebar state (expanded, collapsed-to-rail,
+mobile drawer closed) rather than one entry among the page list. The `/ask` route itself (§2
+below) is unchanged.
+
+## 2. Interaction model
+
+**Not a chat transcript.** No message bubbles, no user/assistant turn-taking UI, no `Chatbot`
+component. Two states of a single interaction:
+
+- **Landing** — headline, a centered `PromptBar` (`variant="landing"`), and a 2×2 `Tile` grid of
+  starter prompts below it (§4). Shown before the first query.
+- **Docked** — on first submit, `PromptBar` switches to `variant="docked"` and moves to the top
+  of the canvas; the starter-prompt grid is gone for the rest of the session. Each subsequent
+  query appends a titled result section to a vertically stacked canvas below the bar, **newest
+  section first** (directly under the bar, no scrolling required to see the latest result).
+  Older sections remain visible, scrollable below — reads as a generated report being built
+  through queries, not a conversation log.
+
+Each result section: a small muted caption showing the query that produced it, a deterministic
+title (§3), and its `widgets` array laid out responsively (one widget full-width, two side by
+side, wrapping beyond that).
+
+`PromptBar` itself is a shared design system component — controlled, stateless with respect to
+history, one prop surface for both visual states. Confirmed real and merged to `syena-design-system`
+`main` (`176401b`); prop surface: `value`, `onChange`, `onSubmit`, `variant: 'landing'|'docked'`,
+`placeholder?`, `loading?`, `disabled?`, `actions?`, `ariaLabel?`, `className?`.
+
+## 3. UI-intent schema
+
+Four intents, each a fixed pairing with real design system components — not generated markup:
+
+| Intent | Component(s) | Chart kinds (if `chart`) |
+|---|---|---|
+| `chart` | `ChartCard` + `Chart` | `line` (trends), `band` (forecast CI), `bar` (ranked lists, colorValues for "heatmap" bars), `choropleth` (geography) |
+| `grid` | `DataTable` in a `Card`/`CardHeader` | — |
+| `card` | `KpiStat` (one or a small row) | — |
+| `text` | Plain text in a `Card` | — |
+
+Tool → intent mapping (fixed lookup, no LLM judgment except the one case noted):
+
+| Tool | Intent |
+|---|---|
+| `get_historical_emissions`, `get_scenario_projection`, `compare_scenarios_across_countries` | `chart` (`line`) |
+| `get_forecast` | `chart` (`line` + `band`) |
+| `get_forecast_comparison` | `chart` (`line`) — the multi-country equivalent of `get_forecast` |
+| `get_top_emitters` | `chart` (`bar`, or `choropleth` per §3.1 below) |
+| `get_model_comparison`, `get_gas_composition_by_decade`, `get_forecast_summary`, `get_scenario_cumulative_impact` | `grid` |
+| `get_emissions_change_summary` | `grid` — **title built from the tool result, not args**, see below |
+| `get_country_profile` | `card`, or `card` + `chart` — **the one non-deterministic case**, see §8 `ui_selection` |
+| `get_methodology_notes` | `text` |
+| Area 2 tools (`get_emissions_temperature_relationship`, `get_ghg_composition`, `get_country_cumulative_share`, `get_scenario_temperature`, `get_co2_concentration`, `get_temperature_anomaly`, `get_correlation_metadata`) | planned — see §15.2 |
+| `list_countries` | not user-facing via `ui_selection` — used internally by `guardrail_router`/`agent` for resolution context, never produces its own widget |
+
+Widget `title`/`as_of` captions are generated deterministically from the triggering tool call's
+arguments (e.g. `"{country} forecast, {horizon}-year horizon"`), not written by the LLM per call
+— same reasoning as the progress labels (§5): consistent, not subject to per-call phrasing drift.
+**One exception:** `get_emissions_change_summary`'s title is built from the tool's *result*
+(`increased_count`/`decreased_count`/`countries_with_data`), not its args — the only way those
+real numbers reach `compose_response_node`, which never sees any widget's `props` (§8, "widget
+props excluded" note) — see "Corrections applied" #33.
+
+### 3.1 Map and "heatmap" reads
+
+`get_top_emitters`'s chart kind depends on what the query is really asking:
+- Ranked list ("who are the top 10") → `bar`, with `colorValues` for magnitude-scaled color.
+- Geographic spread ("where are emissions highest") → `choropleth`, with the tool response's ISO
+  code carried into `Chart`'s `locations: string[]` prop (see "Corrections applied" #2 — not
+  `iso_code`).
+- A query naming both a current-state concept and a forecast concept together (e.g. the 4th
+  starter prompt) still resolves to `bar` — see "Corrections applied" #17. The original design
+  called for `treemap` here (tile size = one metric, tile color = the other), but
+  `get_top_emitters`'s real result carries exactly one metric (`co2`); there's no second metric to
+  color by. A genuine dual-metric treemap needs a merged result from two tool calls and isn't
+  built — see §12 open item 5.
+
+Both are existing `Chart` kinds, already proven on the dashboard's Overview page — no new chart
+component work, only the kind-selection logic in `ui_selection`.
+
+### 3.2 Widget grid layout (`climate-dashboard-react`)
+
+A turn's widgets render in an explicit `N`-column CSS grid (`AgentPage.tsx`'s
+`widgetColumnCount`), driven directly by widget count, not by an auto-fit/available-width
+calculation: 1, 2, or 3 widgets get that many columns each; 4 widgets deliberately drops to 2
+(a 4-up row reads as cramped at this card size) rather than the naive next step of 4; 5+ caps at
+3 so cards stay legible regardless of how many widgets a turn produces. A single `@media
+(max-width: 768px)` override (the `.agent-widget-grid` class, same `<style>`-tag pattern
+`OverviewPage.tsx`'s hero grid already uses) collapses any column count to 1 on narrow viewports
+— a fixed `repeat(N, 1fr)` grid doesn't shrink its own column count the way `repeat(auto-fit,
+minmax(...))` does (the pattern the starter-prompt grid and mobile-overflow fix use elsewhere in
+this file), so an explicit breakpoint is needed here instead. Live-verified at both a wide
+viewport (a real 4-widget China turn laying out 2×2, not 4-across) and a 500px mobile viewport
+(the same turn collapsing cleanly to one column, no horizontal overflow).
+
+## 4. Starter prompts
+
+Four prompts, rendered as an interactive `Tile` grid (kicker category label, prompt text, arrow
+icon — via the `StarterPromptTile` composition, see "Corrections applied" #3), in a fixed 2x2
+layout (`starterPromptColumnCount`, same "explicit count, not auto-fit" reasoning as the response
+widget grid, §3.2), font sizes reduced a step (one text step smaller for the prompt text) since the
+grid now sits inside a compact panel rather than a full-page section (direct instruction).
+
+**Lives inside `PromptBar` itself, not as a separate element below it** (direct instruction,
+superseding an earlier "idle and empty between turns" approximation): passed as `PromptBar`'s
+`expandedContent` prop (a design system change), a panel that grows from inside the bar's own
+rounded border on focus and collapses on blur-away or submit — see the design system's own
+`PromptBar.stories.tsx` for the interaction contract (`relatedTarget`-based blur handling so a
+tile click doesn't collapse the panel out from under itself; dual collapse paths for
+Enter/Send-triggered vs. externally-triggered submissions). Landing's `autoFocus` means the grid
+is visible immediately on first load, same as before; for the docked bar (no autofocus), the user
+clicks in to reveal it — a real focus-driven interaction now, not an approximated state machine.
+`AgentPage.tsx` no longer tracks "dismissed"/"idle and empty" itself at all; visibility is fully
+owned by `PromptBar`.
+
+| Category | Prompt |
+|---|---|
+| Historical trends | *What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?* |
+| Historical trends | *How has India's emissions grown compared to other countries?* |
+| Forecasts | *What are the top 10 forecasted emitters in 2040?* |
+| Forecasts | *Considering the top 10 emitters now and the forecasted ones in 2040, show the comparative trend for the countries.* |
+
+All four prompts prefill `PromptBar`'s value with the concrete prompt text (no longer a
+`<Country>` placeholder to type over — swapped to real countries, China/India, on direct
+instruction) and focus it, so the user can submit as-is or edit it, e.g. to a different country.
+No separate country picker. Focus now genuinely works, resolving "Corrections applied" #18's
+previously-flagged gap: `PromptBar` exposes its textarea via `forwardRef`
+(`React.forwardRef<HTMLTextAreaElement, ...>`, same pattern `Textarea` itself already used,
+a design system change), so `handleStarterClick` calls `promptBarRef.current?.focus()` directly
+after prefilling. The two forecast prompts previously had no placeholder and submitted
+immediately on click; that was changed (direct instruction) after it read as an inconsistent
+surprise next to the two country-specific rows behaving differently on the same grid — clicking
+any of the four tiles now behaves identically.
+
+`PromptBar`'s `landing`/`docked` variants also no longer differ in width (a design system change)
+— `landing` previously capped at 540px, centered, while `docked` spanned its full container,
+so the bar visibly resized between "before the first submit" and "after" (direct instruction to
+make them match; no documented rationale existed for 540 specifically).
+
+The same `StarterPromptTile` composition is reused for the opinion-guardrail's suggested reframes
+(§6) — one clickable-prompt-card pattern used in two places, not two. Those reframe tiles render
+inline with their own result section, not inside `PromptBar` — but as of correction #27, they
+share this section's exact prefill-and-focus behavior via `AgentPage.tsx`'s `prefillAndFocus`,
+and are additionally gated by `showSuggestedPrompts` (§6) so only the latest, not-yet-superseded
+turn's tiles stay actionable.
+
+*Planned extension: two "Climate context" tiles bring this to a 2×3 grid — see §15.6.*
+
+## 5. Progress indicator
+
+`Progress` (labeled, not `DotTyping`) shows during the `agent`↔`tools` loop. Labels are
+templated per tool, not LLM-generated per call — one entry per tool in the real 14-tool catalog
+(`src/agent/progress_labels.py`, not the illustrative 3-entry excerpt this design doc originally
+sketched).
+
+Total step count isn't reliably known upfront (the plan can adapt mid-turn). Displayed
+percentage is a running estimate, capped at ~90% until `finalize` completes, then jumps to 100%
+— rather than promising a step count the plan might revise. Progress events stream over the same
+channel as the final response (SSE), independent of the `messages`/state channel.
+
+## 6. Guardrails
+
+`guardrail_router` classifies every turn (not just the first) into one of four outcomes:
+
+| Classification | Behavior | Rendering |
+|---|---|---|
+| `off_topic` | Fixed refusal, **no LLM call** — a Python constant, not generated, so it can't drift: *"This assistant is focused on climate emissions data, trend analysis, and forecasts — I can't help with that, but I can answer questions about historical emissions, forecasts, or scenario comparisons."* | `InlineAlert`, no widgets |
+| `opinion` | Declines the subjective ask specifically, offers the nearest data-backed reframe | `InlineAlert` + a `StarterPromptTile` row of `suggested_prompts` (§4) |
+| `general_climate` | Factual climate questions answerable from the model's own knowledge, constrained to factual/data-forward framing, no tool calls | `text`-intent `Card`, no chart |
+| `data_query` | Continues into the `agent`↔`tools` pipeline | `chart`/`grid`/`card` — **never `text`-only**; this is "responses should be completely data driven" made structural, not aspirational |
+
+*Planned extension (Area 2): additional guardrails for climate-context answers and a deterministic caveat channel — see §15.3.*
+
+Every response also carries `scope_notes` (trimming/resolution annotations from the MCP layer,
+plus the call-count-guard notice from §10 when it fires) rendered as an `InlineAlert` above the
+widgets — a distinct visual element, not folded into the narration text.
+
+## 7. State schema
+
+```python
+from typing import Literal, Annotated
+from pydantic import BaseModel
+from langgraph.graph.message import add_messages
+
+class ToolCallRecord(BaseModel):
+    tool_name: str
+    args: dict
+    result: dict | None = None          # raw MCP tool response, incl. scope_note if present
+    progress_label: str                  # templated, e.g. "Fetching historical emissions for India"
+
+class WidgetSpec(BaseModel):
+    intent: Literal["chart", "grid", "card", "text"]
+    chart_kind: Literal["line", "bar", "band", "choropleth", "treemap"] | None = None
+    title: str                           # deterministic, generated from tool args
+    as_of: str | None = None             # deterministic, e.g. "Data as of 2024"
+    source_tool_call: str                # id into tool_calls, for tracing back to raw data
+    props: dict                          # shaped to match the target component's own prop type
+
+class AgentState(BaseModel):
+    messages: Annotated[list, add_messages]     # LLM's own memory -- never rendered as a transcript
+    current_query: str
+    classification: Literal["off_topic", "opinion", "general_climate", "data_query"] | None = None
+    tool_calls: list[ToolCallRecord] = []        # this turn only -- reset at the start of every turn
+    tool_call_count: int = 0                     # this turn only -- bounds the agent/tools loop, §10
+    tool_cache: dict[str, ToolCallRecord] = {}   # whole thread -- never reset, §9
+    scope_notes: list[str] = []
+    widgets: list[WidgetSpec] = []
+    suggested_prompts: list[str] = []            # opinion-pivot reframes, rendered as a Tile row
+    response_text: str = ""
+```
+
+`messages` persisting across turns is the primary re-fetch avoidance mechanism (§9) — a model
+that already saw a country's data two turns ago usually won't re-request it, since it's in
+context. This is separate from, and cheaper than, the explicit cache.
+
+## 8. Node catalog
+
+| Node | Type | Reads | Writes | Routes to |
+|---|---|---|---|---|
+| `guardrail_router` | LLM, structured output | `current_query`, `messages` | `classification` | conditional edge |
+| `off_topic` | Deterministic, no LLM call | — | `response_text` (fixed copy) | `finalize` |
+| `opinion` | LLM | `current_query` | `response_text`, `suggested_prompts` | `finalize` |
+| `general_climate` | LLM, tools unbound | `current_query`, `messages` | `response_text`, `widgets=[{intent:"text"}]` | `finalize` |
+| `agent` | LLM, tools bound (MCP) | `messages`, `tool_calls` | next tool request, or "done" | `tools` (loop) or `ui_selection` |
+| `tools` | Deterministic executor | pending tool call | `tool_calls`, `tool_cache`, `messages`, progress event | back to `agent` |
+| `ui_selection` | Hybrid — templated + one LLM judgment call | `tool_calls` | `widgets` | `compose_response` |
+| `compose_response` | LLM (short) | `widgets`, `scope_notes` | `response_text` | `finalize` |
+| `finalize` | Deterministic | full state | streams `{widgets, response_text, scope_notes, suggested_prompts}`; appends compact assistant-turn summary to `messages` (not full widget payload, to bound context growth) | `END` |
+
+`tool_calls`/`tool_call_count` reset at the start of every turn, before `guardrail_router` runs.
+`tool_cache` is thread-scoped and never resets.
+
+**`ui_selection`'s hybrid nature**: a fixed lookup (§3 table) handles every tool with an
+unambiguous intent — no LLM call. Only `get_country_profile`-shaped results need judgment
+(`KpiStat`-only vs. `KpiStat` + `chart`, based on `current_query`'s phrasing) — the one
+genuinely non-deterministic step in an otherwise templated pipeline.
+
+**Country-argument resolution is inherited for free.** Every `country`/`countries` arg passed to
+an MCP tool already runs through `services/mcp-server`'s `resolution.py` guard before this agent
+ever sees a result — exact match, fuzzy match above threshold, or an explicit `CountryResolutionError`
+tool error below it. `langchain-mcp-adapters`' `MultiServerMCPClient` (default
+`handle_tool_errors=True`) converts that error into a `ToolMessage(status="error")` automatically,
+so `tools` doesn't need special-case handling — the model just sees a normal tool error and can
+retry with a corrected name.
+
+## 9. Tool-call caching
+
+Thread-scoped, keyed by `(tool_name, normalized_args)`. Sorting list-valued args before hashing
+matters — `["China","India"]` and `["India","China"]` should hit the same key.
+
+```python
+def cache_key(tool_name: str, args: dict) -> str:
+    normalized = {k: sorted(v) if isinstance(v, list) else v for k, v in args.items()}
+    return f"{tool_name}:{json.dumps(normalized, sort_keys=True)}"
+
+def tools_node(state: AgentState) -> AgentState:
+    call = get_pending_tool_call(state.messages)
+    key = cache_key(call.tool_name, call.args)
+
+    if key in state.tool_cache:
+        record = state.tool_cache[key]
+        emit_progress_event(f"Reusing: {record.progress_label}")
+    else:
+        result = call_mcp_tool(call.tool_name, call.args)   # MCP client of services/mcp-server
+        record = ToolCallRecord(
+            tool_name=call.tool_name, args=call.args, result=result,
+            progress_label=PROGRESS_LABELS[call.tool_name].format(**call.args),
+        )
+        state.tool_cache[key] = record
+        emit_progress_event(record.progress_label)
+
+    state.tool_calls.append(record)
+    state.tool_call_count += 1
+    state.messages.append(ToolMessage(content=record.result, tool_call_id=call.id))
+    return state
+```
+
+This is a different layer from `get_top_emitters`'s own no-cache-per-call decision at the MCP
+server (that one exists to keep the MCP server stateless across replicas) — this cache lives in
+the agent's thread state and doesn't touch the MCP server's statelessness at all.
+
+**A cache hit still counts toward `tool_call_count` (§10).** Exempting hits would create a
+loophole — a stuck agent could spam free cached calls without ever tripping the guard. The cache
+saves the network round-trip and API cost; it doesn't grant extra loop iterations.
+
+## 10. Call-count guard
+
+```python
+MAX_TOOL_CALLS_PER_TURN = 6  # generous headroom; tune after Stage 2 usage
+
+def route_after_agent(state: AgentState) -> Literal["tools", "ui_selection"]:
+    if not agent_requested_tool_call(state.messages[-1]):
+        return "ui_selection"
+    if state.tool_call_count >= MAX_TOOL_CALLS_PER_TURN:
+        state.scope_notes.append(
+            f"Stopped after {MAX_TOOL_CALLS_PER_TURN} tool calls -- this response may be based on partial data."
+        )
+        return "ui_selection"
+    return "tools"
+```
+
+Hitting the cap force-exits the loop into `ui_selection` with whatever's been gathered — not an
+error state. The notice reuses the existing `scope_notes` → `InlineAlert` rendering path (§6)
+rather than a second "something went wrong" UI pattern.
+
+This one counter transitively bounds total LLM calls per turn: every other node in the graph
+fires at most once by structure (router, opinion, general_climate, `ui_selection`'s judgment
+call, `compose_response`) — `agent`↔`tools` is the only actual cycle, so it's the only place a
+runaway needs guarding.
+
+**Deferred, not designed here**: a session-wide cumulative counter across many turns. This turn-
+level cap doesn't bound total cost across a long conversation. A different kind of guard (cost
+control, not runaway-loop prevention) with its own question of what happens when it's hit —
+left out until real usage shows it's actually needed, rather than designed against a
+hypothetical.
+
+## 11. Dependencies
+
+- [`services/mcp-server/SPEC.md`](../mcp-server/SPEC.md) — the full 14-tool catalog `agent` is
+  bound to, and the `scope_note`/country-resolution-guard conventions this document's
+  `InlineAlert` rendering assumes.
+- Root [`SPEC.md`](../../SPEC.md) §5.22 — the API-layer changes (`scope` param, sovereign-tier gas
+  coverage, `/countries` sovereign count) that `get_historical_emissions`/
+  `get_gas_composition_by_decade` need before `scope="sovereign"` queries work end to end.
+- `syena-design-system`'s `PromptBar`, `ChartCard`, `Chart`, `DataTable`, `Card`/`CardHeader`,
+  `KpiStat`, `Tile`, `InlineAlert`, `Progress`, `Spinner` — all confirmed real, merged, exported
+  as of this document's Step 1 (2026-08-13).
+
+## 12. Open items
+
+1. Multi-widget layout specifics (exact responsive grid breakpoints for 2 vs. 3+ widgets) — not
+   yet pinned down, deferred to Step 4 frontend implementation.
+2. ~~`ui_selection`'s `KpiStat`-vs-`chart` judgment call — implementation not yet decided.~~
+   **Resolved in Step 2**: a dedicated `with_structured_output` call (`_CountryProfileSelection`,
+   `graph.py`'s `ui_selection_node`), separate from the fixed §3 lookup table's deterministic
+   path — kept the two paths distinct rather than folding them together, since only this one
+   tool needs an LLM call at all and mixing it into a shared call would make every other tool's
+   widget-building pay for a judgment it doesn't need.
+3. `PromptBar`'s landing→docked transition animation — no existing shared motion token found in
+   the design system as of this scoping pass; flagged for a future design system session.
+4. Session-wide cumulative call/cost counter (§10) — deferred pending real Stage 2 usage data.
+5. `get_top_emitters`'s bar/choropleth pick (§3.1) is a keyword heuristic on `current_query`
+   (`ui_selection.py`'s `select_top_emitters_chart_kind`), not an LLM call — matches §8's claim
+   that only `get_country_profile` needs one. A genuine dual-metric treemap (current volume vs.
+   forecasted growth, the original design for a query naming both concepts — see "Corrections
+   applied" #17) needs a merged result from `get_top_emitters` + `get_forecast_comparison`, which
+   `ui_selection` doesn't build; revisit if real usage shows this comparison is common enough to
+   justify a two-tool-call widget.
+6. **`ANTHROPIC_API_KEY` storage on the Mac Mini deploy** — ships in the first release
+   as a plain `EnvironmentVariables` entry in `com.ghgemissions.agent.plist` (`chmod 600`,
+   single-user machine — accepted deliberately, on direct instruction, 2026-08-14). The narrow
+   exposure this accepts: any process already running as the same local user can read the key
+   out of the live agent's environment via `launchctl print`/`ps eww`, even though the plist file
+   itself is unreadable to anyone else. Deferred, better option if this machine's threat model
+   ever changes (a second local account, shared access, etc.): store the key in macOS Keychain
+   (`security add-generic-password`) and swap the plist's `ProgramArguments` for a small wrapper
+   script that does `security find-generic-password -w` before exec'ing `uvicorn`, so the plist
+   file never holds the raw value at all. Not designed further than this — revisit only if the
+   deploy's threat model actually changes, not preemptively.
+7. **Per-IP rate limiting inside the agent service** (built as `limits.py`; the sketch below is the design it was built from). Why: every `POST /query` costs a real LLM call, and the only limit in front of it is
+   Cloudflare's Free-plan rate-limit rule on the `syena.io` zone (`rate_limit_10`: one rule for the whole
+   zone, URI Path matching only, **50 requests / 10 s per IP**, 10 s block). That stops floods but not a slow trickle: one query every ~10 s from one
+   IP never trips it and still costs an LLM call each time. Sketch: an in-process sliding-window (or
+   token-bucket) limiter on `/query` only, keyed by client IP — e.g. a few queries per minute plus a cap
+   on concurrent in-flight queries per IP — answering `429` with `Retry-After`, and a friendly message in
+   `AgentPage`. In-memory is enough for this single-process deploy (same trade-off as `MAX_LIVE_THREADS`,
+   Corrections #14: resets on restart). Things to decide first: (a) which client IP to trust — behind the
+   tunnel the peer is loopback, so it means reading `CF-Connecting-IP` *only* when the peer is loopback,
+   never from an arbitrary client; (b) the limits (users may share a campus IP, so per-IP is coarse —
+   consider a higher ceiling or a per-thread limit too); (c) whether to exempt the Access-authenticated
+   admin. Not needed while usage is a handful of known users; revisit if real usage or cost data says so
+   (ties in with item 4, the session/cost counter).
+
+## 13. LLM prompt caching (Anthropic `cache_control`)
+
+Not §9's `tool_cache` (an app-level dict deduping repeated MCP tool calls within a turn) —
+this is Anthropic's own server-side prompt cache, keyed on the raw request bytes sent to the
+Messages API, unrelated to that mechanism.
+
+Only `agent_node` marks a `cache_control` breakpoint (`graph.py`), on its own `SystemMessage`'s
+content block, not the top-level `ChatAnthropic` kwarg — confirmed by reading
+`langchain_anthropic`'s source directly (not assumed): the top-level kwarg only auto-hoists a
+breakpoint for non-direct transports (Bedrock etc.), and this service calls the direct Anthropic
+API. Since Anthropic renders `tools → system → messages`, one breakpoint on the system block
+caches the bound MCP tool schemas *and* the system prompt together.
+
+**Why only this one call site.** Measured against the real deployed `services/mcp-server`: 13
+tools, ~12.5K characters (~3K+ tokens) of descriptions and JSON schemas — comfortably over
+Sonnet's 1024-token cache-eligibility floor. This exact payload repeats on every `agent`↔`tools`
+loop iteration within a turn (up to `MAX_TOOL_CALLS_PER_TURN`, §10) and is identical across every
+user's query, since the tool list never varies. The other five LLM nodes
+(`guardrail_router`/`opinion`/`general_climate`/`ui_selection`/`compose_response`) each carry a
+single-shot prompt — all six prompts in `prompts.py` total under 4KB combined, so individually
+they sit below the caching floor; marking them would add the ~1.25x cache-write premium with no
+read-side payoff.
+
+Verification: the unit test above pins the `cache_control` marker's presence on the request
+`agent_node` builds. Live-verified against the real Anthropic API using the actual deployed
+`services/mcp-server` tool schemas: two identical-prefix calls back to back produced
+`cache_creation_input_tokens=5329, cache_read_input_tokens=0` on the first call and
+`cache_creation_input_tokens=0, cache_read_input_tokens=5329` on the second — the full
+tools+system prefix was written once and read from cache on the repeat.
+
+## 14. Admin LLM provider/model control
+
+Replaces the plist-edit-and-`launchctl`-restart workflow `OLLAMA_EVALUATION.md` previously
+described with a login-gated admin UI. Part of a cross-cutting, app-wide admin capability — see
+root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) §8 for the shared Cloudflare Access application
+this hangs off of and the "each service owns its own admin routes" convention. Everything below
+is this service's own piece of that.
+
+### 14.1 Auth
+
+Two layers. The app verifies the Access token itself (`access_auth.py`): `GET` and `POST /admin/llm` need a valid
+`Cf-Access-Jwt-Assertion` (RS256 only, audience, issuer, `exp` required, keys from the team's JWKS) or get a 403, so a
+dropped edge rule does not expose the model switch. The check fails closed: with either `CF_ACCESS_TEAM_DOMAIN` or
+`CF_ACCESS_AUD` missing, every admin request is refused with 403 and one error is logged.
+
+The edge layer protects the routes with Cloudflare Access — a **login** policy (Google as identity
+provider, one allow-listed email), distinct from `services/mcp-server/SPEC.md` §8's Service Auth
+policy for machine clients. Two path rules under one Access application: the SPA hub page
+(`labs.syena.io/app-prefix/admin`) and this service's admin API
+(`labs.syena.io/app-prefix/agent/admin`). The login itself holds no client
+secret and sets no session cookie of the app's own; the app only validates the token Access adds. Both paths need their own
+Access rule: a login policy answers an unauthenticated request with a 302 to Google, which only a
+real top-level page navigation can usefully follow (a bare `fetch()` cannot) — so the SPA page
+navigation itself is what drives the login and sets the `CF_Authorization` cookie that every
+subsequent same-origin `fetch()` to the admin API then carries automatically.
+
+### 14.2 Allow-list
+
+Exactly two provider/model combos, both validated for this graph's tool-calling path by
+`OLLAMA_EVALUATION.md`'s 30-case battery — not free text:
+
+| id | provider | model | label |
+|---|---|---|---|
+| `anthropic-sonnet` | `anthropic` | `claude-sonnet-5` | Claude Sonnet 5 (Anthropic) |
+| `ollama-qwen14b-ctx8k` | `ollama` | `qwen2.5:14b-ctx8k` | Qwen 2.5 14B (local, 8k ctx) |
+
+`qwen2.5-coder:7b` (tool_calls never populate in `AIMessage`) and `llama3.1:8b` — `llm.py`'s own
+`DEFAULT_OLLAMA_MODEL` — (list-typed tool args serialize as Python-repr strings, 0/4 on the
+production starter prompts) are confirmed broken for this graph and are never exposed here — an
+open text field would let the admin panel silently break tool-calling with no diagnostic visible
+in the UI. `POST /admin/llm` (§14.4) validates the request's `id` against this list at the
+FastAPI layer (422 on a miss); the list itself lives in `src/agent/settings.py`.
+
+### 14.3 Persisted store
+
+`src/agent/settings.py`'s `resolve_active_choice()` precedence: **stored file (if present and
+still on the allow-list) → env vars (`LLM_PROVIDER`/`AGENT_LLM_MODEL`/`LOCAL_LLM_MODEL`, i.e.
+`llm.py`'s existing behavior) → code default** (`ALLOWED_CHOICES[0]`, Sonnet). The file lives
+**outside the repo checkout** (default
+`~/Library/Application Support/ghg-emissions-agent/llm_choice.json`, overridable via
+`AGENT_ADMIN_STORE_PATH` so tests never touch a real machine path), written atomically
+(tempfile + `os.replace`) so a crash mid-write can't corrupt it for the next boot. A malformed
+file, or an off-allow-list `(provider, model)` pair (hand-edited, or written by an older version
+of this code before an allow-list entry was retired), is treated as absent — logged, not raised;
+startup must never fail because of a stale settings file.
+
+**`get_llm()` itself stays env-var-only** (`llm.py`) — the settings-store lookup lives only in
+the admin code path below, never inside `get_llm()`. `get_llm()` gains one additive,
+keyword-only `provider: str | None = None` parameter; called with no arguments it is
+byte-for-byte identical to its pre-admin-panel behavior, so the existing `test_llm.py`/
+`test_llm_smoke.py` hermeticity contract ("Corrections applied" #6 — graph nodes take `llm`
+injected, never resolve config themselves) is unchanged.
+
+### 14.4 Endpoints (`server.py`)
+
+```
+GET  /admin/llm   -> {provider, model, label, updated_at}   # reports the live app.state.llm_choice,
+                                                              # not the file -- they can diverge
+POST /admin/llm   body: {id: <allow-list id>}   -> same shape, or a curated 4xx/5xx on failure
+```
+
+### 14.5 Runtime apply: rebuild-and-swap, not a restart
+
+`build_graph()` mainly constructs an LLM client; MCP tools and the checkpointer don't need
+rebuilding on a pure model swap. `lifespan` captures `app.state.checkpointer` (via
+`_default_checkpointer()` — **never** a bare `MemorySaver()`, needed for the `ToolCallRecord`/
+`WidgetSpec` serde registration "Corrections applied" #13 already requires) and
+`app.state.mcp_tools` once at startup, alongside `app.state.graph` and the resolved
+`app.state.llm_choice`.
+
+`POST /admin/llm`'s handler, guarded by a module-level `asyncio.Lock` (serializes two
+near-simultaneous admin writes — last-write-wins, appropriate for a single-admin-user UI with no
+conflict-resolution UX needed): builds a new graph with the new LLM but the **same** cached
+`mcp_tools` and **same** `checkpointer` instance, then persists the choice, and only swaps
+`app.state.graph`/`app.state.llm_choice` in after **both** succeed — build → persist → swap, not
+build → swap → persist. A swap-then-persist order would let a store-write failure (disk full,
+permissions) leave the process running the new model while the store file still names the old
+one, silently diverging runtime state from what the next restart would resolve to, with no
+signal to the admin that the two had split.
+
+**Carrying the same checkpointer instance forward is the load-bearing correctness requirement
+here** — a rebuild that defaulted to a fresh checkpointer would silently drop every live
+conversation's `messages`/`tool_cache` (§9) on a model switch, with no error surfaced to anyone.
+A failure at either step (unreachable Ollama URL, unknown model, or a failed store write) leaves
+`app.state.graph`/`app.state.llm_choice` untouched — the endpoint returns a curated error naming
+the still-running model and the previous model keeps serving requests, matching this document's
+existing "never leak raw exception text to a public endpoint" convention ("Corrections applied"
+#19's `stream_query` precedent). In-flight requests need no special handling: `get_graph(request)`
+(`server.py`) already resolves `request.app.state.graph` fresh per request, so a swap only
+changes which graph *new* requests see.
+
+### 14.6 Frontend
+
+`climate-dashboard-react/src/pages/AdminPage.tsx` (unlisted route `/admin`, absent from
+`NAV_ITEMS`/`persistentAction` — same precedent as `/ask`, §1) renders one `syena-design-system`-built
+section, `LlmProviderSection`, today; `src/admin/adminClient.ts` calls the endpoints above
+through the existing `agentProxyEntry` Vite proxy — no proxy config change needed.
+
+## 15. Area 2 climate-context capability (Section 3 — planned)
+
+Design written 2026-10-08, docs-first; designed together with the Area 2 tools. Depends on
+`services/mcp-server`'s Area 2 tools (its `SPEC.md` §5.1). Extends §3, §4, §6, §8 and §9 below
+rather than replacing them. No new graph node.
+
+### 15.1 Intent routing: emissions / climate-context / combined
+
+There is no separate router node. Routing is (a) the `guardrail_router` classification and (b) the
+model's tool choice, steered by `AGENT_SYSTEM_PROMPT`:
+
+- **`guardrail_router` change.** Its prompt gains examples so data-shaped relationship questions
+  ("how are emissions related to temperature?", "show CO₂ concentration vs. emissions") classify as
+  `data_query`, **not** `general_climate` (which answers with no tools and would otherwise swallow
+  them). Conceptual questions ("what is radiative forcing?") stay `general_climate`.
+- **"Who is responsible for warming?"** is not an `opinion` decline. It is a `data_query` that the
+  agent answers with `get_country_cumulative_share` and frames as cumulative share of emissions (§15.3
+  rule 3), never as a country's temperature contribution.
+- **Combined questions** ("which countries emit most while warming increases?") use emissions tools
+  and Area 2 tools in one turn; the agent states in its narration which part is country-level and
+  which is a global aggregate.
+- **Call-count guard (§10).** `MAX_TOOL_CALLS_PER_TURN` stays 6. A combined question realistically
+  needs 3–4. Revisit only if live testing shows truncated answers.
+
+### 15.2 Tool → widget mapping (extends §3's table; as built in step 3.4)
+
+`WidgetSpec.chart_kind` is unchanged (`line`/`bar`/`band`/`choropleth`). **Revised 2026-10-08:** the frontend chooses a renderer by tool *name* and wraps the Correlation module's own components with the tool result as props, so the new widgets carry no generic chart kind (`None`) — an earlier draft of this table added `scatter` and `area`, now removed. `props` is the tool's full result, unshaped.
+
+| Tool | Intent | Chart kind / component |
+|---|---|---|
+| `get_emissions_temperature_relationship` | `chart` | none — rendered by the module's headline-relationship component (cumulative-emissions/temperature *pairs* with the fit from `summary.fit`) |
+| `get_ghg_composition` | `chart` over a range, `grid` for a single year | none — the module's gas-composition component; single year → `grid` |
+| `get_country_cumulative_share` | `chart` | `line` for a country series, `bar` for a ranking (decided from `summary.mode`); a series also gets `WidgetSpec.view` (`share_lines` / `cumulative_area` / `share_vs_annual` / `emitted_lines`), chosen per question by a deterministic keyword rule (`select_share_view`) and never stored in the cached result; a ranking has none. A "since YYYY" answer (`summary.since`) is always drawn from the period's own emissions: `cumulative_area` (stacked area rebased to zero before the period, with a Rest of world, OWID only) or `emitted_lines` (one line per country in Gt, any source), never as a lifetime-share chart; a since ranking is Gt bars. The composer prompt carries the rule that a since answer quotes the period figures and keeps the all-time total to one labelled sentence; a World total is claimed only when the result's `denominator.kind` is `world`. Its links carry `from=` where the pages can match the period |
+| `get_scenario_temperature` | `chart` | `line`, BAU/Moderate/Aggressive, with the fossil-only second line |
+| `get_co2_concentration`, `get_temperature_anomaly` | `card` (`KpiStat`) for a "what is it now" ask, else `chart` (`line`) | `select_indicator_intent`: a deterministic keyword heuristic on `current_query` (trend/comparison markers win over "latest"), the same seam as `select_top_emitters_chart_kind` — no LLM call |
+| `get_correlation_metadata` | `grid` | |
+| `get_methodology_notes` | `text` | unchanged |
+
+**Titles are built from the tool *result*, not the args** (the default baseline per source is applied
+server-side, so the args alone do not say what came back), noun-phrased, deterministic:
+
+- headline → `Emissions vs. temperature (headline, 1850–2024)`
+- fossil variant → `Emissions vs. temperature (fossil-only variant, 1850–2024)`
+- any other OWID window → `Emissions vs. temperature (selected window, 1990–2024)` — never "headline"
+- all-gas → `Recent all-gas relationship (1970–2024)` — never "TCRE", never "headline"
+- composition → `Greenhouse-gas mix (1970–2024)` / `Greenhouse-gas mix, 2024`; share → `Top 15 countries by cumulative share of emissions (2024)` / `Cumulative share of emissions -- China, India`; scenarios → `Implied temperature by scenario (illustrative)`; concentration/temperature carry the unit/reference and span.
+
+**`compose_response` sees each Area 2 widget's `summary`** (slope, shares, levels, window…) alongside its
+title; every other widget's `props` stays excluded to bound context size. Without this the narration
+could not quote a figure (the same reason `get_emissions_change_summary`'s title carries its counts,
+"Corrections applied" #33).
+
+### 15.3 Guardrails
+
+1. **Structural caveat channel (as built, `caveats.py`).** After the tools run, `ui_selection_node`
+   appends fixed, per-tool statements to `scope_notes` (rendered as the existing `InlineAlert` above
+   the widgets). Deterministic Python, so a required statement cannot be omitted or drift:
+   the Berkeley preliminary-release note on every temperature-bearing result; the long-run /
+   not-a-climate-model / not-proof-of-cause note on the relationship; the all-gas-is-not-the-headline
+   note when `source=primap_ghg`; the "illustrative, partial-coverage translation" note on scenario
+   temperatures; the composition scope note; the splice note (year read from the result) on
+   concentration; and the country-share tool's own `interpretation_note`. Failed calls contribute
+   nothing; notes are de-duplicated. **Deliberately not a pass-through of each result's raw envelope
+   `caveats`** (a refinement of the 2026-10-08 design): those lists run to
+   seven items per call and carry pipeline-internal and licence prose, some of it already outdated
+   upstream, which does not belong in a user-facing alert. The model still receives the full envelope
+   in the tool result. Known gap: a follow-up turn that answers from earlier context with no new tool
+   call re-attaches no notes.
+2. **No causal overreach.** System-prompt rules: describe correlation as long-run co-movement; say
+   that outcomes depend on multiple physical processes; the regression is a simplified, data-driven
+   analog to TCRE and not a climate model; never present it as a substitute for an Earth-system or
+   integrated assessment model.
+3. **No country attribution.** Never attribute global temperature change to one country from its
+   emissions series. Country questions are answered with cumulative share only, with the tool's own
+   no-attribution caveat.
+4. **Terminology.** The OWID cumulative-CO₂ relationship (1850+) is the "headline long-run
+   relationship"; the PRIMAP-hist 1970+ pairing is the "recent all-gas relationship"; the latter is
+   never called TCRE.
+5. **Say what the answer is based on.** Narration states global aggregate vs. country-level, and
+   historical observation vs. scenario-derived estimate; scenario temperatures are "implied" and
+   "illustrative, partial-coverage translation", not projections.
+6. **Verification.** Three layers. (a) Hermetic unit tests: the caveat table, the payload cap, the
+   prompts' required phrases, and `area2_lint.py` — deterministic checks that flag an all-gas answer
+   called TCRE, warming attributed to a named country, correlation presented as proof, a quoted slope
+   with no preliminary-release note, an unlabelled scenario temperature, or the 5–8% figure quoted as
+   measured (negations such as "never called TCRE" are recognised). (b) Graph-routing tests with a stub
+   LLM. (c) A **manually-run** golden-prompt script, `evals/run_area2.py` (ten prompts: the six starter
+   prompts plus attribution, TCRE, combined, unsupported-baseline and reliability traps), run against a
+   live `api/` + `services/mcp-server` on Sonnet before deploying a prompt or guardrail change; it exits
+   non-zero on any flagged case. It is a script, not a pytest file, because `CLAUDE.md` allows exactly
+   one gated real-network LLM test (`tests/test_llm_smoke.py`). The lint is a coarse net, not proof.
+
+### 15.4 Model-facing payload cap (as built, `payload_cap.py`)
+
+The widget needs the full series; the model does not. In `tools_node`, each result is stored **in
+full** in `ToolCallRecord.result` (the widget's source and the thread cache's value, §9) while the
+`ToolMessage` handed to the model — on both the fresh-call and the cache-hit path — is a capped copy
+(`cap_for_model`, which never mutates its input):
+
+- series tools (`get_co2_concentration`, `get_temperature_anomaly`,
+  `get_emissions_temperature_relationship`): `points` become at most 25 evenly spaced points, first and
+  last always kept, with `points_total`/`points_shown`; the relationship also drops the bulky
+  `land_use_weight_scan` diagnostic;
+- `get_ghg_composition`: `years` likewise (`years_total`/`years_shown`);
+- `get_country_cumulative_share`: each series' `points` likewise, and `remainder_series` (about 175 yearly World totals) is dropped from the model's copy because `summary.rest_of_world` carries what it can quote;
+- `get_correlation_metadata`: per-source prose and URLs (`methodology`, `citations`,
+  `required_citation_format`, `source_urls`, `land_use_license_note`) dropped, licence/coverage/release/
+  caveats kept; `get_methodology_notes`: the weight scan dropped;
+- every other tool (all Stage 1 emissions tools, `get_scenario_temperature`) passes through unchanged.
+
+`summary`, `fit` and the envelope (`note`, `caveats`, `attribution`) are never touched, and a
+`model_view_note` tells the model it is seeing a sample. Applying it to the MCP server instead was
+rejected (mcp-server `SPEC.md` §5.1 convention 3): the server stays consumer-agnostic.
+
+### 15.5 `follow_up_links`
+
+Requirement §3.5 asks for follow-ups "linking into Overview, Forecasts, or Scenario Comparison".
+`suggested_prompts` cannot serve (they prefill the prompt bar and only exist on `opinion` turns), so a
+new field carries real navigation links:
+
+- **State.** `AgentState.follow_up_links: list[FollowUpLink] = []`, reset per turn like `widgets`.
+  `FollowUpLink = {label: str, route: str}`.
+- **Selection is a fixed lookup, not model judgment** (no invented routes), keyed on the tools that
+  ran in the turn, in `follow_ups.py`:
+
+  | Tool ran | Links |
+  |---|---|
+  | `get_co2_concentration`, `get_temperature_anomaly` | Overview (climate signal) → `/overview`; Climate Correlation → `/climate-correlation` |
+  | `get_emissions_temperature_relationship`, `get_ghg_composition` | Climate Correlation → `/climate-correlation`; Overview → `/overview` |
+  | `get_country_cumulative_share` | A series of OWID shares: Historical Trends `/historical?view=cumulative\|share&countries=…` and, for one country, Country Profile `/country-profile?country=…#cumulative`, carrying only countries flagged `in_expanded_scope` (the view follows the question), then Climate Correlation (country view) → `/climate-correlation`; a ranking or a PRIMAP-hist share: Climate Correlation and Overview (top emitters) → `/overview` |
+  | `get_scenario_temperature` | Scenario Comparison → `/scenarios`; Forecasts → `/forecasts` |
+  | `get_historical_emissions`, `get_gas_composition_by_decade` | Historical Trends → `/historical` |
+  | `get_country_profile` | Country Profile → `/country-profile` |
+  | `get_forecast`, `get_forecast_comparison`, `get_forecast_summary`, `get_model_comparison` | Forecasts → `/forecasts` |
+  | `get_scenario_projection`, `get_scenario_cumulative_impact`, `compare_scenarios_across_countries` | Scenario Comparison → `/scenarios` |
+  | `get_top_emitters`, `get_emissions_change_summary` | Overview → `/overview` |
+  | `get_methodology_notes`, `list_countries`, `get_correlation_metadata` | none |
+
+  Emissions-only tools get links too (owner, 2026-10-08), so every data answer ends with a way into the matching dashboard page. At most three links per turn, de-duplicated by route, in the order the tools ran in the turn. Anchors (e.g. an Overview
+  section id) are only used once confirmed to exist in the built page.
+- **Transport.** Added to the final SSE payload next to `suggested_prompts`; `finalize` writes it,
+  `stream_query` forwards it. Absent/empty for existing turns, so the frontend change is additive.
+- **Frontend.** `AgentPage` renders them as a row of link buttons under the latest result only (same
+  "latest, not-yet-superseded turn" gating as `showSuggestedPrompts`, correction #27), using
+  router navigation (`useNavigate`) — in-app, no full reload, and respecting the deploy base path.
+
+**As built (step 3.4, revised):** links carry confirmed hash anchors (e.g. `/climate-correlation#global-relationship`; the all-gas relationship goes to `#recent-all-gas`) and labels follow the design ("Open in …"); a test reads the dashboard's source to verify every path and anchor. `follow_ups.py` holds the lookup (all 18 data tools; `get_methodology_notes`,
+`get_correlation_metadata` and `list_countries` have none), `AgentState.follow_up_links` is reset per turn
+in `_reset_turn_fields`, computed in `ui_selection_node` from the *successful* calls (a failed call yields no
+link), and sent as `follow_up_links: [{label, route}]` in the SSE `result` event (always present, `[]` when
+none). `FollowUpLink` is registered with the checkpointer's serde. A test pins every route to the
+dashboard's real page paths. Anchors are still unused (open item b).
+
+### 15.6 Starter prompts (extends §4)
+
+The grid goes from 2×2 to **2×3** (`starterPromptColumnCount` stays 2; six tiles). Two new tiles,
+category "Climate context", exact text from the owner:
+
+| Category | Prompt |
+|---|---|
+| Climate context | *Show the relationship between cumulative emissions and warming.* |
+| Climate context | *How do temperature outcomes vary based on different emissions pathways?* |
+
+Both resolve to the headline relationship and `get_scenario_temperature` respectively. (Not built in step 3.3; the grid change is step 3.5.) Behavior is
+identical to the existing four (prefill and focus; nothing submits on click).
+
+### 15.7 Provider validation
+
+Area 2 behavior is validated on **Claude Sonnet** (`claude-sonnet-5`). `LLM_PROVIDER=ollama`
+(Qwen) remains selectable in the admin panel (§14) and is kept for testing, but is **not validated
+for climate-context questions** — the guardrail eval (§15.3 rule 6) is run against Sonnet only, and
+`OLLAMA_EVALUATION.md` gains a note to that effect when Area 2 ships. The structural guardrails
+(rules 1 and the follow-up lookup) are provider-independent by construction.
+
+### 15.8 As-built notes for step 3.3 (2026-10-08)
+
+- Built: `payload_cap.py`, `caveats.py`, `area2_lint.py`, the `guardrail_router` / `AGENT_SYSTEM_PROMPT` /
+  `COMPOSE_RESPONSE_SYSTEM_PROMPT` changes, `evals/run_area2.py`, and **progress labels for the seven new
+  tools** (pulled forward from step 3.4: an unlisted tool falls back to "Calling <tool name>", which would
+  show a raw tool name to users, against correction #28).
+- `test_get_tools_lists_all_fourteen` (a real-MCP-subprocess test) had been failing on `main` since the
+  mcp-server grew to 21 tools in steps 3.1–3.2, because those PRs did not run this sub-project's suite.
+  Fixed here and renamed `test_get_tools_lists_every_tool`. Lesson recorded: an mcp-server tool change
+  must also run `services/agent`'s suite.
+- Step 3.4 (2026-10-08) built the widgets/titles for the seven tools and `follow_up_links` (§15.2, §15.5).
+  Not yet built (step 3.5): the frontend. The backend contract is additive: `chart_kind` gains `scatter`/`area`
+  and the `result` event gains `follow_up_links`; an unchanged frontend ignores both, but would render a
+  `scatter`/`area` widget as an unknown kind until 3.5 ships.
+
+### 15.9 Step 3.4 verification and sizes (2026-10-08)
+
+Run end to end against the real `data/climate` output through a real `api/` and `services/mcp-server`
+(scripted LLM choosing the tool, everything else real): all nine Area 2 calls built the expected widget,
+title and links with no errors. Result sizes, full (widget) vs what the model sees after the cap:
+concentration 26→4 KB, temperature 20→6, headline relationship 29→17, all-gas 15→12, composition (1970+)
+33→18, share series 46→16, metadata 32→25; ranking (12) and scenarios (36) are uncapped. The relationship,
+composition and metadata views are still the largest; whether to trim them further (the remaining bulk is
+`fit_context`, the per-year gas rows and per-source fields) is a tuning decision to make after the live
+eval shows what the model actually uses.
+
+- Not yet built (steps 3.4–3.5): widgets for the new tools (`ui_selection`), `follow_up_links`,
+  the frontend. Until 3.4 a data_query that calls only Area 2 tools produces no widget.
+
+### 15.10 Ask-page redesign (2026-10-08)
+
+Amends §3, §4, §15.2, §15.5 and §15.6; implemented in steps 3.4b-3.5d. Where this section and an earlier one disagree, this section wins.
+
+- **Starter prompts (§4, §15.6).** Six prompts in three category columns, prefill-and-focus on click (unchanged behavior): HISTORICAL TRENDS — "What are China's historical emissions trends, and how do they compare to the other top 10 emitters?" / "How have India's emissions grown compared with other countries?"; CLIMATE OUTCOMES (NEW) — "Show the relationship between cumulative emissions and warming." / "How do temperature outcomes vary based on different emissions pathways?"; FORECASTS — "What are the top 10 forecasted emitters in 2040?" / "How do today's top 10 emitters compare with the projected top 10 in 2040?". The 2×3 grid of §15.6 is superseded.
+- **Renderers (§15.2).** `chart_kind` `scatter` and `area` are removed. The seven Area 2 tools get `WidgetRenderer` entries (it dispatches by tool name) that wrap the Correlation module's components with the tool result as props. Widget `intent` stays; titles stay (the deep links and the all-gas/headline labelling are unchanged).
+- **Links (§15.5).** `follow_up_links` routes gain confirmed hash anchors and URL state: relationship -> `/climate-correlation#global-relationship`; scenario temperature -> `/climate-correlation#scenarios` and `/scenarios`; composition -> `#gas-composition`; share -> `#country-view`; all-gas -> `#recent-all-gas`; concentration/temperature -> `/overview#climate-signal`; top emitters -> `/overview#top-emitters`. Labels follow the design ("Open in Historical Trends", "Open China in Country Profile"). State params are defined with the dashboard PR (3.5b); until then the pages ignore them.
+- **Follow-up chips** are a new, separate field of up to three prompts per answer (the design moves the user from emissions toward climate outcomes); chosen by a fixed per-tool lookup, shown above the docked input.
+- **Not adopted:** "click sends the prompt".
+
+### 15.11 Answer-block schema (step 3.5a; written before implementation, 2026-10-08)
+
+Everything below is **deterministic Python from tool results** — no new LLM call, no number typed by hand. The SSE `result` event stays additive (an unchanged frontend ignores the new fields).
+
+**New fields**
+
+| Where | Field | Type | Meaning |
+|---|---|---|---|
+| `result` event / `AgentState` | `kpis` | `list[Kpi]` | The answer's KPI row (≤3). `Kpi = {label, value: float, unit, decimals: int, year: int \| null, sub: str \| null, series: str \| null}`. The frontend formats `value`; `year` is the data year the card is labelled with; `series` names a scenario (`BAU`/`Moderate`/`Aggressive`) so the card can take that series' colour. |
+| `result` event / `AgentState` | `follow_up_prompts` | `list[str]` | ≤3 prompt chips for the docked input (**prompts, not links** — links stay `follow_up_links`). |
+| `WidgetSpec` | `source_line` | `str \| null` | The source/scope line under the chart ("Source: OWID, 1990–2024 · territorial CO₂ from fossil fuels and cement; land-use change excluded"). |
+| `WidgetSpec` | `badge` | `str \| null` | The scenario answer's warning chip text; the frontend decides placement. |
+| `WidgetSpec` | `summary` | `dict \| null` | The widget's key figures (below). Replaces reading `props["summary"]` ad hoc; the compose node quotes it. |
+
+**Lead (`response_text`).** For a scenario-temperature answer with no other data tool in the turn, the lead is deterministic: one sentence from the result's `summary` ("By 2040 the platform's three emissions pathways imply 1.58–1.68 °C above 1850–1900.") followed by the pipeline's own `reading_note` verbatim — so the design's lead is produced from current data, not typed. Every other lead is still composed by the LLM, but `COMPOSE_RESPONSE_SYSTEM_PROMPT` changes from "don't restate numbers" to "state the key figures from each widget's `summary` and the KPIs; do not describe the chart".
+
+**Widget `summary` (key figures)**
+- Area 2 tools: the tool's own `summary` (unchanged).
+- `get_country_profile`: `{country, year, co2_mt, per_capita_t, yoy_pct, first_year, multiple_of_first_year}`.
+- `get_historical_emissions`: `{gas, series: [{name, first_year, first_value, last_year, last_value, rank}]}` (rank by last value; ≤12 series).
+- `get_top_emitters`: `{year, top: [{rank, name, co2}], n_ranked, top_n_share_pct, total_mt}` — the last three need the `get_top_emitters` fields below.
+- Every other tool: none yet.
+
+**KPIs.** `get_country_profile` -> "CO₂ emissions · {year}" (Mt; `sub` = "Largest of {n_ranked} countries"/"#k of {n_ranked}" only when a `get_top_emitters` result in the same turn ranks the country), "Per capita · {year}" (t), "Change vs {year-1}" (%; `sub` "{x}× the {first_year} level"). `get_temperature_anomaly` / `get_co2_concentration` -> the latest reading, labelled with its year. `get_scenario_temperature` -> three cards (final-year implied level, `sub` = annual emissions that year, `series` set). No KPI for other tools.
+
+**`get_top_emitters` additions (mcp-server, additive).** `n_ranked` (countries with data that year), `total_mt` (sum over them), `top_n_share_pct`. Needed for "Largest of 218" and "the top 10 are 71% of the total".
+
+**Source lines** — a fixed per-tool template filled from the result (never the mock): OWID emissions tools state "territorial CO₂ from fossil fuels and cement; land-use change excluded" (**this answers the designer's open question about land use** — OWID's `co2` column excludes it; the headline relationship is the one place land use is included, and its line says so); Area 2 lines name the source and the reference/window (NOAA GML spliced to Law Dome at the splice year; Berkeley Earth, preliminary release; PRIMAP-hist, CO₂e, excluding land use and international transport). Tools with no chart (methodology, metadata) have none.
+
+**Badge.** `get_scenario_temperature` -> "Illustrative · implied outcomes, not climate-model projections".
+
+**Follow-up prompts** — a fixed per-tool lookup of answerable prompts that move from emissions toward climate outcomes (e.g. after a country trend: that country's share of historical emissions, the relationship between cumulative emissions and warming, the 2040 forecasts), skipping any equal to the current query and any whose tool already ran this turn; ≤3, de-duplicated, stable order.
+
+**Out of scope for 3.5a:** the frontend; URL state on the dashboard pages; summaries for the forecast/scenario Stage 1 tools; the "How this is calculated" card (built by the frontend from the result's `fit`/`fit_context`, already in the payload).
+
+**As built (step 3.5a, 2026-10-08).** Everything above is implemented as specified, in `summaries.py`, `kpis.py`, `source_lines.py`, `follow_up_prompts.py` and the wiring in `graph.py`/`server.py`; `AgentState` gains `kpis` and `follow_up_prompts`, `WidgetSpec` gains `source_line`, `badge` and `summary`, and `Kpi` is registered with the checkpointer's serde. Notes from running it end to end against the real API, MCP server and graph:
+
+- The design's China row is reproduced from data: 12,289 Mt, 8.66 t, +1.0% vs 2023, "4.9× the 1990 level", and the top 10's share is **71.1%** of a 37,398 Mt total (both match the design).
+- **"Largest of 215 countries", not 218.** The design's "218" is the sovereign-country count; the rank is among countries with data in that year (`n_ranked` = 215). The data-driven number is used because it is the one the rank is actually computed over.
+- The scenario answer's lead is generated from current data ("By 2040 the platform's three emissions pathways imply 1.58–1.68 °C above 1850–1900." + the pipeline's `reading_note`), replacing the design's stale 1.68–1.79 °C.
+- A turn where the scenario translation is the only data result makes **no compose LLM call**.
+- The compose payload now carries each widget's `summary` and the `kpis`; `source_line`, `badge` and `props` are excluded from it.
+- Not done here (steps 3.4b-3.5d): the "--"/"CO2" title fixes, the "Top 10 emitters (selected year)" title (it reads the year from args, not the result), and the duplicate single-country chart; the frontend; dashboard URL state.
+
+### 15.12 Ask-page polish (step 3.4b)
+
+The agent-side half of the design review's independent fixes (the MCP half, `get_top_emitters` defaulting to the latest year, shipped in that PR):
+
+- **Top-emitters year.** `AGENT_SYSTEM_PROMPT` tells the model to leave `year` out unless the user names one; the widget title and the progress label read the year from the *result* ("Top 10 emitters (2024)"; "for the latest year"), and show the count actually returned.
+- **Typo-proof headers.** The profile card's title uses the resolved country from the result, not the raw argument ("China emissions profile", not "Chinaa …").
+- **Typography.** User-facing titles, scope notes and the off-topic message use "–" in place of "--", and "CO₂" in place of "CO2" (progress label, composition note). A test fails if a title or note regresses. Text that is written for the model, not shown to users (tool-message errors, docstrings), is unchanged; the MCP tools' own methodology and note strings still contain plain "CO2" (separate sub-project).
+- **No duplicate single-country chart.** When a successful `get_historical_emissions` in the turn already charts the profile's country (matched on the resolved name, so typos still match), the profile contributes its KPI card only, and the "chart or card?" LLM judgment call is skipped. A historical chart for *other* countries, or no historical call at all, leaves the existing behaviour (§8 `ui_selection`) untouched.
+
+### 15.13 Link URL state (follow-up to step 3.5b)
+
+`follow_up_links` routes now carry the URL state the dashboard pages read: Historical Trends `?countries=` (repeated, the resolved names from the result, at most 10) and `?gas=` (only when not the default `co2`); Scenario Comparison `?countries=` (from `compare_scenarios_across_countries`' own `countries`); Country Profile `?country=` (the resolved name, not a typo); Overview `?year=` (only when the user named a year, so a link never pins an answer to a year that is no longer the latest). A parameter equal to the page's default is omitted. **A historical link carries only the countries the page can show**: the MCP tool marks each series `in_expanded_scope` (the pickers validate against the expanded list and fall back to their defaults for names they don't know, so carrying others would open a different view), and the link carries exactly the flagged names — an explicit China at sovereign scope still links. With no flag (an older MCP build) it falls back to the scope: sovereign carries none, anything narrower carries all. The `gas` is carried regardless. The scenario and profile tools resolve names against the expanded scope in the MCP server, so their links are unaffected. **No year range** is carried — no page has a range control. Forecasts has no URL state, so its links stay bare. A test scrapes the parameter names and the pages that call the hooks from the dashboard's own source, so a rename there fails here.
+
+### 15.14 Step 3.5d-1 additions (2026-10-08)
+
+ When the deterministic scenario lead already carries the pipeline's `reading_note` (all three pathways shown, scenario the only data result), the scenario widget's `summary` gains `lead_includes_reading_note: true`, so the frontend's embedded scenario section drops its own "Reading note" panel instead of printing the same paragraph a second time. Absent when the lead is composed across tools. `evals/preview_server.py` serves the real app with a stand-in LLM that picks tools from the question (a review aid for the Ask page; its plans are tested against the starter prompts and chips).
+
+### 15.15 Live-walkthrough fixes (step 3.6)
+
+Two starter-prompt answers were weak on the live agent; both are fixed by computing the figures deterministically (the model only phrases them):
+
+- **Forecast ranking.** `get_forecast_summary` gained a `rank_by` argument (mcp-server SPEC §5), and `summaries._forecast_summary` now gives the widget a `summary` -- `ranked_by`, `unit`, and the ten countries in that order with 2030/2040/2020 figures. `kpis._forecast_kpis` adds the three largest 2040 forecasts as cards, **only** when the ranking is by `forecast_2040` or nothing was capped (a cap by 2020 actuals would make the top three a guess).
+- **Cumulative units.** `get_emissions_temperature_relationship`'s summary states `pair_unit` (the raw points are in Mt) and a `cumulative` block already in GtCO₂ (rounded), so the lead never converts Mt itself (the model had written "2,751,504 GtCO₂", 1000x too high). `kpis._relationship_kpis` adds Cumulative emissions, Warming and Slope cards from the summary (slope with its 95% interval and R² in the sub-line).
+

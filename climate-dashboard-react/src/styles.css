@@ -1,0 +1,30 @@
+/* Overview's map card gets the brand color as its own accent top rule, pairing with the two
+   accent-secondary/-tertiary rules OverviewPage.tsx applies to the hero row's other two cards --
+   the map reads as the "primary" of the three metric groups. Falls back to transparent if the token
+   is ever undefined, same as the other two rules. */
+.overview-map-card {
+  border-top: 3px solid var(--syn-color-accent-fill, transparent);
+  border-radius: 8px;
+}
+
+/* A link or anchor drawn as a button (the landing page's calls to action, the CSV download), on the system's tokens. */
+.app-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--syn-space-2);
+  min-height: var(--syn-layout-control-height); padding: 0 var(--syn-space-5);
+  border: var(--syn-layout-border-hairline) solid transparent; border-radius: var(--syn-radius-control);
+  font: var(--syn-type-text-md-weight) var(--syn-type-text-md-size) / var(--syn-type-text-md-line) var(--syn-type-text-md-family);
+  text-decoration: none; cursor: pointer;
+}
+.app-cta--primary { background: var(--syn-color-accent-fill); color: var(--syn-color-text-on-accent); }
+.app-cta--primary:hover { background: var(--syn-color-accent-hover); }
+.app-cta--secondary { background: transparent; color: var(--syn-color-text-primary); border-color: var(--syn-color-border-emphasis); }
+.app-cta--secondary:hover { background: var(--syn-color-surface-overlay); }
+.app-cta--l { min-height: var(--syn-layout-control-height-touch); }
+.app-cta--s { min-height: var(--syn-layout-control-height-sm); padding: 0 var(--syn-space-4); }
+.app-cta:focus-visible { outline: var(--syn-layout-focus-ring-width) solid var(--syn-color-focus-ring); outline-offset: 2px; }
+
+/* Area 2 surfaces: theme-aware amber (the "illustrative" chips, the vintage caveat) and link colours. Muted text is NOT
+   handled here: it is the shared --syn-color-text-muted token, retuned per theme in the design system to pass AA on every surface it sits on. */
+[data-syn-theme="tidewater"] { --area2-warning: #6E4800; --area2-link: #3F55B8; }
+[data-syn-theme="night"] { --area2-warning: #F5CC80; --area2-link: #9DBBFF; }
+.area2-link, .area2-link:visited { color: var(--area2-link, inherit); }

@@ -1,0 +1,549 @@
+import type { ReactNode } from 'react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, beforeEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { Themed } from '../test/Themed';
+import { api } from '../api/client';
+import { ApiError } from '../api/types';
+import type { MoverRow, OverviewResponse, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
+import type { CorrelationConcentrationResponse, CorrelationCountryShareResponse, CorrelationEmissionsTemperatureResponse, CorrelationTemperatureResponse, SeriesPoint } from '../api/correlationTypes';
+import { useYearAnimation } from '../hooks/useYearAnimation';
+import { FORECAST_END_YEAR } from '../constants';
+import LandingPage from './LandingPage';
+
+vi.mock('../api/client', () => ({
+  api: { overview: vi.fn(), worldMapSeries: vi.fn(), correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn(), correlationCountryShare: vi.fn() },
+}));
+vi.mock('../hooks/useYearAnimation');
+
+// Globe's canvas/d3 rendering is the design system's own concern (its own stories) -- stubbed, but it
+// surfaces the props this page wires so a test can assert them.
+vi.mock('@syena/ds', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    Globe: (props: Record<string, unknown>) => (
+      <div
+        data-testid="globe"
+        data-iso={Object.keys(props.values as Record<string, number>).join(',')}
+        data-values={JSON.stringify(props.values)}
+        data-value-label={String(props.valueLabel)}
+        data-unit={String(props.unit)}
+        data-auto-rotate={String(props.autoRotate)}
+        data-turn-period={String(props.turnPeriod)}
+        data-compact={String(props.compact)}
+        data-labels={JSON.stringify(props.labels)}
+        aria-label={String(props.ariaLabel)}
+      >
+        {props.caption as ReactNode}
+      </div>
+    ),
+  };
+});
+
+beforeAll(() => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {},
+    addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false, onchange: null,
+  }));
+});
+
+const mover = (country: string, from: number, to: number): MoverRow => ({
+  country, co2_1990: from, co2_latest: to, absolute_change: to - from, pct_change: ((to - from) / from) * 100,
+});
+
+const tier = (label: OverviewTierMetrics['label'], count: number, byYear: number[]): OverviewTierMetrics => ({
+  label, countries_count: count, latest_year: 2024, latest_co2_total: byYear[byYear.length - 1], co2_1990_total: byYear[0],
+  pct_change_since_1990: ((byYear[byYear.length - 1] - byYear[0]) / byYear[0]) * 100,
+});
+
+// Three years, four countries. World totals are the column sums, as in the real API.
+const MAP: WorldMapTimeSeries = {
+  iso_codes: ['AAA', 'BBB', 'CCC', 'DDD'],
+  countries: ['Alpha', 'Beta', 'Gamma', 'Delta'],
+  years: [2022, 2023, 2024], // contiguous, as in the real API (the page indexes by year - firstYear)
+  values: [
+    [100, 50, 10, 90],
+    [100, 120, 12, 40],
+    [100, 300, 12, 15],
+  ],
+  value_range: [1, 300],
+};
+const WORLD = MAP.values.map((row) => row.reduce<number>((s, v) => s + (v ?? 0), 0)); // 250, 272, 427
+// The "N% of the world's CO₂" shares are of the WORLD total, which holds more than the countries (international aviation and shipping): here 25% more.
+const WORLD_OVER_COUNTRIES = 1.25;
+const worldShareResponse = (years: number[], over = WORLD_OVER_COUNTRIES) => ({
+  remainder_series: years.map((year, i) => ({ year, world_cumulative_mt: 1, world_annual_mt: WORLD[i] * over, cumulative_mt: 0, share_pct: 0, annual_mt: 0, annual_share_pct: 0, international_transport_cumulative_mt: null, international_transport_annual_mt: null })),
+}) as unknown as CorrelationCountryShareResponse;
+
+function overview(over: Partial<OverviewResponse> = {}, expanded = 12): OverviewResponse {
+  return {
+    all_countries: tier('All Countries', 4, WORLD),
+    expanded_countries: tier('Expanded', expanded, WORLD),
+    selected: tier('Selected', 2, []),
+    selected_country_list: [], latest_year_bar: [], top_movers: [],
+    headline_movers: [mover('Alpha', 100, 100), mover('Beta', 50, 300), mover('Gamma', 10, 12), mover('Delta', 90, 15)],
+    fastest_growth: mover('Beta', 50, 300), largest_reduction: mover('Delta', 90, 15), world_map: [],
+    ...over,
+  };
+}
+
+const ANIMATION = { currentYear: 2023, isPlaying: true, play: vi.fn(), pause: vi.fn(), toggle: vi.fn(), seek: vi.fn(), reducedMotion: false };
+
+function mount(o: OverviewResponse = overview(), m: WorldMapTimeSeries = MAP, anim: typeof ANIMATION = ANIMATION) {
+  vi.mocked(api.overview).mockResolvedValue(o);
+  vi.mocked(api.worldMapSeries).mockResolvedValue(m);
+  vi.mocked(api.correlationCountryShare).mockResolvedValue(worldShareResponse(m.years));
+  vi.mocked(useYearAnimation).mockReturnValue(anim);
+  return render(<Themed><MemoryRouter><LandingPage /></MemoryRouter></Themed>);
+}
+
+beforeEach(() => {
+  // the page also asks for the World totals; tests that care set their own, the rest get a plain 25%-above-the-countries World
+  vi.mocked(api.correlationCountryShare).mockResolvedValue(worldShareResponse(MAP.years));
+});
+afterEach(() => vi.clearAllMocks());
+
+describe('LandingPage', () => {
+  it('shows the headline and a way in while loading, then the sections', async () => {
+    vi.mocked(api.overview).mockReturnValue(new Promise(() => {}));
+    vi.mocked(api.worldMapSeries).mockReturnValue(new Promise(() => {}));
+    render(<Themed><MemoryRouter><LandingPage /></MemoryRouter></Themed>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Where the world’s CO₂ comes from' })).toBeInTheDocument(); // shortened
+    expect(screen.getByRole('status')).toHaveTextContent('Loading');
+    expect(screen.getByRole('link', { name: 'Explore the data' })).toHaveAttribute('href', '/overview');
+  });
+
+  it('keeps the headline and CTA and shows the message when the API fails', async () => {
+    vi.mocked(api.overview).mockRejectedValue(new ApiError(503, 'Data files missing'));
+    vi.mocked(api.worldMapSeries).mockResolvedValue(MAP);
+    render(<Themed><MemoryRouter><LandingPage /></MemoryRouter></Themed>);
+    expect(await screen.findByText('Data files missing')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Explore the data' })).toBeInTheDocument();
+  });
+
+  it('computes the hero KPIs, eyebrow and lede from the API responses (no literals)', async () => {
+    mount();
+    expect(await screen.findByText('OUR WORLD IN DATA CO₂ · 2022–2024 · 4 countries', { exact: false })).toBeInTheDocument();
+    // +70.8% since 2022 -> "more than two-thirds"; the four fixture countries are 80% of the World total (international transport is the rest), so the top-10 share is 80% (same figure as the race heading's)
+    expect(screen.getByText('Global CO₂ emissions have grown by more than two-thirds since 2022, and the 10 largest emitters now account for 80% of the total.')).toBeInTheDocument();
+    expect(screen.getByText('427')).toBeInTheDocument(); // latest_co2_total
+    expect(screen.getByText('MtCO₂ in 2024, all countries')).toBeInTheDocument();
+    expect(screen.getByText('+70.8%')).toBeInTheDocument(); // (427-250)/250
+    expect(screen.getByText('Change since 2022')).toBeInTheDocument();
+    expect(screen.getByText('Countries in the Expanded set').previousElementSibling).toHaveTextContent('12');
+    // Only ETS carries 2043 forecasts in the UI -- the lede must not credit regression/RF with them.
+    expect(screen.queryByText(/regression and Random Forest/)).not.toBeInTheDocument();
+  });
+
+  it('feeds the globe the animation year\'s values by country, in MtCO₂, turning once every 30 seconds', async () => {
+    mount();
+    const globe = await screen.findByTestId('globe');
+    expect(globe).toHaveAttribute('data-iso', 'AAA,BBB,CCC,DDD');
+    expect(JSON.parse(globe.dataset.values!)).toEqual({ AAA: 100, BBB: 120, CCC: 12, DDD: 40 }); // currentYear 2023 is the second row
+    expect(globe).toHaveAttribute('data-value-label', 'CO₂ (MtCO₂)');
+    expect(globe).toHaveAttribute('data-unit', 'MtCO₂');
+    expect(globe).toHaveAttribute('data-turn-period', '30');
+    expect(globe).toHaveAttribute('data-auto-rotate', 'true');
+  });
+
+  it('asks the globe to turn while it is on screen, playing or paused (the globe itself stays still for a reader who prefers reduced motion)', async () => {
+    const { unmount } = mount();
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'true');
+    unmount();
+    const paused = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'true'); // Pause stops the years, not the turning
+    paused.unmount();
+    // The reduced-motion hook of the years does not decide the turning: the design system's globe never turns for that reader.
+    mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true });
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'true');
+  });
+
+  it('describes only ETS as the source of the 2043 forecasts in the feature card', async () => {
+    mount();
+    expect(await screen.findByText(/^ETS\(A,Ad,N\) forecasts to 2043 for all 12 Expanded countries, with 95% confidence bands, benchmarked against Linear Regression and Random Forest\.$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Random Forest and ETS/)).not.toBeInTheDocument();
+  });
+
+  it('shows the year/total once while paused: the caption is handed to the globe, which draws it under the picture', async () => {
+    mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
+    const globe = await screen.findByTestId('globe');
+    expect(within(globe).getByText('all countries')).toBeInTheDocument(); // the stub draws the caption as the globe does
+    expect(screen.getAllByText('all countries')).toHaveLength(1);
+    expect(screen.getByText('272 MtCO₂')).toBeInTheDocument(); // the animation's current year (2023) total, from the series itself
+  });
+
+  it('while the globe plays, the total, year slider and the largest emitters\' labels all stay', async () => {
+    mount(); // ANIMATION is playing
+    const globe = await screen.findByTestId('globe');
+    expect(JSON.parse(globe.dataset.labels!).map((l: { id: string }) => l.id)).toEqual(['BBB', 'AAA', 'DDD', 'CCC']); // labels stay while it spins; the largest of the year, up to five
+    expect(screen.getByText('272 MtCO₂')).toBeInTheDocument();
+    expect(screen.getByText('all countries')).toBeInTheDocument();
+    expect(screen.getByRole('slider')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+  });
+
+  it('when the globe is not spinning the labels are still shown, with everything else unchanged -- also under reduced motion, which starts paused', async () => {
+    const labelIds = (el: HTMLElement) => JSON.parse(el.dataset.labels!).map((l: { id: string }) => l.id);
+    const { unmount } = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
+    const globe = await screen.findByTestId('globe');
+    expect(labelIds(globe)).toEqual(['BBB', 'AAA', 'DDD', 'CCC']);
+    expect(screen.getByRole('slider')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    unmount();
+    mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true });
+    expect(labelIds(await screen.findByTestId('globe'))).toEqual(['BBB', 'AAA', 'DDD', 'CCC']);
+  });
+
+  it('asks the API for the globe\'s 1970 range and keeps the 1990-based view for the rest of the page', async () => {
+    mount();
+    await screen.findByTestId('globe');
+    expect(api.worldMapSeries).toHaveBeenCalledWith(1970);
+  });
+
+  it('picks the three stories from the headline movers, with their figures and deep links', async () => {
+    mount();
+    const stories = await screen.findByRole('heading', { name: /three stories in 3 years of data/i });
+    const section = stories.closest('section')!;
+    expect(within(section).getByText('Among the 4 largest emitters of 2024, 2022 → 2024.')).toBeInTheDocument();
+    const cards = within(section).getAllByRole('article');
+    expect(cards).toHaveLength(3);
+    expect(within(cards[0]).getByText('Beta · largest absolute rise')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('+250')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('Beta · fastest growth')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('+500.0%')).toBeInTheDocument();
+    expect(within(cards[2]).getByText('Delta · steepest decline')).toBeInTheDocument();
+    expect(within(cards[2]).getByText('−83.3%')).toBeInTheDocument();
+    expect(within(cards[0]).getByRole('link', { name: 'Open Beta’s profile →' })).toHaveAttribute('href', '/country-profile?country=Beta');
+    expect(within(cards[1]).getByRole('link', { name: 'See Beta in Historical Trends →' })).toHaveAttribute('href', '/historical?countries=Beta');
+    expect(within(cards[2]).getByRole('link', { name: /See % change on the Overview/ })).toHaveAttribute('href', '/overview#pct-change');
+  });
+
+  it('drops the decline card (and retitles the section) when nothing declined', async () => {
+    mount(overview({ headline_movers: [mover('Alpha', 10, 20), mover('Beta', 10, 15)] }));
+    expect(await screen.findByRole('heading', { name: /two stories in 3 years of data/i })).toBeInTheDocument();
+    expect(screen.queryByText(/steepest decline/i)).not.toBeInTheDocument();
+  });
+
+  it('renders no stories section at all when no mover has usable figures', async () => {
+    mount(overview({ headline_movers: [{ country: 'X', co2_1990: null, co2_latest: null, absolute_change: null, pct_change: null }] }));
+    await screen.findByTestId('globe');
+    expect(screen.queryByRole('heading', { name: /stories/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the real final-year top ranking and its share of the world total', async () => {
+    mount();
+    const race = (await screen.findByRole('heading', { name: /countries, \d+% of the world’s co₂/i })).closest('section')!;
+    // Final year (no autoplay without IntersectionObserver): 300+100+15+12 = 427 of a World total of 427 × 1.25 -> 80%.
+    expect(within(race).getByRole('heading', { name: '10 countries, 80% of the world’s CO₂' })).toBeInTheDocument();
+    const list = within(race).getByRole('list', { name: /largest emitters in 2024/i });
+    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Beta: 300 (56.2%)', 'Alpha: 100 (18.7%)', 'Delta: 15 (2.8%)', 'Gamma: 12 (2.2%)', // each country's share of the World total (533.75): 300/533.75 = 56.2%
+    ]);
+    expect(within(race).getByText(/bar length on a fixed 0–300 scale/)).toBeInTheDocument();
+  });
+
+  it('claims no share of the world, in the hero or the race, when the World totals are unavailable (never one against the sum of the countries)', async () => {
+    mount();
+    vi.mocked(api.correlationCountryShare).mockRejectedValue(new ApiError(503, 'unavailable'));
+    cleanup();
+    render(<Themed><MemoryRouter><LandingPage /></MemoryRouter></Themed>);
+    expect(await screen.findByRole('heading', { name: '10 countries' })).toBeInTheDocument();
+    expect(screen.queryByText(/account for \d+% of the total/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/of the world’s CO₂/)).not.toBeInTheDocument();
+  });
+
+  it('follows the fixture for counts in feature/CTA copy rather than literals', async () => {
+    mount(overview({}, 7));
+    expect(await screen.findByText(/for all 7 Expanded countries/)).toBeInTheDocument();
+    expect(screen.getByText(/any of the 7 Expanded countries/)).toBeInTheDocument();
+    expect(screen.getByText(/Compare any 10 of 7 countries/)).toBeInTheDocument();
+    expect(screen.getByText(/cumulative 2025–2040 totals/)).toBeInTheDocument();
+  });
+
+  it('links every dashboard page from the feature cards, About excluded, plus the agent', async () => {
+    mount();
+    const features = (await screen.findByRole('heading', { name: 'Everything you need to read the trend' })).closest('section')!;
+    const hrefs = within(features).getAllByRole('link').map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/overview', '/historical', '/country-profile', '/data-explorer', '/climate-correlation', '/forecasts', '/scenarios', '/ask']);
+  });
+});
+
+
+// ---------------------------------------------------------------- Area 2: climate-signal carousel
+
+const env = { schema_version: 1, generated_at: null, note: '', caveats: [], attribution: [], source_vintage: null };
+const sp = (year: number, value: number | null): SeriesPoint => ({ year, month: null, value, uncertainty: null, deseasonalized: null });
+const indicator = { id: 'i', name: 'i', unit: 'u', kind: 'level', decimals: null, description: null };
+const PAIR: CorrelationEmissionsTemperatureResponse = {
+  ...env, source: 'owid_co2', variant: 'total', baseline: 'preindustrial', window: [1850, 2024], x: indicator, y: indicator, n_years: 175,
+  points: [{ year: 1850, cumulative_emissions: 2_910, temperature: -0.13 }, { year: 1950, cumulative_emissions: 900_000, temperature: 0.1 }, { year: 2024, cumulative_emissions: 2_751_504, temperature: 1.62 }],
+  omitted_years: [], fit: { slope: 0.5196, ci95_hac: [0.48, 0.559], r_squared: 0.9, n_years: 175, start: 1850, end: 2024, unit: '°C per 1,000 GtCO2' }, fit_context: {}, warnings: [], notes: [],
+};
+const SERIES = (points: SeriesPoint[]): CorrelationTemperatureResponse & CorrelationConcentrationResponse => ({
+  ...env, indicator, view: 'level', baseline: null, resolution: 'annual', start_year: null, end_year: null, coverage: null, points, notes: [], details: {},
+});
+
+function mountWithClimate(anim: typeof ANIMATION = ANIMATION, temperature = SERIES([sp(2023, 1.5), sp(2024, 1.617)])) {
+  vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
+  vi.mocked(api.correlationTemperature).mockResolvedValue(temperature);
+  vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424.6), sp(2025, 427.35)]));
+  return mount(overview(), MAP, anim);
+}
+
+describe('LandingPage — climate-signal carousel', () => {
+  it('does not spin the globe while its carousel slide is the hidden one (a hidden slide still intersects the viewport)', async () => {
+    mountWithClimate();
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    // The climate banner is showing; the emissions hero is mounted but inactive, even though Play is "on".
+    expect(within(region).getByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+  });
+
+  it('keeps the banner KPI in step with its chart: it reads the chart\'s last point (2024) even when the temperature series runs on to 2025', async () => {
+    mountWithClimate(ANIMATION, SERIES([sp(2024, 1.55), sp(2025, 1.45)]));
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    const banner = region.querySelector('.climate-banner') as HTMLElement;
+    await within(banner).findByText('2024, vs 1850–1900');
+    expect(within(banner).getByText('+1.62 °C')).toBeInTheDocument(); // the paired point the chart labels, not the series' newer 2025 value
+    expect(within(banner).queryByText('+1.45 °C')).not.toBeInTheDocument();
+    expect(within(banner).queryByText(/\(latest\)/)).not.toBeInTheDocument();
+  });
+
+  it('shows a two-slide carousel: the climate signal first (figures from the API, each with its own year), the existing hero second', async () => {
+    mountWithClimate();
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    expect(region).toHaveAttribute('aria-roledescription', 'carousel');
+    const slides = [...region.querySelectorAll('[aria-roledescription="slide"]')];
+    expect(slides.map((s) => s.getAttribute('aria-label'))).toEqual(['1 of 2: Climate signal', '2 of 2: Where CO₂ comes from']);
+    expect(screen.getByRole('heading', { level: 1, name: 'Warming tracks the CO₂ we’ve accumulated' })).toBeInTheDocument();
+    const banner = region.querySelector('.climate-banner') as HTMLElement;
+    expect(within(banner).getByText('+1.62 °C')).toBeInTheDocument();
+    expect(within(banner).getByText('2024, vs 1850–1900')).toBeInTheDocument();
+    expect(within(banner).getByText('424.6 ppm')).toBeInTheDocument(); // the pair's last year (2024), not the newer 2025 value, so the row shares the chart's year
+    expect(within(banner).getByText('Atmospheric CO₂, 2024')).toBeInTheDocument();
+    expect(within(banner).getByText('0.52 °C')).toBeInTheDocument();
+    expect(screen.getByText(/over 175 years, warming has followed the cumulative total, not any single year’s emissions/i)).toBeInTheDocument();
+    // the slide hidden from assistive technology is the second (its own H1 is not exposed)
+    expect(screen.queryByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
+    mountWithClimate();
+    const band = await screen.findByRole('region', { name: 'The chain reaction, step by step' });
+    expect(within(band).getAllByRole('listitem').filter((li) => li.getAttribute('aria-hidden') !== 'true')).toHaveLength(4);
+    expect(within(band).getByText('Berkeley Earth', { exact: false })).toBeInTheDocument();
+  });
+
+  it('Banner 1 sends the primary CTA to the Overview climate signal and sends the second button to the correlation module and keeps Forecasts as a link', async () => {
+    mountWithClimate();
+    const primary = await screen.findByRole('link', { name: 'See the climate signal' });
+    expect(primary).toHaveAttribute('href', '/overview#climate-signal');
+    expect(screen.getByRole('link', { name: 'Explore climate correlation' })).toHaveAttribute('href', '/climate-correlation');
+    expect(screen.queryByRole('link', { name: 'Explore the data' })).not.toBeInTheDocument(); // the two buttons no longer both go to the Overview
+    expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
+  });
+
+  it('the two banners are laid out alike: figures, then the button, then Forecasts as a plain text link with an arrow', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const after = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    // Banner 1: metrics, then ctas. Banner 2 used to put its buttons first; now its figures come first too.
+    expect(after(document.querySelector('.climate-banner__metrics')!, document.querySelector('.climate-banner__ctas')!)).toBe(true);
+    expect(after(document.querySelector('.landing-hero .landing-kpi-strip')!, document.querySelector('.landing-hero__ctas')!)).toBe(true);
+    // Forecasts is the same plain link in both (not a second button), in the same words.
+    const link = document.querySelector('.landing-hero__ctas .landing-hero__forecasts') as HTMLAnchorElement;
+    const banner1 = document.querySelector('.climate-banner__forecasts') as HTMLAnchorElement;
+    expect(link).toHaveAttribute('href', '/forecasts');
+    expect(link.textContent).toBe(banner1.textContent);
+    expect(link.textContent).toBe(`Forecasts to ${FORECAST_END_YEAR} →`);
+    expect(link.className).not.toMatch(/button/i);
+    expect(document.querySelector('.landing-hero__ctas')!.querySelectorAll('a')).toHaveLength(2); // the button and the link
+  });
+
+  let savedMatchMedia = window.matchMedia;
+  const restoreMedia = () => { window.matchMedia = savedMatchMedia; }; // not vi.unstubAllGlobals: it would also drop the file's other stubs
+  const stubPhone = (phone: boolean) => { savedMatchMedia = window.matchMedia; window.matchMedia = ((q: string) => ({ matches: phone && q === '(max-width: 640px)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+  const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it('on a phone both banners put their buttons after the picture in the markup, so focus and reading order match what is seen', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate();
+      await screen.findByRole('region', { name: 'Featured' });
+      const climateCtas = document.querySelector('.climate-banner__ctas')!;
+      expect(follows(document.querySelector('.climate-banner__chart')!, climateCtas)).toBe(true);
+      const heroCtas = document.querySelector('.landing-hero__ctas')!;
+      expect(follows(document.querySelector('.landing-hero__globe')!, heroCtas)).toBe(true);
+      // Copy -> picture -> figures -> buttons on both banners; Banner 2's three KPIs give way to two cards after the globe.
+      expect(follows(document.querySelector('.climate-banner__chart')!, document.querySelector('.climate-banner__metrics')!)).toBe(true);
+      expect(follows(document.querySelector('.climate-banner__metrics')!, climateCtas)).toBe(true);
+      expect(document.querySelector('.landing-hero .landing-kpi-strip')).toBeNull();
+      const cards = document.querySelector('.landing-hero__cards')!;
+      expect(follows(document.querySelector('.landing-hero__globe')!, cards)).toBe(true);
+      expect(follows(cards, heroCtas)).toBe(true);
+      expect(cards).toHaveTextContent('+70.8%');
+      expect(cards).toHaveTextContent('80%');
+      expect(cards).toHaveTextContent('From the top 10 emitters, 2024');
+      // The year readout is handed to the Globe as its caption (it renders it under the canvas, before its legend and controls), not placed as a sibling around it.
+      expect(screen.getByTestId('globe')).toContainElement(document.querySelector('.landing-globe-title--block') as HTMLElement);
+      expect(document.querySelectorAll('.landing-hero__ctas')).toHaveLength(1); // rendered once, not duplicated
+    } finally { restoreMedia(); }
+  });
+
+  it('announces the year only while paused (or after a manual seek, which pauses), never while it plays; the caption itself is not a live region', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate({ ...ANIMATION, isPlaying: true });
+      await screen.findByRole('region', { name: 'Featured' });
+      const status = document.querySelector('.landing-hero [role="status"]') as HTMLElement;
+      expect(status).toHaveTextContent(/^$/); // playing: silent
+      // The carousel's own region is polite while it is paused: the caption opts out so it cannot announce each year.
+      expect(document.querySelector('.landing-globe-title--block')).toHaveAttribute('aria-live', 'off');
+    } finally { restoreMedia(); }
+    stubPhone(true);
+    try {
+      cleanup();
+      mountWithClimate({ ...ANIMATION, isPlaying: false });
+      await screen.findByRole('region', { name: 'Featured' });
+      expect(document.querySelector('.landing-hero [role="status"]')).toHaveTextContent('2023: 272 MtCO₂, all countries');
+    } finally { restoreMedia(); }
+  });
+
+  it('on a phone the globe is the full figure (the year readout above it, the whole screen used); above phone width it is the compact one with its caption on the picture', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate();
+      expect(await screen.findByTestId('globe')).toHaveAttribute('data-compact', 'false');
+    } finally { restoreMedia(); }
+    cleanup();
+    stubPhone(false);
+    try {
+      mountWithClimate();
+      expect(await screen.findByTestId('globe')).toHaveAttribute('data-compact', 'true');
+    } finally { restoreMedia(); }
+  });
+
+  it('above phone width the buttons stay beside the copy (before the figures/globe), as on desktop', async () => {
+    stubPhone(false);
+    try {
+      mountWithClimate();
+      await screen.findByRole('region', { name: 'Featured' });
+      expect(follows(document.querySelector('.climate-banner__ctas')!, document.querySelector('.climate-banner__chart')!)).toBe(true);
+      expect(follows(document.querySelector('.landing-hero__ctas')!, document.querySelector('.landing-hero__globe')!)).toBe(true);
+      expect(document.querySelector('.landing-hero .landing-kpi-strip')).not.toBeNull(); // the three KPIs stay with the copy above phone width
+      expect(document.querySelector('.landing-hero__cards')).toBeNull();
+      expect(follows(document.querySelector('.climate-banner__metrics')!, document.querySelector('.climate-banner__chart')!)).toBe(true);
+    } finally { restoreMedia(); }
+  });
+
+  it('states the baseline, the sources and that the chart is context, not a climate model', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    expect(screen.getByText('Baseline 1850–1900 · Berkeley Earth')).toBeInTheDocument();
+    expect(screen.getByText(/shown as context from observed data; not a climate model/i)).toBeInTheDocument();
+    expect(screen.getByText(/Source: Berkeley Earth/)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /scatter chart, one dot per year from 1850 to 2024/i })).toBeInTheDocument();
+  });
+
+  it('the banner\'s baseline chip and source note sit inside the chart panel, which is dark in every theme, so both take the chart-surface colours (contrast regression)', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const panel = document.querySelector('.climate-chart-panel') as HTMLElement;
+    const chip = within(panel).getByText('Baseline 1850–1900 · Berkeley Earth');
+    expect(panel.contains(chip)).toBe(true);
+    expect(chip).toHaveStyle({ color: 'var(--syn-data-text)' });
+    expect(within(panel).getByText(/Source: Berkeley Earth/)).toHaveStyle({ color: 'var(--syn-data-text)' });
+  });
+
+  it('has a Pause button first in tab order; the button alone decides auto-rotate: a manual slide change leaves it on, Pause stops it', async () => {
+    mountWithClimate();
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    const buttons = within(region).getAllByRole('button');
+    expect(buttons[0]).toHaveAccessibleName('Pause automatic rotation');
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(screen.getByRole('button', { name: 'Pause automatic rotation' })).toBeInTheDocument(); // still on
+    expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: /^warming tracks the co₂/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Pause automatic rotation' }));
+    expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
+  });
+
+  it('switches slides with the tab buttons and the arrow keys', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    fireEvent.click(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ }));
+    expect(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ })).toHaveAttribute('aria-current', 'true');
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Featured' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('heading', { level: 1, name: /^warming tracks the co₂/i })).toBeInTheDocument();
+  });
+
+  it('ignores arrow keys pressed in the hero\'s Year slider: they scrub the year and do not switch slides', async () => {
+    mountWithClimate({ ...ANIMATION, isPlaying: false }); // the slider is shown while the globe is paused
+    await screen.findByRole('region', { name: 'Featured' });
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' })); // the hero (with its slider) is now showing
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' }); // the slider handles (and prevents) its own arrow keys
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ })).toHaveAttribute('aria-current', 'true');
+    // the same key from the carousel's own controls does switch
+    fireEvent.keyDown(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('slides sideways: forward (Next, also round from the last slide to the first) enters from the right, back reverses it', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const motion = () => [...document.querySelectorAll('.hero-carousel__slide')].map((s) => s.getAttribute('data-motion'));
+    expect(motion()).toEqual(['rest', 'hidden']);
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(motion()).toEqual(['exit-forward', 'enter-forward']); // 1 leaves left, 2 comes in from the right
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' })); // last -> first wraps, and is still forward
+    expect(motion()).toEqual(['enter-forward', 'exit-forward']);
+    fireEvent.click(screen.getByRole('button', { name: 'Previous slide' }));
+    expect(motion()).toEqual(['exit-back', 'enter-back']); // going back reverses it
+  });
+
+  it('holds the globe animation off while its slide is hidden, and on once it is shown', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const enabledFlags = () => vi.mocked(useYearAnimation).mock.calls.map(([o]) => o.enabled);
+    expect(enabledFlags().at(-1)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(enabledFlags().at(-1)).toBe(true);
+  });
+
+  it('falls back to the existing hero alone, with no carousel, when the climate data fails or is incomplete', async () => {
+    vi.mocked(api.correlationEmissionsTemperature).mockRejectedValue(new ApiError(503, 'climate data missing'));
+    vi.mocked(api.correlationTemperature).mockResolvedValue(SERIES([sp(2024, 1.6)]));
+    vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424)]));
+    mount();
+    await screen.findByTestId('globe'); // the hero itself (the loading placeholder shares its headline)
+    expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'The chain reaction, step by step' })).not.toBeInTheDocument();
+    expect(screen.queryByText('+1.62 °C')).not.toBeInTheDocument();
+  });
+
+  it('stops waiting for a stalled climate request after a bound, shows the existing hero, and ignores a late answer', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveLate: (v: CorrelationEmissionsTemperatureResponse) => void = () => {};
+      vi.mocked(api.correlationEmissionsTemperature).mockReturnValue(new Promise((r) => { resolveLate = r; }));
+      vi.mocked(api.correlationTemperature).mockResolvedValue(SERIES([sp(2024, 1.6)]));
+      vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424)]));
+      mount();
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      expect(screen.queryByTestId('globe')).not.toBeInTheDocument(); // still inside the bound: waiting
+      await act(async () => { await vi.advanceTimersByTimeAsync(3100); });
+      expect(screen.getByTestId('globe')).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
+      await act(async () => { resolveLate(PAIR); await vi.advanceTimersByTimeAsync(100); });
+      expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument(); // no remount, the globe is not restarted
+      expect(screen.getAllByTestId('globe')).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

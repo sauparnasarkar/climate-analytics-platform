@@ -1,0 +1,218 @@
+"""Shared plumbing for the Area 2 ingestion scripts.
+
+Every source script does the same four things -- fetch, parse, validate, record provenance --
+so the generic parts live here: a retrying downloader, a sha256 helper, a provenance store
+(one JSON file, one entry per normalized series) and a `RunReport` that collects the
+"records processed" counts and "deviations from norm" the refresh job logs and alerts on.
+
+Normalized output lands in `data/climate/` (gitignored, like the rest of `data/`), which is
+the store `api/` will read from in Phase 1.2.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import time
+import urllib.request
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+import numpy as np
+import pandas as pd
+from email.utils import parsedate_to_datetime
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CLIMATE_DIR = os.path.join(ROOT, "data", "climate")
+PROVENANCE_PATH = os.path.join(CLIMATE_DIR, "provenance.json")
+# Sources that are shelved for publication (e.g. EDGAR, pending licence) write here, never to CLIMATE_DIR,
+# so nothing the API reads can contain them.
+INTERNAL_DIR = os.path.join(ROOT, "data", "internal")
+NOTICES_PATH = os.path.join(ROOT, "pipeline", "source_notices.json")  # tracked: notices sent to data providers
+
+log = logging.getLogger("pipeline")
+
+USER_AGENT = "climate-emissions-pipeline/1.0 (+https://climate-analytics.syena.io)"
+
+
+@dataclass
+class Fetched:
+    """A downloaded raw source file plus what the server told us about its vintage."""
+
+    url: str
+    content: bytes
+    sha256: str
+    retrieved_at: str  # ISO-8601 UTC
+    last_modified: str | None  # ISO-8601 UTC from the Last-Modified header, if present
+
+    def text(self, encoding: str = "utf-8") -> str:
+        return self.content.decode(encoding, errors="replace")
+
+
+def sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def fetch(url: str, retries: int = 3, timeout: int = 60, backoff: float = 2.0) -> Fetched:
+    """Download `url`, retrying transient failures with exponential backoff. Raises the last
+    error if every attempt fails -- a source being down must fail the run loudly rather than
+    silently leaving yesterday's data in place."""
+    last_exc: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                content = resp.read()
+                lm = resp.headers.get("Last-Modified")
+            last_modified = None
+            if lm:
+                try:
+                    last_modified = parsedate_to_datetime(lm).astimezone(timezone.utc).replace(microsecond=0).isoformat()
+                except (TypeError, ValueError):
+                    last_modified = None
+            return Fetched(url, content, sha256_hex(content), utc_now(), last_modified)
+        except Exception as exc:  # noqa: BLE001 -- retry on any transport/HTTP error
+            last_exc = exc
+            log.warning("fetch %s failed (attempt %d/%d): %s", url, attempt, retries, exc)
+            if attempt < retries:
+                time.sleep(backoff ** attempt)
+    assert last_exc is not None
+    raise last_exc
+
+
+@dataclass
+class RunReport:
+    """What one source's run did: counts and anything outside the norm. Deviations are
+    warnings the refresh job turns into alerts; they do not fail the run on their own
+    (a source that is merely stale is still usable, it just must not be silent)."""
+
+    source: str
+    records: dict[str, int] = field(default_factory=dict)
+    deviations: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)  # known, expected data gaps: logged, never alerting
+
+    def note(self, message: str) -> None:
+        self.notes.append(message)
+        log.info("%s: note: %s", self.source, message)
+
+    def count(self, series_id: str, n: int) -> None:
+        self.records[series_id] = n
+        log.info("%s: %s -> %d rows", self.source, series_id, n)
+
+    def deviate(self, message: str) -> None:
+        self.deviations.append(message)
+        log.warning("%s: DEVIATION: %s", self.source, message)
+
+    def as_dict(self) -> dict:
+        return {"source": self.source, "records": self.records, "deviations": self.deviations, "notes": self.notes}
+
+
+def write_provenance(series_id: str, entry: dict, path: str = PROVENANCE_PATH) -> None:
+    """Upsert one series' provenance entry. The file is rewritten atomically so a crashed
+    run never leaves a half-written store the API would choke on."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    store: dict = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            store = json.load(f)
+    store[series_id] = entry
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(store, f, indent=2, sort_keys=True)
+    os.replace(tmp, path)
+
+
+def require_contiguous_years(years, first: int, last: int, label: str) -> None:
+    """Missing-year validation (an acceptance criterion of every ingestion phase): the series
+    must cover `first..last` with no gaps. A gap raises rather than publishing an incomplete
+    series -- the API returns explicit nulls for genuine source gaps, never a silently short one."""
+    missing = sorted(set(range(first, last + 1)) - set(int(y) for y in years))
+    if missing:
+        shown = ", ".join(map(str, missing[:10])) + (" ..." if len(missing) > 10 else "")
+        raise ValueError(f"{label}: {len(missing)} missing year(s) in {first}-{last}: {shown}")
+
+
+def weighted_coverage(wide: pd.DataFrame) -> pd.Series:
+    """Per year: the share of the previous year's emissions held by areas that still report this
+    year. NaN where the previous year has no emissions (nothing to cover) -- such years pass."""
+    years = list(wide.columns)
+    cov = {}
+    for i in range(1, len(years)):
+        prev, cur = wide[years[i - 1]].clip(lower=0), wide[years[i]]
+        den = prev.sum()
+        cov[years[i]] = prev.where(cur.notna(), 0).sum() / den if den > 0 else np.nan
+    return pd.Series(cov, dtype=float)
+
+
+NOTICE_REQUIRED_KEYS = ("type", "sent_at", "to", "dataset_version_at_notification", "status")
+
+
+def load_source_notices(source: str, path: str = NOTICES_PATH) -> list[dict]:
+    """The notices recorded for `source` in the tracked notices file ([] if none / no file). A malformed
+    entry raises rather than being dropped: a record that silently vanished from provenance is exactly
+    the failure this file exists to prevent."""
+    if not os.path.exists(path):
+        return []
+    entries = json.load(open(path)).get(source, {}).get("notifications", [])
+    for i, n in enumerate(entries):
+        missing = [k for k in NOTICE_REQUIRED_KEYS if k not in n]
+        if missing:
+            raise ValueError(f"{path}: {source} notification #{i} is missing {', '.join(missing)}")
+        try:
+            datetime.fromisoformat(str(n["sent_at"]).replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"{path}: {source} notification #{i} has an invalid sent_at {n['sent_at']!r}") from exc
+    return entries
+
+
+def write_json_atomic(obj, path: str) -> None:
+    """Write-then-replace, so an interrupted run can't leave truncated JSON for monitoring to read."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=2)
+    os.replace(tmp, path)
+
+
+def check_reshape_environment() -> str | None:
+    """Canary for a silent-corruption bug found in Phase 1.2: with numpy 2.2.6 on Python 3.14 (the pinned production
+    stack), `DataFrame.pivot` / `unstack` on a *dense* frame of more than ~32k rows (2**15) returns wrong, duplicated
+    year labels with no error (27,500 rows fine, 41,250 corrupt; numpy >= 2.3.0 fixes it -- verified 2.3.0-2.3.5 and
+    2.5.3 on pandas 2.3.0, and pandas 2.3.3 does NOT fix it with numpy 2.2.6). The pipeline's own code avoids dense
+    reshapes; this reports the environment so it can be fixed before anything else depends on one. Returns a message,
+    or None if reshapes are sound."""
+    import sys
+
+    ny, na = 200, 207  # 41,400 rows: above the threshold
+    df = pd.DataFrame({"year": np.repeat(np.arange(1750, 1750 + ny), na), "area": np.tile(np.arange(na), ny)})
+    df["v"] = np.arange(len(df), dtype=float)
+    want_years, want_col0 = list(range(1750, 1750 + ny)), [float(i * na) for i in range(ny)]
+    for wide in (df.pivot(index="year", columns="area", values="v"), df.set_index(["year", "area"])["v"].unstack("area")):
+        if list(wide.index) != want_years or wide.iloc[:, 0].tolist() != want_col0:
+            return (
+                f"pandas pivot/unstack returns corrupted labels on dense frames over ~32k rows in this environment "
+                f"(pandas {pd.__version__}, numpy {np.__version__}, Python {sys.version.split()[0]}); pipeline code avoids dense reshapes, "
+                f"but any other code that uses one is silently wrong -- upgrade numpy to >= 2.3 (verified: 2.3.5)"
+            )
+    return None
+
+
+def write_text_atomic(text: str, path: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def write_csv_atomic(df, path: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    df.to_csv(tmp, index=False)
+    os.replace(tmp, path)

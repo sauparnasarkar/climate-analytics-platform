@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.ghgemissions.mcpserver__LABEL_SUFFIX__</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__REPO_DIR__/services/mcp-server/.venv/bin/python3</string>
+		<string>-m</string>
+		<string>mcp_server</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__REPO_DIR__/services/mcp-server</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/ghgemissions-mcpserver__LABEL_SUFFIX__.log</string>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/ghgemissions-mcpserver__LABEL_SUFFIX__.error.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>DEPLOY_BASE_PATH</key>
+		<string>/</string>
+		<key>API_BASE_URL</key>
+		<string>http://127.0.0.1:__API_PORT__/api</string>
+		<key>MCP_TRANSPORT</key>
+		<string>streamable-http</string>
+		<key>MCP_SERVER_PORT</key>
+		<string>__MCP_PORT__</string>
+	</dict>
+</dict>
+</plist>

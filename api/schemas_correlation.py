@@ -1,0 +1,211 @@
+"""Response models for `/api/correlation/*`. Kept apart from `schemas.py`, which covers the dashboard endpoints.
+
+Every response carries the common envelope so licence, attribution and the interpretive-context note travel with the numbers.
+"""
+
+from typing import Any
+
+from pydantic import BaseModel
+
+
+class CorrelationEnvelope(BaseModel):
+    schema_version: int = 1
+    generated_at: str | None = None
+    note: str
+    caveats: list[str] = []
+    attribution: list[dict[str, Any]] = []
+    source_vintage: dict[str, Any] | None = None
+
+
+class IndicatorInfo(BaseModel):
+    id: str
+    name: str
+    unit: str
+    kind: str
+    decimals: int | None = None
+    description: str | None = None
+
+
+class SeriesPoint(BaseModel):
+    year: int
+    month: int | None = None
+    value: float | None = None
+    uncertainty: float | None = None
+    deseasonalized: float | None = None
+
+
+class CorrelationSeriesResponse(CorrelationEnvelope):
+    """Shared by /concentration and /temperature."""
+
+    indicator: IndicatorInfo
+    view: str
+    baseline: str | None = None
+    resolution: str = "annual"
+    start_year: int | None = None
+    end_year: int | None = None
+    coverage: list[int] | None = None
+    points: list[SeriesPoint]
+    notes: list[str] = []
+    details: dict[str, Any] = {}
+
+
+CorrelationConcentrationResponse = CorrelationSeriesResponse
+CorrelationTemperatureResponse = CorrelationSeriesResponse
+
+
+class CorrelationMetaResponse(CorrelationEnvelope):
+    sources: list[dict[str, Any]]
+    baselines: dict[str, Any]
+    temperature_offset: dict[str, Any] | None = None
+    two_global_totals: str
+    source_baseline_matrix: list[dict[str, Any]]
+    indicators: list[dict[str, Any]]
+    outputs: dict[str, dict[str, Any]]
+    pipeline_last_run: dict[str, Any] | None = None
+    endpoints: list[str]
+    freshness: dict[str, Any]
+
+
+class PairPoint(BaseModel):
+    year: int
+    cumulative_emissions: float
+    temperature: float
+
+
+class OmittedYear(BaseModel):
+    year: int
+    reason: str
+
+
+class CorrelationEmissionsTemperatureResponse(CorrelationEnvelope):
+    source: str
+    variant: str | None = None
+    baseline: str
+    window: list[int]
+    x: IndicatorInfo
+    y: IndicatorInfo
+    n_years: int
+    points: list[PairPoint]
+    omitted_years: list[OmittedYear] = []
+    fit: dict[str, Any] | None = None
+    fit_context: dict[str, Any] = {}
+    warnings: list[str] = []
+    notes: list[str] = []
+
+
+class GasValue(BaseModel):
+    gas: str
+    name: str
+    mtco2e: float | None = None
+    share_pct: float | None = None
+
+
+class CompositionYear(BaseModel):
+    year: int
+    gases_included: list[str]
+    components_total_mtco2e: float | None = None
+    national_total_mtco2e: float | None = None
+    residual_pct: float | None = None
+    values: list[GasValue]
+
+
+class CorrelationGhgCompositionResponse(CorrelationEnvelope):
+    name: str
+    basis: str
+    units: str
+    gases: list[dict[str, Any]]
+    coverage: list[int] | None = None
+    start_year: int | None = None
+    end_year: int | None = None
+    year: int | None = None
+    years: list[CompositionYear]
+    reconciliation: dict[str, Any] | None = None
+    excluded_incomplete_years: list[int] = []
+    notes: list[str] = []
+
+
+class ShareRow(BaseModel):
+    rank: int
+    country: str
+    name: str
+    cumulative_mt: float
+    share_pct: float
+    # The year's own emissions and share of the national sum; null when the pipeline output predates the columns.
+    annual_mt: float | None = None
+    annual_share_pct: float | None = None
+    # Whether the country is in the ~40-country Expanded set the dashboard's pickers offer (the pipeline's crosswalk flag); null when the output predates it.
+    in_expanded_scope: bool | None = None
+
+
+class SharePoint(BaseModel):
+    year: int
+    cumulative_mt: float
+    share_pct: float
+    annual_mt: float | None = None
+    annual_share_pct: float | None = None
+
+
+class ShareSeries(BaseModel):
+    country: str
+    name: str
+    points: list[SharePoint]
+    # As on ShareRow: lets a client link to a dashboard page only for countries that page's picker can show.
+    in_expanded_scope: bool | None = None
+
+
+class ShareRemainder(BaseModel):
+    """What the World total holds beyond the countries in one year (OWID shares are of the World total): international aviation and shipping plus a small
+    unassigned residual. `share_pct` and `annual_share_pct` are of the World total, so the countries' shares plus this sum to 100."""
+    year: int
+    world_cumulative_mt: float  # the denominator itself (Mt), so a client can compute any share of the World total without summing rows
+    world_annual_mt: float
+    cumulative_mt: float
+    share_pct: float
+    annual_mt: float | None = None
+    annual_share_pct: float | None = None
+    international_transport_cumulative_mt: float | None = None
+    international_transport_annual_mt: float | None = None
+
+
+class CorrelationCountryShareResponse(CorrelationEnvelope):
+    name: str
+    method: str
+    source: str
+    gas_scope: str
+    label: str
+    unit: str
+    mode: str
+    year: int | None = None
+    limit: int | None = None
+    start_year: int | None = None
+    end_year: int | None = None
+    coverage: list[int] | None = None
+    cumulative_from: int | None = None
+    total_cumulative_mt: float | None = None
+    annual_total_mt: float | None = None
+    rows: list[ShareRow] = []
+    series: list[ShareSeries] = []
+    # OWID only: the part of the World total no country holds. `remainder` for a ranking (its year), `remainder_series` for a series (each year of the window). Absent for
+    # PRIMAP-hist, whose denominator is its own country sum, so its shares sum to 100.
+    remainder: ShareRemainder | None = None
+    remainder_series: list[ShareRemainder] = []
+    denominator: dict[str, Any] | None = None
+    reconciliation: dict[str, Any] | None = None
+    details: dict[str, Any] = {}
+    notes: list[str] = []
+
+
+class CorrelationScenarioTemperatureResponse(CorrelationEnvelope):
+    name: str
+    method: str
+    labels: list[str]
+    line: str
+    selected_scenarios: list[str]
+    scenarios: dict[str, list[dict[str, Any]]]
+    assumptions: dict[str, Any]
+    base: dict[str, Any]
+    covered_countries: list[dict[str, Any]]
+    scenario_source: dict[str, Any] | None = None
+    spread: dict[str, Any] | None = None
+    reading_note: str | None = None
+    notes: list[str] = []

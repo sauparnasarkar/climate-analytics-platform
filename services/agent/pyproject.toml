@@ -1,0 +1,47 @@
+[project]
+name = "climate-emissions-agent"
+version = "0.1.0"
+description = "LangGraph conversational agent for the climate-analytics-platform, calling services/mcp-server's tools and rendering results as design system components"
+requires-python = ">=3.11"
+# All rights reserved (see the LICENSE at the repository root): a custom SPDX identifier, and no upload to a package index.
+license = "LicenseRef-Proprietary"
+classifiers = ["Private :: Do Not Upload"]
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain-mcp-adapters>=0.1.0",
+    "langchain-anthropic>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "fastapi>=0.139.2",
+    "uvicorn>=0.34.0",
+    "pydantic>=2.9.0",
+    "httpx>=0.28.1",
+    "sse-starlette>=2.1.0",
+    "pyjwt[crypto]>=2.15.0",  # verifies the Cloudflare Access token on /admin (access_auth.py); 2.15 also clears the 2.13 advisories
+    # Floors for indirect dependencies, raised past known advisories (pip-audit, 2026-10-13): urllib3 < 2.8.0, langgraph-sdk < 0.4.4
+    "urllib3>=2.8.0",
+    "langgraph-sdk>=0.4.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
+    "httpx2>=2.12.0",
+]
+
+[build-system]
+requires = ["setuptools>=83.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]

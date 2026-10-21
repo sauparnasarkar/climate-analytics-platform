@@ -1,0 +1,447 @@
+import type { ReactElement } from 'react';
+import { Card, CardHeader, ChartCard, DataTable, InlineAlert, KpiStat, type DataTableColumn, Chart, type ChartSeries, Choropleth } from '@syena/ds';
+import { MAX_CHART_SERIES } from '../constants';
+import { humanize } from '../lib/humanize';
+import { MarkdownText } from './MarkdownText';
+import {
+  CorrelationMetadataWidget,
+  CountryShareWidget,
+  EmissionsTemperatureWidget,
+  GhgCompositionWidget,
+  IndicatorWidget,
+  ScenarioTemperatureWidget,
+} from './climateWidgets';
+import { SourceLine } from './SourceLine';
+import { toolNameFromSourceTaggedCall } from './types';
+import type { WidgetSpec } from './types';
+import { widgetSource } from '../lib/sources';
+
+// Maps each WidgetSpec to its real design system prop shape (SPEC.md §3/§3.1), keyed on the
+// tool that produced it -- widget.props carries each tool's raw MCP result through unshaped
+// (SPEC.md "Corrections applied" #9), so this is the one place that knows every real tool's
+// response shape (cross-referenced against api/schemas.py and services/mcp-server/src/
+// mcp_server/tools/*.py, not guessed). widget.source_tool_call is `${tool_name}:${json args}`
+// (cache.py's cache_key) -- toolNameFromSourceTaggedCall recovers the tool name from it.
+
+
+function genericColumns(rows: Record<string, unknown>[]): DataTableColumn<Record<string, unknown>>[] {
+  const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
+  return keys.map((field) => ({ key: field, header: humanize(field) }));
+}
+
+function lastDefined<T>(values: T[]): T | undefined {
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (values[i] != null) return values[i];
+  }
+  return undefined;
+}
+
+interface WidgetProps {
+  widget: WidgetSpec;
+}
+
+function ChartWidget({ title, asOf, source, series, xTitle, yTitle, ariaLabel }: { title: string; asOf?: string | null; source: string; series: ChartSeries[]; xTitle?: string; yTitle?: string; ariaLabel?: string }) {
+  return (
+    <ChartCard title={title} source={source} asOf={asOf ?? undefined}>
+      <Chart series={series} xTitle={xTitle} yTitle={yTitle ?? ''} ariaLabel={ariaLabel ?? `Chart: ${title}`} />
+    </ChartCard>
+  );
+}
+
+function GridWidget({
+  title,
+  columns,
+  rows,
+  note,
+}: {
+  title: string;
+  columns: DataTableColumn<Record<string, unknown>>[];
+  rows: Record<string, unknown>[];
+  note?: string;
+}) {
+  return (
+    <Card header={<CardHeader title={title} />}>
+      {note && <InlineAlert variant="default">{note}</InlineAlert>}
+      <DataTable caption={`Table of ${title}`} columns={columns} rows={rows} />
+    </Card>
+  );
+}
+
+// Reported live: a get_historical_emissions call for all ~209 sovereign countries rendered
+// as a single line chart with ~209 series -- an unreadable chart with a legend eating most
+// of the screen. Past MAX_CHART_SERIES, fall back to a summary table instead. Applies to any
+// widget whose series count is driven directly by an agent-supplied country list (not bounded
+// by the tool's own `n` param or a single-country shape) -- see each call site below for why
+// it either needs this guard or is confirmed exempt.
+function seriesChangeSummaryRows(series: Array<{ name: string; values: Array<number | null> }>): Record<string, unknown>[] {
+  return series.map((s) => {
+    const first = s.values.find((v) => v != null) ?? null;
+    const last = lastDefined(s.values) ?? null;
+    const pct_change = first != null && last != null && first !== 0 ? ((last - first) / first) * 100 : null;
+    return { name: s.name, first_value: first, last_value: last, pct_change };
+  });
+}
+
+// `unit` names what `count` actually counts -- HistoricalEmissionsWidget/
+// ForecastComparisonWidget cap on raw series count ("N series"), but
+// CompareScenariosWidget caps on country count ("N countries"); a hardcoded "series" would
+// misstate what the user-visible note is describing for that case.
+function tooManySeriesNote(count: number, unit: 'series' | 'countries' = 'series'): string {
+  return `${count} ${unit} — showing a table instead of a chart for readability.`;
+}
+
+function HistoricalEmissionsWidget({ widget }: WidgetProps) {
+  const props = widget.props as { gas_label?: string; series?: Array<{ name: string; years: number[]; values: Array<number | null> }> };
+  const rawSeries = props.series ?? [];
+  if (rawSeries.length > MAX_CHART_SERIES) {
+    const columns: DataTableColumn<Record<string, unknown>>[] = [
+      { key: 'name', header: 'Country' },
+      { key: 'first_value', header: 'First Value' },
+      { key: 'last_value', header: 'Last Value' },
+      { key: 'pct_change', header: '% Change' },
+    ];
+    return (
+      <GridWidget
+        title={widget.title}
+        columns={columns}
+        rows={seriesChangeSummaryRows(rawSeries)}
+        note={tooManySeriesNote(rawSeries.length)}
+      />
+    );
+  }
+  const series: ChartSeries[] = rawSeries.map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' }));
+  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle={props.gas_label ?? 'CO₂ (Mt)'} />;
+}
+
+function ScenarioProjectionWidget({ widget }: WidgetProps) {
+  const props = widget.props as {
+    historical?: { name: string; years: number[]; values: number[] } | null;
+    scenarios?: Array<{ name: string; years: number[]; values: number[] }>;
+  };
+  const series: ChartSeries[] = [
+    ...(props.historical ? [{ name: props.historical.name, x: props.historical.years, y: props.historical.values, kind: 'line' as const }] : []),
+    ...(props.scenarios ?? []).map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const })),
+  ];
+  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
+}
+
+function CompareScenariosWidget({ widget }: WidgetProps) {
+  const props = widget.props as { scenarios?: Record<string, Array<{ name: string; years: number[]; values: number[] }>> };
+  const scenarios = props.scenarios ?? {};
+  const scenarioNames = Object.keys(scenarios);
+  // Cap on COUNTRY count, not raw series count -- this widget's series count is
+  // countries × scenarios (typically 3), so a flat series-count cap would trip at just 3-4
+  // countries and wrongly degrade an entirely reasonable multi-country comparison.
+  const countries = scenarioNames.length > 0 ? scenarios[scenarioNames[0]].map((s) => s.name) : [];
+  if (countries.length > MAX_CHART_SERIES) {
+    const rows = countries.map((country, i) => {
+      const row: Record<string, unknown> = { country };
+      for (const scenarioName of scenarioNames) {
+        const s = scenarios[scenarioName][i];
+        row[scenarioName] = s ? (lastDefined(s.values) ?? null) : null;
+      }
+      return row;
+    });
+    const columns: DataTableColumn<Record<string, unknown>>[] = [
+      { key: 'country', header: 'Country' },
+      ...scenarioNames.map((s) => ({ key: s, header: s })),
+    ];
+    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(countries.length, 'countries')} />;
+  }
+  const series: ChartSeries[] = Object.entries(scenarios).flatMap(([scenarioName, seriesList]) =>
+    seriesList.map((s) => ({ name: `${s.name} — ${scenarioName}`, x: s.years, y: s.values, kind: 'line' as const })),
+  );
+  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
+}
+
+function ForecastWidget({ widget }: WidgetProps) {
+  const props = widget.props as {
+    hist_years: number[];
+    hist_co2: Array<number | null>;
+    holdout_years: number[];
+    holdout_co2: Array<number | null>;
+    forecast_years: number[];
+    forecast_mean: number[];
+    ci_upper: number[];
+    ci_lower: number[];
+  };
+  const series: ChartSeries[] = [
+    { name: 'Historical', x: props.hist_years, y: props.hist_co2, kind: 'line' },
+    { name: 'Holdout', x: props.holdout_years, y: props.holdout_co2, kind: 'line', dashed: true },
+    { name: 'Forecast', x: props.forecast_years, y: props.forecast_mean, kind: 'line', projected: true, band: { low: props.ci_lower, high: props.ci_upper, label: '95% interval' } },
+  ];
+  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
+}
+
+// hist_co2 is Array<number | null> (api/schemas.py's ForecastCountryResponse) -- a trailing
+// null right before the forecast segment would otherwise join to forecast_mean's first real
+// value across a null point, which Chart renders as a visible gap in the line right at the
+// historical/forecast boundary. Trimming keeps the concatenated series joining real value to
+// real value. get_forecast's own single-country widget doesn't need this: it renders
+// Historical/Holdout/Forecast as three separate named series, never one continuous array.
+function trimTrailingNulls(years: number[], values: Array<number | null>): [number[], number[]] {
+  let end = values.length;
+  while (end > 0 && values[end - 1] == null) end--;
+  return [years.slice(0, end), values.slice(0, end) as number[]];
+}
+
+function ForecastComparisonWidget({ widget }: WidgetProps) {
+  const props = widget.props as {
+    forecasts?: Array<{ country: string; hist_years: number[]; hist_co2: Array<number | null>; forecast_years: number[]; forecast_mean: number[] }>;
+  };
+  const forecasts = props.forecasts ?? [];
+  if (forecasts.length > MAX_CHART_SERIES) {
+    // Distinct column headers from seriesChangeSummaryRows -- "last value" here is a
+    // forecasted figure, not an actual, and a shared generic label would mislabel it.
+    const rows = forecasts.map((f) => {
+      const latestActual = lastDefined(f.hist_co2) ?? null;
+      const latestForecast = f.forecast_mean.length > 0 ? f.forecast_mean[f.forecast_mean.length - 1] : null;
+      const pct_change =
+        latestActual != null && latestForecast != null && latestActual !== 0
+          ? ((latestForecast - latestActual) / latestActual) * 100
+          : null;
+      return { country: f.country, latest_actual: latestActual, latest_forecast: latestForecast, pct_change };
+    });
+    const columns: DataTableColumn<Record<string, unknown>>[] = [
+      { key: 'country', header: 'Country' },
+      { key: 'latest_actual', header: 'Latest Actual' },
+      { key: 'latest_forecast', header: 'Forecasted' },
+      { key: 'pct_change', header: '% Change' },
+    ];
+    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(forecasts.length)} />;
+  }
+  const series: ChartSeries[] = forecasts.map((f) => {
+    const [histYears, histCo2] = trimTrailingNulls(f.hist_years, f.hist_co2);
+    return { name: f.country, x: [...histYears, ...f.forecast_years], y: [...histCo2, ...f.forecast_mean], kind: 'line' };
+  });
+  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
+}
+
+function TopEmittersWidget({ widget }: WidgetProps) {
+  const props = widget.props as { year?: number; emitters?: Array<{ country: string; iso_code: string; co2: number }> };
+  const emitters = props.emitters ?? [];
+  const name = `CO₂ Emissions${props.year ? `, ${props.year}` : ''}`;
+  if (widget.chart_kind === 'choropleth') {
+    return (
+      <ChartCard title={widget.title} source={widgetSource(widget)} asOf={widget.as_of ?? undefined}>
+        <Choropleth
+          values={Object.fromEntries(emitters.filter((e) => e.co2 > 0).map((e) => [e.iso_code, e.co2]))}
+          valueLabel={`${name}, MtCO₂`}
+          unit="MtCO₂"
+          ariaLabel={`World map of ${name.toLowerCase()} by country, log-scaled colour`}
+        />
+      </ChartCard>
+    );
+  }
+  const series: ChartSeries[] = [{ name, x: emitters.map((e) => e.country), y: emitters.map((e) => e.co2), kind: 'bar', colorValues: emitters.map((e) => e.co2), colorLabel: 'CO₂, Mt' }];
+  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} yTitle="CO₂ (Mt)" />;
+}
+
+function ModelComparisonWidget({ widget }: WidgetProps) {
+  const props = widget.props as { columns?: string[]; rows?: Record<string, unknown>[] };
+  const columns: DataTableColumn<Record<string, unknown>>[] = (props.columns ?? []).map((c) => ({ key: c, header: humanize(c) }));
+  return <GridWidget title={widget.title} columns={columns} rows={props.rows ?? []} />;
+}
+
+// api/schemas.py's MoverRow shape, reused as-is by /historical/change-summary's
+// top_increases/top_decreases.
+interface MoverRow {
+  country: string;
+  co2_1990: number | null;
+  co2_latest: number | null;
+  absolute_change: number | null;
+  pct_change: number | null;
+}
+
+function EmissionsChangeSummaryWidget({ widget }: WidgetProps) {
+  const props = widget.props as { top_increases?: MoverRow[]; top_decreases?: MoverRow[] };
+  // One combined table -- widget.title already carries the real increased/decreased counts
+  // (ui_selection.py builds it from the tool's result, not args, specifically so
+  // compose_response_node sees a real number), so this table's job is just to show the
+  // biggest movers behind that count, not repeat it.
+  const rows: Record<string, unknown>[] = [
+    ...(props.top_increases ?? []).map((r) => ({ ...r, direction: 'Increase' })),
+    ...(props.top_decreases ?? []).map((r) => ({ ...r, direction: 'Decrease' })),
+  ];
+  const columns: DataTableColumn<Record<string, unknown>>[] = [
+    { key: 'country', header: 'Country' },
+    { key: 'direction', header: 'Direction' },
+    { key: 'co2_1990', header: '1990 (Mt)' },
+    { key: 'co2_latest', header: 'Latest (Mt)' },
+    { key: 'absolute_change', header: 'Change (Mt)' },
+    { key: 'pct_change', header: '% Change' },
+  ];
+  return <GridWidget title={widget.title} columns={columns} rows={rows} />;
+}
+
+function GasCompositionWidget({ widget }: WidgetProps) {
+  const props = widget.props as { decades?: number[]; series?: Array<{ gas_label: string; share: Array<number | null> }> };
+  const decades = props.decades ?? [];
+  const series = props.series ?? [];
+  const rows = decades.map((decade, i) => {
+    const row: Record<string, unknown> = { decade };
+    for (const s of series) row[s.gas_label] = s.share[i];
+    return row;
+  });
+  const columns: DataTableColumn<Record<string, unknown>>[] = [
+    { key: 'decade', header: 'Decade' },
+    ...series.map((s) => ({ key: s.gas_label, header: s.gas_label })),
+  ];
+  return <GridWidget title={widget.title} columns={columns} rows={rows} />;
+}
+
+function ForecastSummaryWidget({ widget }: WidgetProps) {
+  const props = widget.props as { rows?: Record<string, unknown>[] };
+  const columns: DataTableColumn<Record<string, unknown>>[] = [
+    'country',
+    'actual_2020',
+    'forecast_2030',
+    'forecast_2035',
+    'forecast_2040',
+    'pct_change_2020_2040',
+  ].map((field) => ({ key: field, header: humanize(field) }));
+  return <GridWidget title={widget.title} columns={columns} rows={props.rows ?? []} />;
+}
+
+function ScenarioCumulativeWidget({ widget }: WidgetProps) {
+  const props = widget.props as {
+    scenarios?: string[];
+    rows?: Array<{ country: string; values: Record<string, number | null>; current_level: number | null }>;
+  };
+  const scenarios = props.scenarios ?? [];
+  const rows = (props.rows ?? []).map((r) => {
+    const row: Record<string, unknown> = { country: r.country, current_level: r.current_level };
+    for (const s of scenarios) row[`cumulative_${s}`] = r.values[s];
+    return row;
+  });
+  const columns: DataTableColumn<Record<string, unknown>>[] = [
+    { key: 'country', header: 'Country' },
+    { key: 'current_level', header: 'Current Level' },
+    ...scenarios.map((s) => ({ key: `cumulative_${s}`, header: `${s} Cumulative` })),
+  ];
+  return <GridWidget title={widget.title} columns={columns} rows={rows} />;
+}
+
+function CountryProfileCardWidget({ widget }: WidgetProps) {
+  const props = widget.props as { co2: Array<number | null>; co2_per_capita: Array<number | null>; yoy_values: number[] };
+  const latestCo2 = lastDefined(props.co2);
+  const latestPerCapita = lastDefined(props.co2_per_capita);
+  const latestYoy = lastDefined(props.yoy_values);
+  return (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <KpiStat label="CO₂ Emissions (Mt)" value={latestCo2 != null ? latestCo2.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'} />
+      <KpiStat label="CO₂ per Capita (t)" value={latestPerCapita != null ? latestPerCapita.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} />
+      {latestYoy != null && (
+        <KpiStat
+          label="Year-on-Year Change"
+          value={`${latestYoy >= 0 ? '+' : ''}${latestYoy.toFixed(1)}%`}
+          note={latestYoy >= 0 ? 'Emissions rose on the year before' : 'Emissions fell on the year before'}
+        />
+      )}
+    </div>
+  );
+}
+
+function CountryProfileChartWidget({ widget }: WidgetProps) {
+  const props = widget.props as { years: number[]; co2: Array<number | null> };
+  const series: ChartSeries[] = [{ name: 'CO₂', x: props.years, y: props.co2, kind: 'line' }];
+  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
+}
+
+function MethodologyNotesWidget({ widget }: WidgetProps) {
+  const props = widget.props as Record<string, string>;
+  return (
+    <Card header={<CardHeader title={widget.title} />}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {Object.entries(props).map(([key, text]) => (
+          <div key={key}>
+            <div className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', marginBottom: 4 }}>
+              {humanize(key)}
+            </div>
+            <div className="syn-text-lg">{text}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// general_climate_node and ui_selection_node's zero-tool-call path (graph.py) both build this
+// widget shape directly, not via ui_selection.py's tool -> intent lookup -- their source_tool_call
+// is a fixed literal ("general_climate" / "context_reuse"), not a real tool's cache key (no colon
+// at all, so toolNameFromSourceTaggedCall returns it whole). Without an entry for each, they'd
+// silently fall through to GenericFallbackWidget's "not recognized" message. Text renders as
+// markdown (MarkdownText), not a plain string: both paths carry the model's own largely
+// unconstrained writing, which -- confirmed live -- routinely includes headers/tables/bold for a
+// detailed comparison, unlike compose_response_node's own tightly-scoped plain-prose summaries.
+function TextAnswerWidget({ widget }: WidgetProps) {
+  const props = widget.props as { text?: string };
+  return (
+    <Card header={<CardHeader title={widget.title} />}>
+      <MarkdownText text={props.text ?? ''} />
+    </Card>
+  );
+}
+
+// Fallback for a widget shape not covered above -- an unmapped tool at this system boundary
+// (arbitrary backend data) shouldn't crash the whole result section, but this repo's own "don't
+// build for hypothetical futures" convention means every real tool gets its own render function
+// above; this only ever fires if services/agent starts emitting a tool ui_selection.py doesn't
+// know about, which would itself be a bug worth surfacing, not silently swallowing.
+function GenericFallbackWidget({ widget }: WidgetProps) {
+  if (widget.intent === 'grid') {
+    const rows = Array.isArray(widget.props.rows) ? (widget.props.rows as Record<string, unknown>[]) : [];
+    return <GridWidget title={widget.title} columns={genericColumns(rows)} rows={rows} />;
+  }
+  return (
+    <Card header={<CardHeader title={widget.title} />}>
+      <InlineAlert variant="warning">This result type isn&apos;t recognized yet.</InlineAlert>
+    </Card>
+  );
+}
+
+const RENDERERS: Record<string, (props: WidgetProps) => ReactElement> = {
+  get_historical_emissions: HistoricalEmissionsWidget,
+  get_scenario_projection: ScenarioProjectionWidget,
+  compare_scenarios_across_countries: CompareScenariosWidget,
+  get_forecast: ForecastWidget,
+  get_forecast_comparison: ForecastComparisonWidget,
+  get_top_emitters: TopEmittersWidget,
+  get_model_comparison: ModelComparisonWidget,
+  get_gas_composition_by_decade: GasCompositionWidget,
+  get_forecast_summary: ForecastSummaryWidget,
+  get_scenario_cumulative_impact: ScenarioCumulativeWidget,
+  get_emissions_change_summary: EmissionsChangeSummaryWidget,
+  get_methodology_notes: MethodologyNotesWidget,
+  // Area 2 climate-context tools: the Correlation module's components fed the tool result.
+  get_emissions_temperature_relationship: EmissionsTemperatureWidget,
+  get_ghg_composition: GhgCompositionWidget,
+  get_scenario_temperature: ScenarioTemperatureWidget,
+  get_country_cumulative_share: CountryShareWidget,
+  get_co2_concentration: IndicatorWidget,
+  get_temperature_anomaly: IndicatorWidget,
+  get_correlation_metadata: CorrelationMetadataWidget,
+  general_climate: TextAnswerWidget,
+  context_reuse: TextAnswerWidget,
+};
+
+export function WidgetRenderer({ widget }: WidgetProps) {
+  return (
+    <>
+      <WidgetBody widget={widget} />
+      <SourceLine text={widget.source_line} />
+    </>
+  );
+}
+
+function WidgetBody({ widget }: WidgetProps) {
+  const toolName = toolNameFromSourceTaggedCall(widget.source_tool_call);
+  // get_country_profile is the one tool that produces two different widgets from the same
+  // source_tool_call (SPEC.md §8 ui_selection, "Corrections applied" advisory: distinguish by
+  // widget.intent, not source_tool_call, since both widgets share the same source id).
+  if (toolName === 'get_country_profile') {
+    return widget.intent === 'chart' ? <CountryProfileChartWidget widget={widget} /> : <CountryProfileCardWidget widget={widget} />;
+  }
+  const Renderer = RENDERERS[toolName];
+  return Renderer ? <Renderer widget={widget} /> : <GenericFallbackWidget widget={widget} />;
+}

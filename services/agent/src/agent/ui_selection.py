@@ -1,0 +1,434 @@
+"""UI-intent selection -- SPEC.md §3, §8.
+
+The fixed lookup handles every tool with an unambiguous intent, no LLM call. `get_top_emitters`'s
+chart-kind pick (§3.1) is also kept deterministic (a keyword heuristic on `current_query`), per
+SPEC.md §8's own claim that only `get_country_profile` needs the one LLM judgment call --
+`graph.py`'s `ui_selection_node` is the only place that makes that one call.
+
+`WidgetSpec.props` carries the raw tool result through unshaped. Building it into each real
+design system component's exact prop shape (e.g. `Chart`'s `locations`/`colorValues`) is
+Step 4's job, once the renderer exists to consume it -- nothing here would be exercised by a
+Step 2 test, so it isn't built yet (see `SPEC.md` §3's "raw result passthrough" note).
+
+`source_tool_call` uses the tool call's cache key (`cache.cache_key`) as its value: unique per
+distinct `(tool_name, args)` pair and already computed by `tools_node`, so it traces a widget
+back to the record that produced it without adding an id field `SPEC.md` §7's `ToolCallRecord`
+doesn't have.
+"""
+
+from collections.abc import Callable
+
+from .cache import cache_key
+from .progress_labels import join_countries
+from .source_lines import source_line
+from .state import ToolCallRecord, WidgetSpec
+from .summaries import widget_summary
+
+# Tool -> (intent, chart_kind) for every tool with a single, unambiguous mapping (SPEC.md §3
+# table). get_top_emitters and get_country_profile are handled separately below/in graph.py.
+# list_countries is excluded -- SPEC.md §3's note: internal resolution context, never its own
+# widget.
+_TOOL_INTENT: dict[str, tuple[str, str | None]] = {
+    "get_historical_emissions": ("chart", "line"),
+    "get_scenario_projection": ("chart", "line"),
+    "compare_scenarios_across_countries": ("chart", "line"),
+    "get_forecast": ("chart", "line"),  # + band CI, both series live in this one widget's props
+    "get_forecast_comparison": ("chart", "line"),  # multi-country equivalent of get_forecast
+    "get_model_comparison": ("grid", None),
+    "get_gas_composition_by_decade": ("grid", None),
+    "get_forecast_summary": ("grid", None),
+    "get_scenario_cumulative_impact": ("grid", None),
+    "get_methodology_notes": ("text", None),
+    # Area 2 (SPEC.md §15.2, §15.10). The frontend picks a renderer by tool NAME and wraps the
+    # Correlation module's own components, so `chart_kind` is only informational
+    # here: None where there is no generic Chart kind to name.
+    "get_emissions_temperature_relationship": ("chart", None),
+    "get_scenario_temperature": ("chart", "line"),
+    "get_correlation_metadata": ("grid", None),
+}
+
+# Area 2 tools whose widget kind depends on the result or the query (SPEC.md §15.2); the rest of the
+# Area 2 tools are fixed in `_TOOL_INTENT` above.
+_LATEST_MARKERS = ("latest", "current", "currently", "right now", "today", "most recent", "now ")
+_TREND_MARKERS = ("over time", "trend", "history", "historical", "since", "change", "changed", "compared", "versus", " vs", "relationship", "rise", "growth", "from ")
+
+
+def select_indicator_intent(current_query: str) -> str:
+    """`card` (one KPI) for a "what is it now" ask, `chart` for anything trend- or comparison-shaped.
+    Deterministic keyword heuristic, the same seam `select_top_emitters_chart_kind` uses -- no LLM
+    call. A query with both kinds of marker is a trend ask (the chart still shows the latest point)."""
+    query = f" {current_query.lower()} "
+    if any(m in query for m in _TREND_MARKERS):
+        return "chart"
+    return "card" if any(m in query for m in _LATEST_MARKERS) else "chart"
+
+
+_GEOGRAPHIC_MARKERS = ("where", "map", "geographic", "geography", "around the world", "by region")
+
+
+def select_top_emitters_chart_kind(current_query: str) -> str:
+    """SPEC.md §3.1: bar (ranked list, default) or choropleth (geographic spread).
+
+    Corrected in Step 4 (SPEC.md "Corrections applied" #17): the original design also picked
+    `treemap` for a query naming both a "current" and a "forecast" concept, sized by one metric
+    and colored by the other. `get_top_emitters`'s real result (`composed.py`) carries exactly
+    one metric (`co2`) -- a treemap coloring tiles by the same value that sizes them is
+    decoration, not a second dimension. A genuine dual-metric treemap needs a merged result from
+    two tool calls (`get_top_emitters` + `get_forecast_comparison`), which `ui_selection` doesn't
+    build today -- see SPEC.md §12 open item. Until then this heuristic never returns `treemap`."""
+    query = current_query.lower()
+    if any(marker in query for marker in _GEOGRAPHIC_MARKERS):
+        return "choropleth"
+    return "bar"
+
+
+def is_error_result(result) -> bool:
+    return isinstance(result, dict) and "error" in result
+
+
+# Tool -> noun-phrase title builder, one entry per tool `_title_for` covers (every
+# `_TOOL_INTENT` entry plus get_top_emitters/get_country_profile, which build their own
+# WidgetSpec elsewhere in this file). Deliberately NOT progress_labels.py's `_BUILDERS` --
+# those are phrased as an in-progress verb ("Fetching...", "Running...") for the SSE
+# progress bar, which is correct there but wrong here: `_title_for`'s output becomes a
+# WidgetSpec.title, rendered by the frontend as a *permanent* card/chart header
+# (ChartCard/CardHeader), not tied to loading state at all. Reported live: a widget's title
+# literally read "Fetching historical emissions for Afghanistan, Albania, ..." forever,
+# because it was reusing progress_label's verb-phrased text verbatim.
+def _countries_or_scope(args: dict) -> str:
+    # get_historical_emissions/get_gas_composition_by_decade/get_forecast_comparison all
+    # accept an optional `countries` alongside a `scope` default -- when `countries` is
+    # omitted, join_countries(None) alone would render as the generic "the selected
+    # countries", silently dropping which scope pool (e.g. sovereign's ~209 vs expanded's
+    # ~40) the tool actually used.
+    countries = args.get("countries")
+    return join_countries(countries) if countries else f"{args.get('scope', 'expanded')} scope"
+
+
+_TITLE_BUILDERS: dict[str, Callable[[dict], str]] = {
+    "get_country_profile": lambda args: f"{args.get('country', 'Country')} emissions profile",
+    "get_historical_emissions": lambda args: f"Historical emissions – {_countries_or_scope(args)}",
+    "get_gas_composition_by_decade": lambda args: f"Gas composition by decade – {_countries_or_scope(args)}",
+    "get_forecast": lambda args: f"{args.get('country', 'Country')} emissions forecast",
+    "get_forecast_summary": lambda args: f"Forecast summary ({args.get('scope', 'featured')})",
+    "get_forecast_comparison": lambda args: f"Forecast comparison – {_countries_or_scope(args)}",
+    "get_model_comparison": lambda args: "Model comparison",
+    "get_top_emitters": lambda args: f"Top {args.get('n', 10)} emitters ({args.get('year', 'latest year')})",
+    "get_scenario_projection": lambda args: (
+        f"{args['country']} scenario projection"
+        if args.get("country")
+        else f"Global scenario projection ({args.get('scope', 'featured')})"
+    ),
+    "get_scenario_cumulative_impact": lambda args: f"Cumulative scenario impact (sorted by {args.get('sort_by', 'BAU')})",
+    "compare_scenarios_across_countries": lambda args: f"Scenario comparison – {join_countries(args.get('countries'))}",
+    "get_methodology_notes": lambda args: "Methodology notes",
+}
+
+
+def _span(summary: dict, *keys: str) -> str:
+    a, b = (summary.get(k) for k in keys)
+    return f"{a}\u2013{b}" if a is not None and b is not None else ""
+
+
+def _relationship_title(record: ToolCallRecord) -> str:
+    # Built from the RESULT (the label and window the tool actually returned), not the args: the
+    # default baseline per source is applied server-side. The all-gas relationship is never titled
+    # with "TCRE" and a non-headline OWID window is never titled "headline" (SPEC.md §15.2).
+    summary = (record.result or {}).get("summary") or {}
+    label = summary.get("relationship", "")
+    window = summary.get("window") or []
+    span = f"{window[0]}\u2013{window[1]}" if len(window) == 2 else ""
+    if label.startswith("recent all-gas"):
+        return f"Recent all-gas relationship ({span})" if span else "Recent all-gas relationship"
+    if label.startswith("headline"):
+        kind = "headline"
+    elif label.startswith("secondary"):
+        kind = "fossil-only variant"
+    else:
+        kind = "selected window"
+    return f"Emissions vs. temperature ({', '.join(filter(None, [kind, span]))})"
+
+
+def _composition_title(record: ToolCallRecord) -> str:
+    s = (record.result or {}).get("summary") or {}
+    if s.get("n_years") == 1:
+        return f"Greenhouse-gas mix, {s.get('first_year')}"
+    span = _span(s, "first_year", "last_year")
+    return f"Greenhouse-gas mix ({span})" if span else "Greenhouse-gas mix"
+
+
+_SHARE_MARKERS = ("share", "percent", "%", "proportion", "fraction", "portion")
+_SHARE_TREND_MARKERS = ("rising", "falling", "increasing", "decreasing", "growing", "shrinking", "trend", "changing", "changed", "going up", "going down")
+_AMOUNT_MARKERS = ("how much", "total", "emitted", "cumulative emissions", "cumulative co", "tonnes", "tons", "gigaton", "megaton", "amount", "so far", "records began")
+
+
+def asks_about_share(current_query: str) -> bool:
+    """Whether the question is about a SHARE ("what share", "is its percentage rising"), as opposed to an amount. Used to pick the dashboard page's view for a link."""
+    query = f" {current_query.lower()} "
+    return any(m in query for m in _SHARE_MARKERS)
+
+
+def select_share_view(current_query: str, summary: dict, source: str | None) -> str | None:
+    """Which picture a country-share SERIES gets: the same deterministic keyword seam as the other selectors, no LLM call.
+
+    - a "share" question about one country that asks about movement ("is India's share rising?") -> `share_vs_annual` (cumulative share against the share of each
+      year's emissions, which is what says whether it is still rising);
+    - any other "share" question -> `share_lines`;
+    - an "amount" question ("how much has China emitted", "cumulative emissions since 1970") -> `cumulative_area`, a stacked area of Gt with Rest of world, which
+      exists only for OWID (a PRIMAP-hist share has no World total to leave a rest of);
+    - anything else keeps the existing `share_lines`.
+    A ranking has no view (None).
+
+    A "since YYYY" series (`summary.since`) is ALWAYS drawn from the period's own emissions, whatever the wording: the stacked area from zero (OWID, which
+    has the World total to leave a Rest of world) or `emitted_lines`, one line per country of what it has emitted since the start year in Gt (PRIMAP-hist, which has none).
+    The lifetime-share views (`share_lines`, `share_vs_annual`) plot the cumulative share since records began, a different quantity that would contradict the since answer's
+    figures (its period shares, in `summary.since`), so a share question about a since series does not get them."""
+    if summary.get("mode") != "series":
+        return None
+    since = summary.get("since")
+    if since:
+        return "cumulative_area" if source == "owid_co2" and since.get("rest_of_world") else "emitted_lines"
+    query = f" {current_query.lower()} "
+    countries = summary.get("countries") or []
+    wants_share = any(m in query for m in _SHARE_MARKERS)
+    wants_amount = any(m in query for m in _AMOUNT_MARKERS)
+    if wants_share:
+        trend = any(m in query for m in _SHARE_TREND_MARKERS)
+        if len(countries) == 1 and trend and countries[0].get("last_annual_share_pct") is not None:
+            return "share_vs_annual"
+        return "share_lines"
+    if wants_amount and source == "owid_co2" and summary.get("rest_of_world"):
+        return "cumulative_area"
+    return "share_lines"
+
+
+def _share_title(record: ToolCallRecord, view: str | None = None) -> str:
+    s = (record.result or {}).get("summary") or {}
+    since = s.get("since") or {}
+    unit = "GtCO₂e" if (record.result or {}).get("gas_scope") == "total_ghg" else "GtCO₂"  # total greenhouse gases are CO2-equivalent
+    if s.get("mode") == "series":
+        names = [c.get("name") for c in s.get("countries", []) if c.get("name")]
+        if view in ("cumulative_area", "emitted_lines") and since.get("period"):
+            return f"Emitted {since['period']}, {unit} – {join_countries(names)}"
+        if view == "cumulative_area":
+            start = (s.get("trend_window") or [None])[0]
+            return f"Cumulative CO₂ since records began{f', shown from {start}' if start else ''} – {join_countries(names)}"
+        if view == "share_vs_annual":
+            gas = "greenhouse gases (CO₂e)" if (record.result or {}).get("gas_scope") == "total_ghg" else "CO₂"  # total greenhouse gases are CO2-equivalent
+            return f"Share of cumulative {gas} against share of each year's emissions – {join_countries(names)}"
+        return f"Cumulative share of emissions – {join_countries(names)}"
+    n = s.get("n_rows")
+    if since.get("period"):
+        return f"{f'Top {n} emitters' if n else 'Emitters'}, {since['period']}, {unit}"
+    lead = f"Top {n} countries" if n else "Countries"
+    return f"{lead} by cumulative share of emissions ({s.get('year')})"
+
+
+def _indicator_title(label: str):
+    def build(record: ToolCallRecord) -> str:
+        span = _span((record.result or {}).get("summary") or {}, "first_year", "last_year")
+        return f"{label} ({span})" if span else label
+
+    return build
+
+
+# Area 2 titles are built from the tool RESULT (defaults such as the baseline are applied
+# server-side, so the args alone do not say what came back); `_title_for` tries these first.
+def _top_emitters_title(record: ToolCallRecord) -> str:
+    # The tool defaults to the latest year when the model omits it, so the args alone do not say which
+    # year was ranked; the result does (and the count actually returned beats the requested n).
+    r = record.result if isinstance(record.result, dict) else {}
+    n = len(r.get("emitters") or []) or record.args.get("n", 10)
+    return f"Top {n} emitters ({r.get('year') or record.args.get('year') or 'latest year'})"
+
+
+def _profile_title(record: ToolCallRecord) -> str:
+    # The resolved name from the result: the MCP guard corrects typos, so the raw arg ("Chinaa")
+    # must not become a permanent card header.
+    r = record.result if isinstance(record.result, dict) else {}
+    return f"{r.get('country') or record.args.get('country', 'Country')} emissions profile"
+
+
+_RESULT_TITLE_BUILDERS: dict[str, Callable[[ToolCallRecord], str]] = {
+    "get_top_emitters": _top_emitters_title,
+    "get_country_profile": _profile_title,
+    "get_emissions_temperature_relationship": _relationship_title,
+    "get_ghg_composition": _composition_title,
+    "get_country_cumulative_share": _share_title,
+    "get_co2_concentration": _indicator_title("Atmospheric CO\u2082 concentration, ppm"),
+    "get_temperature_anomaly": lambda r: _indicator_title(
+        f"Global temperature anomaly, \u00b0C vs {((r.result or {}).get('summary') or {}).get('reference', '1850-1900')}"
+    )(r),
+    "get_scenario_temperature": lambda r: "Implied temperature by scenario (illustrative)",
+    "get_correlation_metadata": lambda r: "Climate data sources and methodology",
+}
+
+
+def _title_for(record: ToolCallRecord) -> str:
+    # Deterministic, generated from tool args (SPEC.md §3), noun-phrased for a permanent
+    # widget header -- see `_TITLE_BUILDERS`'s own comment for why this is a separate table
+    # from progress_labels.py's verb-phrased `_BUILDERS` rather than a reuse of it.
+    result_builder = _RESULT_TITLE_BUILDERS.get(record.tool_name)
+    if result_builder is not None:
+        return result_builder(record)
+    builder = _TITLE_BUILDERS.get(record.tool_name)
+    if builder is None:
+        return record.tool_name.replace("_", " ").capitalize()
+    return builder(record.args)
+
+
+SCENARIO_BADGE = "Illustrative \u00b7 implied outcomes, not climate-model projections"
+
+
+def build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | None:
+    widget = _build_widget(record, current_query)
+    if widget is not None:
+        widget.source_line = source_line(record)
+        widget.summary = widget_summary(record)
+        if record.tool_name == "get_scenario_temperature":
+            widget.badge = SCENARIO_BADGE
+    return widget
+
+
+def _build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | None:
+    """Builds the widget for every tool except `get_country_profile` (handled in
+    `graph.py`'s `ui_selection_node`, since it's the one case needing an LLM judgment call) and
+    `list_countries` (never its own widget). Returns `None` for a failed tool call (`result`
+    carries an `{"error": ...}` marker) -- no widget should be built from an error payload."""
+    if record.tool_name == "list_countries" or is_error_result(record.result):
+        return None
+
+    source = cache_key(record.tool_name, record.args)
+
+    if record.tool_name == "get_top_emitters":
+        return WidgetSpec(
+            intent="chart",
+            chart_kind=select_top_emitters_chart_kind(current_query),
+            title=_title_for(record),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+
+    if record.tool_name in ("get_co2_concentration", "get_temperature_anomaly"):
+        return WidgetSpec(
+            intent=select_indicator_intent(current_query),
+            chart_kind="line" if select_indicator_intent(current_query) == "chart" else None,
+            title=_title_for(record),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+
+    if record.tool_name == "get_ghg_composition":
+        single_year = ((record.result or {}).get("summary") or {}).get("n_years") == 1
+        return WidgetSpec(
+            intent="grid" if single_year else "chart",
+            chart_kind=None,
+            title=_title_for(record),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+
+    if record.tool_name == "get_country_cumulative_share":
+        result = record.result or {}
+        summary = result.get("summary") or {}
+        series = summary.get("mode") == "series"
+        view = select_share_view(current_query, summary, result.get("source"))
+        return WidgetSpec(
+            intent="chart",
+            chart_kind="line" if series else "bar",
+            view=view,
+            title=_share_title(record, view),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+
+    if record.tool_name == "get_emissions_change_summary":
+        # The one widget whose title is built from `record.result`, not `record.args` (every
+        # other title, including _TITLE_BUILDERS above, only ever sees args) -- deliberate,
+        # not an oversight. compose_response_node (graph.py) only ever sees a widget's `title`,
+        # never `props` (stripped to bound context size for every widget regardless of type),
+        # so the real increased/decreased counts have to reach it through title or not at all.
+        # Reported live: without this, the agent's answer to "how many countries
+        # increased/decreased" couldn't state a real number -- see SPEC.md "Corrections
+        # applied" #33.
+        #
+        # Reported live (follow-up): with only the counts in the title, compose_response_node
+        # had no signal that the *table* is a bounded top-N sample, not the full 209-country
+        # list the counts themselves cover -- it invented "the data reflects broad
+        # sovereign-level coverage... nearly the full set of recognized nations" for the
+        # table, which is false (the grid holds only top_increases+top_decreases, capped at
+        # `top_n` each). The title now discloses the shown-row count explicitly, using
+        # len(top_increases)+len(top_decreases) rather than echoing the `top_n` request param,
+        # since a direction with fewer real movers than `top_n` shows fewer rows than
+        # requested -- the actual row count is what compose_response_node needs to describe
+        # accurately, not the cap that was asked for.
+        r = record.result or {}
+        n_shown = len(r.get("top_increases", [])) + len(r.get("top_decreases", []))
+        title = (
+            f"Emissions change since {r.get('baseline_year', 1990)}: "
+            f"{r.get('increased_count', '?')} up, {r.get('decreased_count', '?')} down "
+            f"of {r.get('countries_with_data', '?')} countries ({r.get('scope', '')}) -- "
+            f"table shows the {n_shown} biggest movers"
+        )
+        return WidgetSpec(intent="grid", title=title, source_tool_call=source, props=r)
+
+    intent, chart_kind = _TOOL_INTENT.get(record.tool_name, ("text", None))
+    return WidgetSpec(
+        intent=intent,
+        chart_kind=chart_kind,
+        title=_title_for(record),
+        source_tool_call=source,
+        props=record.result or {},
+    )
+
+
+def historical_chart_covers(profile: ToolCallRecord, records: list[ToolCallRecord]) -> bool:
+    """True when a successful `get_historical_emissions` in the same turn already charts this
+    profile's country, so the profile's own trend chart would repeat it (the Ask-page design review
+    removed that duplicate), and only when that chart is for CO2 like the profile's. Matched on the RESOLVED country name in the results, not the raw args:
+    the MCP guard fixes typos ("Chinaa"), so the args may not equal the name the series carries."""
+    country = (profile.result or {}).get("country") if isinstance(profile.result, dict) else None
+    if not country:
+        return False
+    for rec in records:
+        if rec.tool_name != "get_historical_emissions" or is_error_result(rec.result) or not isinstance(rec.result, dict):
+            continue
+        # The profile's trend chart is CO2 (its `co2` series): only a CO2 historical chart duplicates it.
+        # A methane or nitrous-oxide history for the same country is a different chart and must not
+        # suppress it. A result with no `gas` is treated as CO2 (the tool's default).
+        if rec.result.get("gas", "co2") != "co2":
+            continue
+        if any(series.get("name") == country for series in rec.result.get("series") or []):
+            return True
+    return False
+
+
+def build_country_profile_widgets(record: ToolCallRecord, *, include_chart: bool) -> list[WidgetSpec]:
+    """The one non-deterministic case (SPEC.md §8): always a `card`, plus a `chart` when the
+    LLM judgment call (`graph.py`'s `ui_selection_node`) decides the query is trend-shaped."""
+    if is_error_result(record.result):
+        return []
+
+    source = cache_key(record.tool_name, record.args)
+    widgets = [
+        WidgetSpec(
+            intent="card",
+            title=_title_for(record),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+    ]
+    if include_chart:
+        widgets.append(
+            WidgetSpec(
+                intent="chart",
+                chart_kind="line",
+                title=f"{_title_for(record)} -- trend",
+                source_tool_call=source,
+                props=record.result or {},
+            )
+        )
+    for widget in widgets:
+        widget.source_line = source_line(record)
+        widget.summary = widget_summary(record)
+    return widgets

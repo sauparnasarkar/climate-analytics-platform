@@ -1,0 +1,248 @@
+// Hand-written mirrors of api/schemas.py — one interface per response shape.
+
+export interface CountryValue {
+  country: string;
+  value: number | null;
+}
+
+export interface MoverRow {
+  country: string;
+  co2_1990: number | null;
+  co2_latest: number | null;
+  absolute_change: number | null;
+  pct_change: number | null;
+}
+
+export interface OverviewTierMetrics {
+  label: 'All Countries' | 'Expanded' | 'Selected';
+  countries_count: number;
+  latest_year: number;
+  latest_co2_total: number;
+  co2_1990_total: number;
+  pct_change_since_1990: number;
+}
+
+export interface WorldMapPoint {
+  country: string;
+  iso_code: string | null;
+  value: number | null;
+}
+
+// SPEC.md §5.17.1 -- the animated choropleth's full year-range payload. Columnar
+// (values[yearIdx][countryIdx]), matching api/schemas.py's WorldMapTimeSeries exactly.
+export interface WorldMapTimeSeries {
+  iso_codes: string[];
+  countries: string[];
+  years: number[];
+  values: Array<Array<number | null>>;
+  value_range: [number, number];
+}
+
+export interface OverviewResponse {
+  all_countries: OverviewTierMetrics;
+  expanded_countries: OverviewTierMetrics;
+  selected: OverviewTierMetrics;
+  selected_country_list: string[];
+  latest_year_bar: CountryValue[];
+  top_movers: MoverRow[];
+  // Fixed top-N sovereign countries by latest-year CO2 -- always the same set regardless of
+  // `countries`/Selected (SPEC.md §5.18.5), backing the Overview page's always-on headline
+  // sentence. Sorted by co2_latest descending, unlike top_movers' pct_change-descending order.
+  headline_movers: MoverRow[];
+  fastest_growth: MoverRow;
+  largest_reduction: MoverRow;
+  world_map: WorldMapPoint[];
+}
+
+export interface TimeseriesSeries {
+  name: string;
+  years: number[];
+  values: Array<number | null>;
+}
+
+export interface HistoricalTimeseriesResponse {
+  gas: string;
+  gas_label: string;
+  series: TimeseriesSeries[];
+}
+
+/** One country's cumulative-CO2 series on the response's shared `years` axis (SPEC.md §5.28). cumulative_co2 is in Mt, the shares in percent; null where OWID has no value. */
+export interface CumulativeSeries {
+  name: string;
+  cumulative_co2: Array<number | null>;
+  share_of_world_cumulative: Array<number | null>;
+  share_of_world_annual: Array<number | null>;
+}
+
+export interface HistoricalCumulativeResponse {
+  years: number[];
+  series: CumulativeSeries[];
+  world_cumulative_co2: Array<number | null>;
+  /** Set when counting from a year: the totals are emissions from that year and the share is of the World's emissions in that period. */
+  from_year?: number | null;
+  /** The last year with data (what the "from a year" choice can go up to). */
+  latest_year?: number | null;
+}
+
+/** Latest-year headline figures for a country's cumulative CO2 (SPEC.md §5.28): cumulative_co2 in Mt, share in percent; rank is among sovereign countries with a value in `year`. */
+export interface CountryCumulativeLatest {
+  year: number;
+  cumulative_co2: number;
+  share_of_world_cumulative: number | null;
+  rank: number;
+  rank_of: number;
+}
+
+export interface CountryCumulativeResponse {
+  country: string;
+  years: number[];
+  cumulative_co2: Array<number | null>;
+  share_of_world_cumulative: Array<number | null>;
+  share_of_world_annual: Array<number | null>;
+  latest: CountryCumulativeLatest | null;
+  /** As on HistoricalCumulativeResponse: set when counting from a year. */
+  from_year?: number | null;
+}
+
+export interface DecadeGasShare {
+  gas: string;
+  gas_label: string;
+  share: number[];
+}
+
+export interface HistoricalDecadeCompositionResponse {
+  decades: number[];
+  series: DecadeGasShare[];
+}
+
+export interface CountryProfileTableRow {
+  year: number;
+  co2: number | null;
+  co2_per_capita: number | null;
+  co2_yoy_pct_change: number | null;
+  ghg_intensity: number | null;
+}
+
+export interface CountryProfileResponse {
+  country: string;
+  years: number[];
+  co2: Array<number | null>;
+  co2_per_capita: Array<number | null>;
+  yoy_years: number[];
+  yoy_values: number[];
+  table: CountryProfileTableRow[];
+}
+
+export interface ForecastCountryResponse {
+  country: string;
+  hist_years: number[];
+  hist_co2: Array<number | null>;
+  holdout_years: number[];
+  holdout_co2: Array<number | null>;
+  forecast_years: number[];
+  forecast_mean: number[];
+  ci_upper: number[];
+  ci_lower: number[];
+}
+
+export interface ForecastSummaryRow {
+  country: string;
+  forecast_2030: number | null;
+  forecast_2035: number | null;
+  forecast_2040: number | null;
+  actual_2020: number | null;
+  pct_change_2020_2040: number | null;
+}
+
+export interface ForecastSummaryResponse {
+  rows: ForecastSummaryRow[];
+  // The scope the rows really cover: 'expanded' only when the expanded list is larger than the featured ten.
+  effective_scope: 'featured' | 'expanded';
+}
+
+export interface ModelComparisonResponse {
+  columns: string[];
+  rows: Record<string, unknown>[];
+}
+
+export interface EtsParameterRow {
+  country: string;
+  alpha: number;
+  beta_star: number;
+  phi: number;
+}
+
+export interface EtsParametersResponse {
+  rows: EtsParameterRow[];
+}
+
+export interface FeatureImportanceRow {
+  feature: string;
+  importance: number;
+}
+
+export interface FeatureImportanceResponse {
+  rows: FeatureImportanceRow[];
+}
+
+export interface ScenarioSeries {
+  name: string;
+  years: number[];
+  values: number[];
+}
+
+export interface ScenarioTimeseriesResponse {
+  title_suffix: string;
+  historical: ScenarioSeries | null;
+  scenarios: ScenarioSeries[];
+  level_1990: number | null;
+}
+
+export interface ScenarioCumulativeRow {
+  country: string;
+  values: Record<string, number | null>;
+  year_2040: Record<string, number | null>;
+  current_level: number | null;
+}
+
+export interface ScenarioCumulativeResponse {
+  sort_by: string;
+  order: string[];
+  scenarios: string[];
+  rows: ScenarioCumulativeRow[];
+}
+
+export interface ScenarioCompareResponse {
+  countries: string[];
+  scenarios: Record<string, ScenarioSeries[]>;
+}
+
+export interface ExplorerMetaResponse {
+  countries: string[];
+  columns: string[];
+  year_min: number;
+  year_max: number;
+}
+
+export interface ExplorerDataResponse {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+  total_rows: number;
+  page: number;
+  page_size: number;
+}
+
+export interface CountriesResponse {
+  featured: string[];
+  expanded: string[];
+}
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}

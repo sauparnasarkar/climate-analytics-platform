@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><rect width="512" height="512" fill="#121e35"/>
+  <defs>
+    <radialGradient id="ocean" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#4fa3e0"/><stop offset="0.6" stop-color="#2a6fb8"/><stop offset="1" stop-color="#17407c"/></radialGradient>
+    <clipPath id="disc"><circle cx="256" cy="256" r="240"/></clipPath>
+    <linearGradient id="land" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fcf7a"/><stop offset="1" stop-color="#3f9a55"/></linearGradient>
+  </defs>
+  <g transform="translate(256 256) scale(0.7) translate(-256 -256)">
+  <circle cx="256" cy="256" r="240" fill="url(#ocean)"/>
+  <g clip-path="url(#disc2)" fill="url(#land)">
+    <path d="M214 150C226 138 248 134 262 142C272 148 268 160 256 164C240 166 226 170 216 164Z"/>
+    <path d="M232 168C250 158 282 160 300 170C318 176 330 190 340 200L338 214C326 222 322 236 328 250C332 262 320 272 312 284C306 300 304 322 292 342C284 356 270 360 262 350C254 336 256 318 250 300C246 282 232 276 222 260C212 244 214 222 222 206C226 194 226 178 232 168Z"/>
+    <path d="M296 146C318 150 340 166 350 186L340 196C324 186 306 176 292 168Z"/>
+    <path d="M330 296C338 298 342 312 336 326C330 336 322 330 324 316C326 306 326 298 330 296Z"/>
+    <path d="M150 190C170 178 196 184 204 200C208 214 192 224 180 232C168 240 156 236 148 224C140 212 140 198 150 190Z"/>
+  </g>
+  <clipPath id="disc2"><circle cx="256" cy="256" r="240"/></clipPath>
+  <ellipse cx="200" cy="170" rx="120" ry="70" fill="#fff" opacity="0.10" transform="rotate(-25 200 170)"/>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#0b2a55" stroke-opacity="0.35" stroke-width="6"/>
+  </g></svg>

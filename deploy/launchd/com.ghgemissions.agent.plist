@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.ghgemissions.agent__LABEL_SUFFIX__</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__REPO_DIR__/deploy/launchd/ghg-agent-launch.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__REPO_DIR__/services/agent</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/ghgemissions-agent__LABEL_SUFFIX__.log</string>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/ghgemissions-agent__LABEL_SUFFIX__.error.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>DEPLOY_BASE_PATH</key>
+		<string>/agent/</string>
+		<key>MCP_SERVER_URL</key>
+		<string>http://127.0.0.1:__MCP_PORT__/mcp</string>
+		<key>AGENT_PORT</key>
+		<string>__AGENT_PORT__</string>
+		<key>LLM_PROVIDER</key>
+		<string>__LLM_PROVIDER__</string>
+		<key>LOCAL_LLM_MODEL</key>
+		<string>__LOCAL_LLM_MODEL__</string>
+		<key>ANTHROPIC_KEY_FILE</key>
+		<string>__ANTHROPIC_KEY_FILE__</string>
+		<key>CF_ACCESS_TEAM_DOMAIN</key>
+		<string>__CF_ACCESS_TEAM_DOMAIN__</string>
+		<key>CF_ACCESS_AUD</key>
+		<string>__CF_ACCESS_AUD__</string>
+	</dict>
+</dict>
+</plist>

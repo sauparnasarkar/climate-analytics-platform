@@ -1,0 +1,94 @@
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { AnalysisBar, AppShell, BackToTop, Button, Footer, Rail, SourceStrip, TopBar, useShell, type NavGroup, type NavItem } from '@syena/ds';
+
+import type { AppTheme } from '../lib/theme';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
+import { FOOTER_COPYRIGHT, HOME_ITEM, NAV_ITEMS, PRODUCT_NAME, RAIL_PRODUCT_NAME, type AppNavItem } from '../navigation';
+import { PageChromeContext, type PageChromeState } from './PageChrome';
+
+const PRODUCT_MARK = { src: '/app-icon.svg', name: PRODUCT_NAME };
+const ALL_ITEMS: AppNavItem[] = [HOME_ITEM, ...NAV_ITEMS];
+
+const toNavItem = ({ id, label, icon, path, badge }: AppNavItem): NavItem => ({ id, label, icon, href: path, badge });
+
+const GROUPS: NavGroup[] = [
+  { id: 'home', label: '', items: [toNavItem(HOME_ITEM)] },
+  ...(['Exploration', 'Projection'] as const).map((label) => ({ id: label.toLowerCase(), label, items: NAV_ITEMS.filter((item) => item.group === label).map(toNavItem) })),
+];
+const FOOTER_ITEMS: NavItem[] = NAV_ITEMS.filter((item) => !item.group).map(toNavItem);
+
+/** The rail's Ask action. In the phone drawer it closes the drawer as the rail's own links do, so the page it opens is not left under it. */
+function AskAgentButton({ collapsed, active, onAsk }: { collapsed: boolean; active: boolean; onAsk: () => void }) {
+  const shell = useShell();
+  const ask = () => { onAsk(); shell?.setNavigationOpen(false); };
+  return collapsed ? (
+    <Button variant="secondary" icon="sparkle" aria-label="Ask the Agent" aria-current={active ? 'page' : undefined} onClick={ask} />
+  ) : (
+    <Button variant="secondary" icon="sparkle" aria-current={active ? 'page' : undefined} onClick={ask}>Ask the Agent</Button>
+  );
+}
+
+/** The dashboard shell (rail, analysis bar, source strip, footer, back-to-top) around every page under it; the landing page at '/' uses
+ * LandingLayout instead. Each page names itself and draws its page-wide filters through PageChrome. Theme state lives in App so both layouts share it. */
+export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme: (t: AppTheme) => void }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const mainRef = useRef<HTMLElement | null>(null);
+  // The shell owns <main id="content">; the route announcement moves focus there.
+  useEffect(() => { mainRef.current = document.getElementById('content'); });
+  useRouteAnnouncements(mainRef);
+
+  const [chrome, setChrome] = useState<PageChromeState | null>(null);
+  const [hasFilters, setHasFilters] = useState(false);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const context = useMemo(() => ({ set: setChrome, setHasFilters, slot }), [slot]);
+
+  const current = ALL_ITEMS.find((item) => item.path === location.pathname)?.id;
+  // A plain click moves within the app; a modified click (new tab, new window) keeps the link's own behaviour.
+  const goTo = (path: string, event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigate(path);
+  };
+  const onItemClick = (item: NavItem, event: MouseEvent) => {
+    const target = ALL_ITEMS.find((candidate) => candidate.id === item.id);
+    if (target) goTo(target.path, event);
+  };
+
+  const title = chrome?.title ?? PRODUCT_NAME;
+  const askActive = location.pathname === '/ask';
+
+  return (
+    <PageChromeContext.Provider value={context}>
+      <AppShell
+        rail={
+          <Rail
+            logo={PRODUCT_MARK}
+            productName={RAIL_PRODUCT_NAME}
+            brandHref={HOME_ITEM.path}
+            onBrandClick={(event) => goTo(HOME_ITEM.path, event)}
+            groups={GROUPS}
+            footerItems={FOOTER_ITEMS}
+            current={current}
+            onItemClick={onItemClick}
+            actions={(collapsed) => <AskAgentButton collapsed={collapsed} active={askActive} onAsk={() => navigate('/ask')} />}
+            utilities={(collapsed) => <ThemeToggle theme={theme} setTheme={setTheme} compact={collapsed} />}
+          />
+        }
+        topBar={<TopBar logo={PRODUCT_MARK} productName={RAIL_PRODUCT_NAME} title={title} summary={chrome?.summary} showControls={hasFilters} />}
+        analysisBar={
+          <AnalysisBar title={title} purpose={chrome?.purpose}>
+            {hasFilters ? <div ref={setSlot} style={{ display: 'contents' }} /> : null}
+          </AnalysisBar>
+        }
+        strip={<SourceStrip summary="Sources: Our World in Data, Berkeley Earth, NOAA, PRIMAP-hist" compactSummary="Sources" />}
+        footer={<Footer copyright={FOOTER_COPYRIGHT} links={[]} />}
+      >
+        <Outlet />
+        <BackToTop targetId="content" avoidSelector="footer" />
+      </AppShell>
+    </PageChromeContext.Provider>
+  );
+}

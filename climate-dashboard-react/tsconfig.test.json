@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["vitest/globals", "@testing-library/jest-dom", "vite/client"],
+    "allowArbitraryExtensions": true,
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Mirrors the Vite alias so tests type-check the design system's imports too */
+    "paths": {
+      "@syena/ds": ["../../syena-design-system/src/index.ts"],
+      "@syena/ds/styles.css": ["../../syena-design-system/src/styles.css"]
+    },
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  /* The design system's own ambient declarations (its plotly.js-dist-min one among them) are included explicitly, so test files that transitively
+     reach its charts don't need @types/plotly.js-dist-min re-declared. */
+  "include": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/test/**/*.ts",
+    "vitest.config.ts",
+    "../../syena-design-system/src/**/*.d.ts"
+  ]
+}

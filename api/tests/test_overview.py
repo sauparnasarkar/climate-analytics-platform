@@ -1,0 +1,360 @@
+import pandas as pd
+from .conftest import owid_raw_headline_df, owid_raw_world_map_series_df, write_fixture, write_selected_countries_json
+
+
+def test_overview_happy_path_defaults_to_featured(client):
+    resp = client.get("/api/overview")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    # China 11000 + United States 4700 + Germany 600 -- France's 300 must be excluded
+    # (France is outside the real FEATURED_COUNTRIES fallback used when no selected_countries.json
+    # is written, and outside the "countries" param default too).
+    assert body["selected"]["label"] == "Selected"
+    assert body["selected"]["latest_co2_total"] == 16300
+    assert body["selected"]["co2_1990_total"] == 8400
+    assert round(body["selected"]["pct_change_since_1990"], 2) == round((16300 - 8400) / 8400 * 100, 2)
+
+
+def test_overview_selected_country_list_defaults_to_featured_countries(client):
+    from api.constants import FEATURED_COUNTRIES
+
+    resp = client.get("/api/overview")
+    assert resp.json()["selected_country_list"] == FEATURED_COUNTRIES
+
+
+def test_overview_all_countries_tier_excludes_non_sovereign_aggregates(client):
+    """all_countries reflects the full iso_code.notna()-filtered raw universe (SPEC.md §6.1)
+    -- the fixture's injected "World" row (9999.0 at year 2010, iso_code=None) must not leak
+    into the total, and Canada (present only via a one-off fixture row) must be counted since
+    it's a real sovereign."""
+    body = client.get("/api/overview").json()
+    tier = body["all_countries"]
+
+    assert tier["label"] == "All Countries"
+    assert tier["countries_count"] == 4  # China, United States, Germany, Canada
+    assert tier["latest_year"] == 2010  # owid_raw_df()'s own latest year, independent of ghg_features.csv's
+    assert tier["latest_co2_total"] == 312.0  # China+US+Germany at year 2010, 104.0 each -- World's 9999.0 excluded
+    assert tier["co2_1990_total"] == 300.0  # China+US+Germany at year 1990, 100.0 each
+    assert round(tier["pct_change_since_1990"], 2) == round((312.0 - 300.0) / 300.0 * 100, 2)
+
+
+def test_overview_world_map_is_unfiltered_latest_year_with_iso_codes(client):
+    """world_map is always every sovereign country's own latest year -- independent of
+    `countries`/Selected, matching all_countries. Canada has no row at the fixture's latest
+    year (2010, only a 1995 row), so it's absent from world_map despite counting toward
+    all_countries' countries_count; World is excluded (null iso_code, SPEC.md §6.1)."""
+    body = client.get("/api/overview").json()
+    points_by_country = {p["country"]: p for p in body["world_map"]}
+
+    assert set(points_by_country) == {"China", "United States", "Germany"}
+    assert points_by_country["China"]["iso_code"] == "CHN"
+    assert points_by_country["China"]["value"] == 104.0
+    assert points_by_country["United States"]["iso_code"] == "USA"
+
+
+def test_overview_world_map_unaffected_by_countries_param(client):
+    """world_map doesn't change when a narrower `countries` selection is requested --
+    it's always the full sovereign universe, same as all_countries."""
+    default_map = client.get("/api/overview").json()["world_map"]
+    scoped_map = client.get("/api/overview", params={"countries": ["China"]}).json()["world_map"]
+    assert default_map == scoped_map
+
+
+def test_overview_expanded_tier_differs_from_selected_with_custom_expanded_set(full_data):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    write_selected_countries_json(full_data)  # expanded = China, United States, Germany, France
+    resp = TestClient(app).get("/api/overview")
+    body = resp.json()
+
+    # expanded includes France (16600 = 11000+4700+600+300); selected still defaults to the
+    # real FEATURED_COUNTRIES fallback, which excludes France (16300).
+    assert body["expanded_countries"]["countries_count"] == 4
+    assert body["expanded_countries"]["latest_co2_total"] == 16600
+    assert body["selected"]["latest_co2_total"] == 16300
+
+
+def test_overview_countries_param_scopes_selected_tier_only(full_data):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    write_selected_countries_json(full_data)  # France is in the expanded set, so it's a valid "countries" value
+    client = TestClient(app)
+
+    resp_china = client.get("/api/overview", params={"countries": "China"})
+    resp_france = client.get("/api/overview", params={"countries": "France"})
+
+    body_china = resp_china.json()
+    body_france = resp_france.json()
+
+    assert body_china["selected"]["latest_co2_total"] == 11000
+    assert body_china["selected_country_list"] == ["China"]
+    assert body_france["selected"]["latest_co2_total"] == 300
+    assert body_france["selected_country_list"] == ["France"]
+
+    # all_countries/expanded_countries are independent of the countries param -- identical
+    # across both responses even though `selected` differs.
+    assert body_china["all_countries"] == body_france["all_countries"]
+    assert body_china["expanded_countries"] == body_france["expanded_countries"]
+
+
+def test_overview_422_over_max_selected_countries(client):
+    resp = client.get("/api/overview", params={"countries": [f"Country{i}" for i in range(11)]})
+    assert resp.status_code == 422
+
+
+def test_overview_404_on_unknown_country(client):
+    resp = client.get("/api/overview", params={"countries": "France"})  # not in the real FEATURED_COUNTRIES fallback
+    assert resp.status_code == 404
+
+
+def test_overview_top_movers_falls_back_to_na_when_selection_has_no_complete_pair(full_data):
+    """Ruritania (conftest fixture) has only a 2023 row, no 1990 -- selecting it alone
+    empties top_movers after dropna(). fastest_growth/largest_reduction must fall back to
+    an "N/A" placeholder instead of crashing with an IndexError."""
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    with open(full_data / "selected_countries.json", "w") as f:
+        json.dump({"expanded": ["China", "United States", "Germany", "Ruritania"]}, f)
+
+    resp = TestClient(app).get("/api/overview", params={"countries": "Ruritania"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["top_movers"] == []
+    assert body["fastest_growth"]["country"] == "N/A"
+    assert body["fastest_growth"]["pct_change"] is None
+    assert body["largest_reduction"]["country"] == "N/A"
+
+
+def test_overview_top_movers_ordering(client):
+    body = client.get("/api/overview").json()
+    movers_by_country = {m["country"]: m["pct_change"] for m in body["top_movers"]}
+
+    # China grew ~358%, United States shrank ~6%, Germany shrank ~40%.
+    assert body["fastest_growth"]["country"] == "China"
+    assert body["largest_reduction"]["country"] == "Germany"
+    pct_values = [m["pct_change"] for m in body["top_movers"]]
+    assert pct_values == sorted(pct_values, reverse=True)
+    assert round(movers_by_country["China"], 1) == round((11000 - 2400) / 2400 * 100, 1)
+
+
+def test_overview_headline_movers_unaffected_by_countries_param(client):
+    """headline_movers (SPEC.md §5.18.5) is a fixed top-emitters set, independent of `selected`
+    -- the entire point of the fix. Load-bearing regression test for the whole feature."""
+    default_headline = client.get("/api/overview").json()["headline_movers"]
+    scoped_headline = client.get("/api/overview", params={"countries": ["China"]}).json()["headline_movers"]
+    assert default_headline == scoped_headline
+
+
+def test_overview_headline_movers_ordering_and_top_n_cap(data_dir):
+    """Uses a dedicated 12-country fixture (the shared 4-country owid_raw_df() can't exercise a
+    real top-10 cap) to prove Poland/Vietnam (11th/12th by 2024 co2, each with an otherwise-
+    complete 1990/2024 pair) are excluded by TOP_N_HEADLINE, and that the list is sorted by
+    co2_latest descending, not pct_change like top_movers."""
+    write_fixture(data_dir, "ghg_features.csv")  # /overview needs load_features() to succeed
+    owid_raw_headline_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    body = TestClient(app).get("/api/overview").json()
+    headline = body["headline_movers"]
+
+    assert len(headline) == 10
+    countries = {m["country"] for m in headline}
+    assert "Poland" not in countries
+    assert "Vietnam" not in countries
+    co2_values = [m["co2_latest"] for m in headline]
+    assert co2_values == sorted(co2_values, reverse=True)
+    assert headline[0]["country"] == "China"
+    assert round(headline[0]["pct_change"], 1) == round((12184 - 2378) / 2378 * 100, 1)
+
+
+def test_overview_latest_year_bar_scoped_to_selected(full_data):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    write_selected_countries_json(full_data)
+    resp = TestClient(app).get("/api/overview", params={"countries": "France"})
+    countries_in_bar = {row["country"] for row in resp.json()["latest_year_bar"]}
+    assert countries_in_bar == {"France"}
+
+
+def test_overview_503_when_features_missing(data_dir):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview")
+    assert resp.status_code == 503
+    assert "ghg_features.csv" in resp.json()["detail"]
+
+
+def test_overview_503_message_mentions_week2(data_dir):
+    write_fixture(data_dir, "ets_forecasts.csv")  # unrelated file present, features still missing
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview")
+    assert resp.status_code == 503
+    assert "Week 2" in resp.json()["detail"]
+
+
+def test_overview_503_when_raw_owid_data_missing(data_dir):
+    """ghg_features.csv present (so the Expanded/Selected tiers' prerequisite is satisfied),
+    but owid-co2-data.csv absent -- the new All Countries tier's own prerequisite."""
+    write_fixture(data_dir, "ghg_features.csv")
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview")
+    assert resp.status_code == 503
+    assert "owid-co2-data.csv" in resp.json()["detail"]
+
+
+def test_overview_tiers_carry_no_per_year_totals_the_client_sums_them_from_the_map_series(client):
+    """The World-total change removed `co2_by_year` from the tiers: it duplicated what the Overview already sums from `/overview/world-map-series` (identical on the real data
+    to 1e-16), and the Landing page now divides by the World total instead of by it. No tier carries it, and the latest-year total still comes from the tier."""
+    body = client.get("/api/overview").json()
+    for tier in ("all_countries", "expanded_countries", "selected"):
+        assert "co2_by_year" not in body[tier]
+    # the tier's single-year totals are unchanged: owid_raw_df's China/US/Germany at 1990 are 100.0 each
+    assert body["all_countries"]["co2_1990_total"] == 300.0
+
+
+def test_world_map_series_shape_ordering_and_value_range(data_dir):
+    owid_raw_world_map_series_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["years"] == list(range(1990, 2025))
+    # Deterministic order: sorted by iso_code, not fixture insertion order (China/US/Kiribati/Monaco).
+    assert body["iso_codes"] == sorted(["CHN", "USA", "KIR", "MCO"])
+    assert body["countries"][body["iso_codes"].index("CHN")] == "China"
+    assert len(body["values"]) == 35
+    assert all(len(row) == 4 for row in body["values"])
+
+    # value_range spans every year, not just one -- max is China's 2024 value (8000 + 34*150),
+    # min is Kiribati's constant 50.0 (lower than any US value, which ranges 5000 down to 4650.0).
+    assert body["value_range"] == [50.0, 8000.0 + 34 * 150.0]
+
+
+def test_world_map_series_no_data_gaps(data_dir):
+    """Kiribati (mirrors the real CXR/ERI/FSM/MHL/NAM/TLS pattern) has no data until 1995, then
+    is complete; Monaco (mirrors the real MCO/SMR/VAT pattern) has no data in any year."""
+    owid_raw_world_map_series_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    body = resp.json()
+    kir_idx = body["iso_codes"].index("KIR")
+    mco_idx = body["iso_codes"].index("MCO")
+    year_1990_idx = body["years"].index(1990)
+    year_1995_idx = body["years"].index(1995)
+
+    assert body["values"][year_1990_idx][kir_idx] is None
+    assert body["values"][year_1995_idx][kir_idx] == 50.0
+    assert all(body["values"][y][mco_idx] is None for y in range(len(body["years"])))
+
+
+def test_world_map_series_503_when_raw_owid_data_missing(data_dir):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    assert resp.status_code == 503
+    assert "owid-co2-data.csv" in resp.json()["detail"]
+
+
+def test_world_map_series_value_range_excludes_literal_zero(data_dir):
+    """A real entity (Antarctica, confirmed against the actual OWID data) reports literal 0.0
+    co2 in some years -- genuinely zero, not missing. log10(0) is undefined, so value_range's
+    floor must be the smallest *positive* value, not 0.0, or a zLog consumer's colorRange would
+    compute a null zmin."""
+    import pandas as pd
+
+    rows = [
+        ("Antarctica", 1990, 0.0, "ATA"),
+        ("Antarctica", 2024, 0.0, "ATA"),
+        ("China", 1990, 0.004, "CHN"),  # smallest genuinely positive value in this fixture
+        ("China", 2024, 8000.0, "CHN"),
+    ]
+    pd.DataFrame(rows, columns=["country", "year", "co2", "iso_code"]).to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    body = resp.json()
+    assert body["value_range"] == [0.004, 8000.0]
+
+
+def _long_range_map_df() -> pd.DataFrame:
+    rows = [("China", y, 800.0 + (y - 1970) * 100.0, "CHN") for y in range(1970, 2025)] + [("Kiribati", y, 0.1, "KIR") for y in range(1970, 2025)]
+    return pd.DataFrame(rows, columns=["country", "year", "co2", "iso_code"])
+
+
+def test_world_map_series_start_year_extends_the_range_and_the_default_is_unchanged(data_dir):
+    _long_range_map_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    default = client.get("/api/overview/world-map-series").json()
+    assert default["years"] == list(range(1990, 2025)) and len(default["values"]) == 35  # the existing contract
+    long = client.get("/api/overview/world-map-series?start_year=1970").json()
+    assert long["years"] == list(range(1970, 2025)) and len(long["values"]) == 55
+    assert long["iso_codes"] == default["iso_codes"] == ["CHN", "KIR"]
+    # same cells where the ranges overlap (1990 is row 20 of the long series, row 0 of the default)
+    assert long["values"][20] == default["values"][0]
+    # value_range follows the requested range: China's 1970 value is the smallest positive China value, Kiribati's 0.1 the floor either way
+    assert long["value_range"] == [0.1, 800.0 + 54 * 100.0]
+
+
+def test_world_map_series_start_year_is_validated(data_dir):
+    _long_range_map_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    for q in ("start_year=1899", "start_year=2025", "start_year=abc"):
+        assert client.get(f"/api/overview/world-map-series?{q}").status_code == 422, q
+    assert client.get("/api/overview/world-map-series?start_year=2024").json()["years"] == [2024]
+
+
+def test_world_map_series_reads_the_csv_once_however_many_start_years_are_requested(data_dir, monkeypatch):
+    _long_range_map_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    import api.data_loaders as dl
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    reads = []
+    real_read_csv = dl.pd.read_csv
+    monkeypatch.setattr(dl.pd, "read_csv", lambda *a, **k: (reads.append(1), real_read_csv(*a, **k))[1])
+    client = TestClient(app)
+    for start in range(1950, 1990):  # far more start years than the result cache holds
+        assert client.get(f"/api/overview/world-map-series?start_year={start}").status_code == 200
+    assert len(reads) == 1

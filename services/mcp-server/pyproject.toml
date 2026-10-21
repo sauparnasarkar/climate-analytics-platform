@@ -1,0 +1,48 @@
+[project]
+name = "climate-emissions-mcp-server"
+version = "0.1.0"
+description = "MCP server wrapping the climate-analytics-platform REST API (api/) as hand-curated tools"
+requires-python = ">=3.11"
+# All rights reserved (see the LICENSE at the repository root): a custom SPDX identifier, and no upload to a package index.
+license = "LicenseRef-Proprietary"
+classifiers = ["Private :: Do Not Upload"]
+dependencies = [
+    "mcp>=2.0.0",
+    "httpx>=0.28.1",
+    "rapidfuzz>=3.9.0",
+    # Floors for indirect dependencies, raised past known advisories (pip-audit, 2026-10-13): pyjwt < 2.15.0, urllib3 < 2.8.0
+    "pyjwt>=2.15.0",
+    "urllib3>=2.8.0",
+]
+
+[project.optional-dependencies]
+# fastapi/pandas/numpy/httpx2 are not this server's own runtime deps (src/ never imports api/
+# or fastapi -- confirmed by grep) -- they're here only because tests/conftest.py mounts the
+# real api/ FastAPI app in-process for fixtures (SPEC.md/CLAUDE.md's stated convention of
+# reusing api/tests/conftest.py's fixture pattern directly), which pulls in api/main.py's own
+# import graph. Versions floor-match root requirements.txt's exact pins (fastapi/pandas/numpy)
+# so this venv exercises the same api/ behavior the real deploy runs, not a drifted one.
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
+    "fastapi>=0.139.2",
+    "pandas>=2.3.0",
+    "numpy>=2.2.6",
+    "httpx2>=2.12.0",
+    # Area 2 test fixtures (tests/conftest.py) run the real pipeline/ stages on stubbed inputs,
+    # which import statsmodels (+ scipy, pinned like root requirements.txt) and openpyxl.
+    "statsmodels>=0.14.4",
+    "scipy>=1.17.1",
+    "openpyxl>=3.1.5",
+]
+
+[build-system]
+requires = ["setuptools>=83.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"

@@ -1,0 +1,120 @@
+# `services/agent` — Architecture
+
+A current-state description of how this sub-project is actually built, updated on
+architecturally-significant changes (new node, new data flow, new deploy pattern) — not a
+history log or a design rationale doc (`SPEC.md`). Read `SPEC.md` first for
+*why*; this is *what exists and how the pieces connect*.
+
+**Status: Step 5 of 5 complete, deployed and running on the Mac Mini.** Sections below marked
+*(planned, Step N)* describe target shape from `SPEC.md`, not yet-built code — kept here rather
+than only in `SPEC.md` so this document stays the single "what actually connects to what"
+reference as later steps land. See "Deploy topology" below for what's live vs. still pending
+(the public Cloudflare route).
+
+---
+
+## Process topology
+
+```
+climate-dashboard-react/  (browser)
+        │  HTTPS, public, no auth
+        ▼
+services/agent            (this sub-project — FastAPI + LangGraph, own venv/process/port)
+        │  HTTP, localhost only, unauthenticated (B3 boundary)
+        ▼
+services/mcp-server        (Stage 1 — FastMCP, own venv/process, port 8765)
+        │  HTTP, localhost only, unauthenticated (B3 boundary)
+        ▼
+api/                       (FastAPI, own process, port 8081)
+        │  pandas over gitignored data/ CSVs
+        ▼
+data/*.csv
+```
+
+`services/agent` and `services/mcp-server` are co-located on the same deploy host (the Mac
+Mini) — see "Corrections applied" #4 in `SPEC.md`. That's why the `agent`→`mcp-server` leg is
+plain localhost HTTP rather than the Cloudflare-Access-gated public URL
+`services/mcp-server/SPEC.md` §8.4 originally sketched for an external LangGraph client: a
+co-located agent never leaves the machine, so it's the same B3 trust boundary
+`services/mcp-server`→`api/` already uses, not the B4 case Access was built for.
+
+## Module map (current)
+
+| Module | Responsibility |
+|---|---|
+| `src/agent/state.py` | `AgentState`/`ToolCallRecord`/`WidgetSpec` — the LangGraph state schema (`SPEC.md` §7). Pydantic `BaseModel`, `messages` uses the `add_messages` reducer. |
+| `src/agent/mcp_client.py` | Builds a `MultiServerMCPClient` pointed at `services/mcp-server` (`MCP_SERVER_URL`, default `http://127.0.0.1:8765/mcp`) and exposes `get_mcp_tools()` for LangGraph's tool-binding. |
+| `src/agent/llm.py` | `get_llm()` — the single `ChatAnthropic` construction point. Every graph-building function takes `llm` as an injectable argument so tests never require a real API key. |
+| `src/agent/server.py` | FastAPI app. Currently just `/health`; gains the SSE query endpoint in Step 3. |
+| `src/agent/cache.py` | `cache_key()` — SPEC.md §9's thread-scoped tool-call cache key, list-arg-order-independent. |
+| `src/agent/progress_labels.py` | `progress_label(tool_name, args)` — one builder function per real tool (not `.format()` templates; every tool has an optional arg a bare template can't handle safely). |
+| `src/agent/prompts.py` | Every fixed/system prompt (`SPEC.md` §6's off-topic copy, guardrail classifier, opinion/general_climate/agent/ui_selection/compose_response system prompts). |
+| `src/agent/ui_selection.py` | The fixed §3 tool→intent lookup, `get_top_emitters`'s bar/choropleth keyword heuristic (§3.1, no `treemap` since that PR), and the `get_country_profile` card/card+chart widget builder. `WidgetSpec.props` carries each tool's raw result through unshaped — `climate-dashboard-react/src/agent/WidgetRenderer.tsx` (Step 4) is the renderer that builds the real per-component prop shape. |
+| `src/agent/graph.py` | The full node catalog (`SPEC.md` §8): `guardrail_router` → `off_topic` / `opinion` / `general_climate` / `agent`↔`tools` (looped, `call_cap_notice` on cap trip) → `ui_selection` → `compose_response` → `finalize`. `build_graph()` is async (fetches MCP tools once), takes injectable `llm`/`mcp_tools`/`checkpointer`, and requires a checkpointer + `thread_id` for cross-turn `tool_cache`/`messages` persistence to work at all — see `SPEC.md` "Corrections applied" #7. `_default_checkpointer()` registers `ToolCallRecord`/`WidgetSpec` for msgpack. No `on_progress` callback (removed in Step 3, #12) — progress is read from `graph.astream(..., stream_mode="updates")` by whichever caller is running the graph. |
+
+## Frontend (`climate-dashboard-react/`, Step 4)
+
+| Module | Responsibility |
+|---|---|
+| `src/agent/types.ts` | Wire types mirroring `state.py`'s `WidgetSpec` and `server.py`'s SSE payloads exactly. `toolNameFromSourceTaggedCall()` recovers a tool name from `cache_key`'s `${tool_name}:${json args}` shape. |
+| `src/agent/useAgentStream.ts` | `POST ${base}agent/query` via `@microsoft/fetch-event-source` (native `EventSource` is GET-only, and this needs a body). Request-id-guarded against a stale in-flight stream landing after a newer `submit()`. `onopen`/`onerror` always throw — this is a one-shot query-response exchange, not a subscription the library's indefinite-retry default is meant for. |
+| `src/agent/WidgetRenderer.tsx` | `WidgetSpec` → real `syena-design-system` component, keyed on the tool name recovered from `source_tool_call`. `get_country_profile` dispatches on `widget.intent`, not the source id, since both its widgets share one. `general_climate_node`'s fixed-literal source (`"general_climate"`) gets its own entry. Unmapped tools fall back to a generic renderer rather than crashing the section. |
+| `src/components/StarterPromptTile.tsx` | The `Tile`+`Icon`+text composition `SPEC.md` "Corrections applied" #3 called for — shared by the landing grid (§4) and opinion-guardrail suggested reframes (§6). |
+| `src/pages/AgentPage.tsx` | Landing/docked interaction model (§2), mounted at `/ask` — **not** `/agent`, which collides with `vite.config.ts`'s `agentProxyEntry` proxy key (path-prefix matching would proxy the page navigation itself to the backend). |
+
+`vite.config.ts` proxies `${base}agent` (dev/preview only) to `services/agent`'s port 8766,
+alongside the existing `${base}api` entry to `api/`'s port 8081 — both merged into one
+`server.proxy`/`preview.proxy` object. In production, Cloudflare routes
+`labs.syena.io/app-prefix/agent/*` directly to `services/agent` (Step 5's deploy),
+bypassing this dev-only proxy entirely.
+
+`server.py`'s `POST /query` runs the compiled graph (injected via the `get_graph` FastAPI
+dependency, resolved from `app.state.graph` in production, overridable in tests) and streams
+SPEC.md §5's progress events, then one final `result` event
+(`{thread_id, widgets, response_text, scope_notes, suggested_prompts, percent: 100}`), over SSE
+(`sse_starlette.EventSourceResponse`). `DEPLOY_BASE_PATH`-aware path prefixing mirrors
+`api/main.py`'s `StripDeployPrefixMiddleware` directly (the correct precedent for a FastAPI app
+— `services/mcp-server`'s `_streamable_http_settings()` is a different mechanism for a
+different transport, despite both being "third hand-mirrored copy" cases, #15). `thread_id` is
+either client-supplied (validated as a well-formed UUID) or server-minted on a client's first
+query; either way it's registered against a coarse `MAX_LIVE_THREADS` cap — a real
+input-validation boundary on this public, unauthenticated endpoint, not a nicety, since
+`MemorySaver` never evicts.
+
+## Trust boundaries
+
+Extends the four-boundary model `services/mcp-server/SPEC.md` §8 established:
+
+| Boundary | Leg | Auth |
+|---|---|---|
+| B1/B2 | Browser → `services/agent` | None — public, same tier as `api/`. Protected at the Cloudflare edge by an existing domain-level rate-limit rule matching `/app-prefix*` (50 req/10s per IP), not app-layer code. |
+| B3 | `services/agent` → `services/mcp-server` | None — localhost-only, co-located (see above). |
+| B3 | `services/mcp-server` → `api/` | None — unchanged from Stage 1. |
+| B4 | External MCP clients (Claude Desktop, testers) → `services/mcp-server` | Cloudflare Access, Service Tokens — unchanged from Stage 1; `services/agent` does **not** use this path. |
+
+## Deploy topology (Mac Mini)
+
+**Live.** `com.ghgemissions.agent.plist` launchd agent, mirroring
+`com.ghgemissions.mcpserver.plist` — own venv (`/opt/homebrew/bin/python3.14`, not bare
+`python3` — a non-interactive SSH shell's `PATH` resolves to the stale system 3.9.6 otherwise),
+port 8766, own logs under `~/Library/Logs/ghgemissions-agent*.log`, `ANTHROPIC_API_KEY` set via
+the plist's `EnvironmentVariables` (never committed to git — the plist itself lives only on the
+Mac Mini). `MCP_SERVER_URL` is set explicitly to
+`http://127.0.0.1:8765/app-prefix/mcp` — the module-level default
+(`mcp_client.py`'s bare `http://127.0.0.1:8765/mcp`) is a local-dev value only; the real deploy's
+`services/mcp-server` runs with `DEPLOY_BASE_PATH` set, which changes both its real path *and*
+activates `transport_security.allowed_hosts` (`services/mcp-server/SPEC.md` §8.3/§8.4) — the loopback host/port this plist connects on had to be added to that allow-list
+before this connection worked at all, found on the first live dry run, fixed in
+`services/mcp-server` the PR.
+
+**Not yet done**: the Cloudflare Tunnel route for the public
+`labs.syena.io/app-prefix/agent` → `localhost:8766` endpoint — dashboard-managed
+(token-file-based tunnel, no local `config.yml`), needs to sit above the existing unanchored
+`/app-prefix` catch-all row, same ordering constraint `services/mcp-server`'s own
+route already established.
+
+## See also
+
+- [`SPEC.md`](SPEC.md) — full design rationale, state schema, node catalog, guardrails.
+- [`CLAUDE.md`](CLAUDE.md) — agent-facing conventions for this sub-project.
+- Root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) — the whole-system view this document extends.

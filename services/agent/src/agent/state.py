@@ -1,0 +1,72 @@
+"""Agent state schema -- SPEC.md §7.
+
+`AgentState` is passed as the state schema to LangGraph's `StateGraph`. `messages` uses the
+`add_messages` reducer so that a node returning `{"messages": [new_msg]}` appends rather than
+overwrites -- every other field uses LangGraph's default whole-value replace, which is what
+`tool_calls`/`tool_call_count`/`tool_cache`/`scope_notes`/`widgets` all need (each node computes
+and replaces its own owned fields; nothing else is auto-merged, e.g. `tool_cache` updates must be
+returned as a full new dict from the node that mutates it).
+"""
+
+from typing import Annotated, Any, Literal
+
+from langgraph.graph.message import add_messages
+from pydantic import BaseModel, Field
+
+
+class ToolCallRecord(BaseModel):
+    tool_name: str
+    args: dict
+    result: Any | None = None
+    progress_label: str
+
+
+class WidgetSpec(BaseModel):
+    intent: Literal["chart", "grid", "card", "text"]
+    chart_kind: Literal["line", "bar", "band", "choropleth"] | None = None
+    # Which picture of a multi-view result to draw: chosen per QUESTION, deterministically, and kept on the widget, never in the tool result (the
+    # thread cache reuses a result across questions, which may want a different view). Only `get_country_cumulative_share` series set it.
+    view: Literal["share_lines", "cumulative_area", "share_vs_annual", "emitted_lines"] | None = None
+    title: str
+    as_of: str | None = None
+    source_tool_call: str
+    props: dict
+    # Answer-block fields (SPEC.md §15.11): deterministic, filled from the tool result.
+    source_line: str | None = None  # "Source: ..." under the chart
+    badge: str | None = None  # the scenario answer's warning chip text
+    summary: dict | None = None  # key figures the compose node quotes
+
+
+class Kpi(BaseModel):
+    """One card of an answer's KPI row (SPEC.md §15.11). The frontend formats `value`."""
+
+    label: str
+    value: float
+    unit: str
+    decimals: int = 0
+    year: int | None = None  # the data year the card is labelled with
+    sub: str | None = None
+    series: str | None = None  # a scenario name, so the card can take that series' colour
+
+
+class FollowUpLink(BaseModel):
+    """A real in-app navigation link (SPEC.md §15.5), not a prompt: `route` is a dashboard path."""
+
+    label: str
+    route: str
+
+
+class AgentState(BaseModel):
+    messages: Annotated[list, add_messages] = Field(default_factory=list)
+    current_query: str = ""
+    classification: Literal["off_topic", "opinion", "general_climate", "data_query"] | None = None
+    tool_calls: list[ToolCallRecord] = Field(default_factory=list)
+    tool_call_count: int = 0
+    tool_cache: dict[str, ToolCallRecord] = Field(default_factory=dict)
+    scope_notes: list[str] = Field(default_factory=list)
+    widgets: list[WidgetSpec] = Field(default_factory=list)
+    suggested_prompts: list[str] = Field(default_factory=list)
+    follow_up_links: list[FollowUpLink] = Field(default_factory=list)
+    follow_up_prompts: list[str] = Field(default_factory=list)
+    kpis: list[Kpi] = Field(default_factory=list)
+    response_text: str = ""

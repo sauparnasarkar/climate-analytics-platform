@@ -1,0 +1,78 @@
+"""Shared fixtures for the mcp-server test suite.
+
+Reuses api/tests/conftest.py's fixture-CSV pattern directly (same FIXTURE_COUNTRIES,
+data_dir, full_data) rather than duplicating it -- these tests exercise the real api/
+FastAPI app mounted in-process via an ASGI transport, never a real running server and
+never the real (gitignored) data/ CSVs, matching that suite's own convention.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import httpx
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from api.main import app as api_app  # noqa: E402
+from api.tests.conftest import (  # noqa: E402, F401
+    FIXTURE_COUNTRIES,
+    OUT_OF_SCOPE_COUNTRY,
+    data_dir,
+    full_data,
+    write_selected_countries_json,
+)
+
+# Area 2 fixtures: the climate directory is built by the REAL pipeline stages on small stubbed
+# inputs (api/tests/test_correlation.py's own `built`/`climate` fixtures), so a change to the
+# pipeline's output schema breaks these tests too -- never the real (gitignored) data/climate.
+from api.tests.test_correlation import built, climate  # noqa: E402, F401
+
+import mcp_server.client as mcp_client  # noqa: E402
+from mcp_server.client import ApiClient  # noqa: E402
+
+
+def _wire_client() -> ApiClient:
+    transport = httpx.ASGITransport(app=api_app)
+    return ApiClient(base_url="http://testserver/api", transport=transport)
+
+
+@pytest.fixture
+async def api_client(full_data) -> ApiClient:
+    """An ApiClient wired directly into the api/ FastAPI app in-process (ASGI transport, no
+    real server on a real port), and also installed as the module-level singleton so tool
+    functions under test (which call client.get_client() internally) see the same fixture
+    data as a direct ApiClient.get() call in the same test.
+    """
+    client = _wire_client()
+    mcp_client.set_client(client)
+    yield client
+    mcp_client.set_client(None)
+    await client.aclose()
+
+
+@pytest.fixture
+async def bare_api_client(data_dir) -> ApiClient:
+    """Like `api_client`, but backed only by `data_dir` with no CSVs pre-written -- for
+    tests that need a specific fixture shape (e.g. world-map-series' full 1990-2024 range)
+    instead of the standard `full_data` set."""
+    client = _wire_client()
+    mcp_client.set_client(client)
+    yield client
+    mcp_client.set_client(None)
+    await client.aclose()
+
+
+@pytest.fixture
+async def climate_client(climate) -> ApiClient:
+    """Like `api_client`, but backed by the Area 2 climate fixture directory instead of the
+    emissions CSVs (the two are independent data roots in api/)."""
+    client = _wire_client()
+    mcp_client.set_client(client)
+    yield client
+    mcp_client.set_client(None)
+    await client.aclose()
