@@ -281,7 +281,7 @@ internals, and the Mac Mini deploy topology — see [`ARCHITECTURE.md`](ARCHITEC
 
 ## Licence
 
-This repository is public as a portfolio, for viewing only. All rights are reserved, and it is not accepting contributions. See [LICENSE](LICENSE).
+This repository is public as a portfolio, for viewing only. All rights are reserved, and it is not accepting contributions. See [LICENSE](LICENSE). The licences of the third-party packages and typefaces in the front-end build are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Data and licences
 

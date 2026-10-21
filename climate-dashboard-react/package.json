@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "notices": "node scripts/generate-third-party-notices.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
