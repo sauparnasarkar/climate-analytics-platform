@@ -66,9 +66,9 @@ export function RelationshipSection({ signal, emissionsSeries }: { signal: Clima
 
   return (
     <section id={RELATIONSHIP_ANCHOR} aria-labelledby="relationship-heading" style={{ marginBottom: SECTION_GAP }}>
-      <style>{CHART_PANEL_STYLES + '@media (max-width: 1100px) { .overview-relationship-grid { grid-template-columns: 1fr !important; } }'}</style>
+      <style>{CHART_PANEL_STYLES + '@media (max-width: 1100px) { .overview-relationship-grid { grid-template-columns: minmax(0, 1fr) !important; } }'}</style>
       <h2 id="relationship-heading" className="syn-title-md" style={{ margin: '0 0 12px' }}>Why the trend matters</h2>
-      <div className="overview-relationship-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, alignItems: 'start' }}>
+      <div className="overview-relationship-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
         <ChartCard source={joinSources(OWID, BERKELEY, NOAA)}
           title={title}
           headingLevel={3}
