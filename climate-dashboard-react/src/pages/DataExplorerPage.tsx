@@ -110,9 +110,9 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
       {columns.length === 0 ? (
         <InlineAlert variant="default">Select at least one column to preview the data.</InlineAlert>
       ) : data.loading ? (
-        <Spinner />
+        <Spinner label="Loading…" />
       ) : data.error ? (
-        <InlineAlert variant="warning">{data.error}</InlineAlert>
+        <InlineAlert variant="error">{data.error}</InlineAlert>
       ) : data.data ? (
         <>
           <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '4px 0 8px' }}>
@@ -145,9 +145,9 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
 
       <h2 id="summary-stats" className="syn-title-sm" style={{ marginTop: 24 }}>Summary Statistics</h2>
       {summary.loading ? (
-        <Spinner />
+        <Spinner label="Loading…" />
       ) : summary.error ? (
-        <InlineAlert variant="warning">{summary.error}</InlineAlert>
+        <InlineAlert variant="error">{summary.error}</InlineAlert>
       ) : summary.data ? (
         <DataTable density="compact" maxVisibleRows={14} caption="Summary statistics" columns={summaryColumns} rows={summary.data.rows} />
       ) : null}
@@ -173,7 +173,7 @@ export default function DataExplorerPage() {
       />
       <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
 
-      {meta.loading ? <Spinner /> : meta.error ? <InlineAlert variant="warning">{meta.error}</InlineAlert> : meta.data ? (
+      {meta.loading ? <Spinner label="Loading…" /> : meta.error ? <InlineAlert variant="error">{meta.error}</InlineAlert> : meta.data ? (
         <DataExplorerContent meta={meta.data} />
       ) : null}
     </div>

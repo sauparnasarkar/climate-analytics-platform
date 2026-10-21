@@ -475,7 +475,7 @@ export default function LandingPage() {
             Where the world’s CO₂ comes from
           </h1>
           {error ? (
-            <InlineAlert variant="warning">{error}</InlineAlert>
+            <InlineAlert variant="error">{error}</InlineAlert>
           ) : (
             <p className="syn-text-lg" style={{ margin: 0, color: 'var(--syn-color-text-muted)' }} role="status">Loading the latest data…</p>
           )}

@@ -420,14 +420,14 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockRejectedValue(new Error('Failed to load data.'));
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
   });
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(vi.mocked(api.scenarioCompare)).not.toHaveBeenCalled();
   });
 

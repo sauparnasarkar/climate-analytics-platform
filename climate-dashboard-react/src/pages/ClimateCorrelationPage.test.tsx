@@ -135,7 +135,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
       throw new ApiError(503, 'x');
     });
     mount();
-    expect(await screen.findByText(/climate data is unavailable right now/)).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/climate data is unavailable right now/);
     expect(screen.queryByRole('heading', { level: 2, name: 'Causal chain' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     // all-gas, composition and the country view do not depend on the headline signal

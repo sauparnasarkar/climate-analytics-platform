@@ -66,9 +66,9 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
       <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
 
       {loading ? (
-        <Spinner />
+        <Spinner label="Loading…" />
       ) : error ? (
-        <InlineAlert variant="warning">{error}</InlineAlert>
+        <InlineAlert variant="error">{error}</InlineAlert>
       ) : data ? (
         <>
           {/* min(280px, 100%) — not a bare 280px floor — since a track that can never
@@ -114,9 +114,9 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
             <h2 className="syn-title-sm">Cumulative contribution</h2>
             <CountingFromControl name="country-counting-from" from={from} onChange={setFrom} lastYear={cumulative.data?.years.at(-1) ?? new Date().getFullYear() - 2} />
             {cumulative.loading ? (
-              <Spinner />
+              <Spinner label="Loading…" />
             ) : cumulative.error ? (
-              <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
+              <InlineAlert variant="error">{cumulative.error}</InlineAlert>
             ) : cumulative.data ? (
               <CumulativeSection country={country} data={cumulative.data} from={from} />
             ) : null}
@@ -170,8 +170,8 @@ function CumulativeSection({ country, data, from }: { country: string; data: Cou
 export default function CountryProfilePage() {
   const countries = useCountries();
 
-  if (countries.loading) return <Spinner />;
-  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (countries.loading) return <Spinner label="Loading…" />;
+  if (countries.error) return <InlineAlert variant="error">{countries.error}</InlineAlert>;
   if (!countries.data) return null;
 
   return <CountryProfileContent featured={countries.data.featured} expanded={countries.data.expanded} />;

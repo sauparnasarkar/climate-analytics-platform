@@ -93,7 +93,7 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
 
   const body = (() => {
     if (countries.length === 0) return <p className="syn-text-lg" style={{ margin: 0 }}>Select countries in the picker below to compare their shares.</p>;
-    if (query.error) return <InlineAlert variant="warning">{query.error}</InlineAlert>;
+    if (query.error) return <InlineAlert variant="error">{query.error}</InlineAlert>;
     if (!frames) {
       const why = query.data?.notes?.length ? ` ${query.data.notes.join(' ')}` : '';
       return <p className="syn-text-lg" style={{ margin: 0 }}>{query.loading ? 'Loading…' : `No share data is available for these countries in this measure.${why}`}</p>;

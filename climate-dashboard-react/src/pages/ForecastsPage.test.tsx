@@ -152,7 +152,7 @@ describe('ForecastsPage', () => {
     vi.mocked(api.featureImportance).mockResolvedValue(FEATURE_IMPORTANCE);
     render(<Themed><ForecastsPage /></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(await screen.findByText('Forecast Summary — 1 Country')).toBeInTheDocument();
   });
 
@@ -160,7 +160,7 @@ describe('ForecastsPage', () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
     render(<Themed><ForecastsPage /></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(vi.mocked(api.forecast)).not.toHaveBeenCalled();
   });
 

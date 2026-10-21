@@ -171,9 +171,9 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
 
       <div id="forecast-chart" style={{ margin: '16px 0' }}>
         {forecast.loading ? (
-          <Spinner />
+          <Spinner label="Loading…" />
         ) : forecast.error ? (
-          <InlineAlert variant="warning">{forecast.error}</InlineAlert>
+          <InlineAlert variant="error">{forecast.error}</InlineAlert>
         ) : forecast.data ? (
           <ChartCard source={MODELS} title={`ETS(A,Ad,N) Forecast — ${country}`} headingLevel={2}>
             <Chart
@@ -195,9 +195,9 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
         {summary.data ? `Forecast Summary — ${countryCount(summary.data.rows.length)}` : 'Forecast Summary'}
       </h2>
       {summary.loading ? (
-        <Spinner />
+        <Spinner label="Loading…" />
       ) : summary.error ? (
-        <InlineAlert variant="warning">{summary.error}</InlineAlert>
+        <InlineAlert variant="error">{summary.error}</InlineAlert>
       ) : summary.data ? (
         <DataTable caption="Forecast summary by country" columns={SUMMARY_COLUMNS} rows={summary.data.rows} />
       ) : null}
@@ -220,8 +220,8 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
 export default function ForecastsPage() {
   const countries = useCountries();
 
-  if (countries.loading) return <Spinner />;
-  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (countries.loading) return <Spinner label="Loading…" />;
+  if (countries.error) return <InlineAlert variant="error">{countries.error}</InlineAlert>;
   if (!countries.data) return null;
 
   return <ForecastsContent expanded={countries.data.expanded} seedCountry={countries.data.featured[0]} />;
