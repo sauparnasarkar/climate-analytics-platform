@@ -36,7 +36,7 @@ export function CountryView({ temperature, mean5y }: { temperature: YearValue[];
   const lines = useMemo(() => (query.loading ? null : buildCountryLines(query.data)), [query.data, query.loading]);
 
   const body = (() => {
-    if (snapshot.error && !snapshot.data) return <InlineAlert variant="warning">{snapshot.error}</InlineAlert>;
+    if (snapshot.error && !snapshot.data) return <InlineAlert variant="error">{snapshot.error}</InlineAlert>;
     // /country-share answers a year outside its coverage with 200 and no rows plus a note: say so, rather than showing an empty picker and a bare prompt.
     if (snapshot.data && snapshot.data.rows.length === 0) {
       const [lo, hi] = snapshot.data.coverage ?? [];
@@ -47,7 +47,7 @@ export function CountryView({ temperature, mean5y }: { temperature: YearValue[];
       );
     }
     if (selected.length === 0) return <p className="syn-text-lg" style={{ margin: 0 }}>Choose countries to compare their shares.</p>;
-    if (query.error) return <InlineAlert variant="warning">{query.error}</InlineAlert>;
+    if (query.error) return <InlineAlert variant="error">{query.error}</InlineAlert>;
     if (!lines) return <p className="syn-text-lg" style={{ margin: 0 }}>{query.loading ? 'Loading…' : 'No share data is available for these countries.'}</p>;
     const missingAlert = lines.missing.length > 0 && (
       <InlineAlert variant="warning">

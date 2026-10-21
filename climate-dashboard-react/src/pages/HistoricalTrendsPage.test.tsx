@@ -188,11 +188,18 @@ describe('HistoricalTrendsPage', () => {
     expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
   });
 
+  it('says "Loading…" (with the ellipsis) while the country list is still arriving', () => {
+    vi.mocked(api.listCountries).mockReturnValue(new Promise(() => {}));
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…');
+  });
+
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
     render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(vi.mocked(api.historicalTimeseries)).not.toHaveBeenCalled();
   });
 
@@ -341,7 +348,7 @@ describe('HistoricalTrendsPage', () => {
       arrange();
       vi.mocked(api.historicalCumulative).mockRejectedValue(new Error('boom'));
       render(<MemoryRouter initialEntries={['/historical?view=share']}><HistoricalTrendsPage /></MemoryRouter>);
-      expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+      expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
       expect(await screen.findByText('GHG Composition by Decade — 10 Countries (% share)')).toBeInTheDocument();
     });
   });

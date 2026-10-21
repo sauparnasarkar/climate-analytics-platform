@@ -104,9 +104,9 @@ export default function ClimateCorrelationPage() {
         </div>
       </StickyAnchorRow>
       {!climate.settled ? (
-        <Spinner />
+        <Spinner label="Loading…" />
       ) : !signal || !headline ? (
-        <InlineAlert variant="warning">{`The climate data is unavailable right now, so the chain and the relationship are not shown. ${NOT_A_CLIMATE_MODEL}`}</InlineAlert>
+        <InlineAlert variant="error">{`The climate data is unavailable right now, so the chain and the relationship are not shown. ${NOT_A_CLIMATE_MODEL}`}</InlineAlert>
       ) : (
         <>
           <CausalChain signal={signal} emissions={emissions} />

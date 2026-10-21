@@ -213,7 +213,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerMeta).mockRejectedValue(new Error('Failed to load data.'));
     render(<Themed><DataExplorerPage /></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
   });
 
   it('renders an inline error for the table when the data call fails, independent of summary', async () => {
@@ -222,7 +222,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
     render(<Themed><DataExplorerPage /></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(await screen.findByRole('heading', { name: 'Summary Statistics' })).toBeInTheDocument();
   });
 

@@ -162,9 +162,9 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
         ))}
       </div>
       {cumulative.loading ? (
-        <Spinner />
+        <Spinner label="Loading…" />
       ) : cumulative.error ? (
-        <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
+        <InlineAlert variant="error">{cumulative.error}</InlineAlert>
       ) : cumulative.data ? (
         <ChartCard source={SCENARIOS}
           title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`}
@@ -248,9 +248,9 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
         {selectedCountries.length === 0 ? (
           <InlineAlert variant="warning">Select at least one country.</InlineAlert>
         ) : compare.loading ? (
-          <Spinner />
+          <Spinner label="Loading…" />
         ) : compare.error ? (
-          <InlineAlert variant="warning">{compare.error}</InlineAlert>
+          <InlineAlert variant="error">{compare.error}</InlineAlert>
         ) : compare.data ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
             {SCENARIO_PANELS.map((scenario) => (
@@ -284,9 +284,9 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
         </p>
 
         {cumulative.loading ? (
-          <Spinner />
+          <Spinner label="Loading…" />
         ) : cumulative.error ? (
-          <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
+          <InlineAlert variant="error">{cumulative.error}</InlineAlert>
         ) : cumulative.data ? (
           <DataTable caption="Cumulative emissions by country under each scenario, 2025–2040" columns={cumulativeColumns} rows={cumulativeRows} />
         ) : null}
@@ -298,8 +298,8 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
 export default function ScenarioComparisonPage() {
   const countries = useCountries();
 
-  if (countries.loading) return <Spinner />;
-  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (countries.loading) return <Spinner label="Loading…" />;
+  if (countries.error) return <InlineAlert variant="error">{countries.error}</InlineAlert>;
   if (!countries.data) return null;
 
   return <ScenarioComparisonContent featured={countries.data.featured} expanded={countries.data.expanded} />;

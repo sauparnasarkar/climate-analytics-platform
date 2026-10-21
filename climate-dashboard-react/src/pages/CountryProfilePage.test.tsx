@@ -183,14 +183,14 @@ describe('CountryProfilePage', () => {
     vi.mocked(api.countryProfile).mockRejectedValue(new Error('Failed to load data.'));
     render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
   });
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
     render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(vi.mocked(api.countryProfile)).not.toHaveBeenCalled();
   });
 
@@ -268,7 +268,7 @@ describe('CountryProfilePage', () => {
       arrange();
       vi.mocked(api.countryCumulative).mockRejectedValue(new Error('boom'));
       render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
-      expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+      expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
       expect(screen.getByRole('heading', { name: 'Key Statistics' })).toBeInTheDocument();
     });
 

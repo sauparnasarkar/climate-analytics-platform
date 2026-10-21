@@ -526,8 +526,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // flips), so only block on a spinner before anything has ever loaded — once `data`
   // exists, keep the picker/last-good UI mounted across every selection change instead of
   // unmounting the whole page (and its MultiSelect) on every refetch.
-  if (error || worldMapError) return <InlineAlert variant="warning">{error ?? worldMapError}</InlineAlert>;
-  if (!data || !worldMapSeries || !climate.settled) return loading || worldMapLoading || !climate.settled ? <Spinner /> : null;
+  if (error || worldMapError) return <InlineAlert variant="error">{error ?? worldMapError}</InlineAlert>;
+  if (!data || !worldMapSeries || !climate.settled) return loading || worldMapLoading || !climate.settled ? <Spinner label="Loading…" /> : null;
 
   // By Country, Top Movers and % Change follow the page year: computed here from the series the map holds, for the
   // selected countries, rather than the API's latest-year /overview figures (the two agree at the latest year).
@@ -729,8 +729,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 export default function OverviewPage() {
   const countries = useCountries();
 
-  if (countries.loading) return <Spinner />;
-  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (countries.loading) return <Spinner label="Loading…" />;
+  if (countries.error) return <InlineAlert variant="error">{countries.error}</InlineAlert>;
   if (!countries.data) return null;
 
   return <OverviewContent featured={countries.data.featured} expanded={countries.data.expanded} />;

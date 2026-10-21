@@ -513,7 +513,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
   });
 
   it('renders an inline error instead of crashing when the world-map-series API call fails', async () => {
@@ -529,7 +529,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(vi.mocked(api.overview)).not.toHaveBeenCalled();
   });
 

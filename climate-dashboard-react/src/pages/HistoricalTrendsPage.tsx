@@ -142,9 +142,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : annual ? (
         timeseries.loading ? (
-          <Spinner />
+          <Spinner label="Loading…" />
         ) : timeseries.error ? (
-          <InlineAlert variant="warning">{timeseries.error}</InlineAlert>
+          <InlineAlert variant="error">{timeseries.error}</InlineAlert>
         ) : (
           <ChartCard source={OWID} title={`${GAS_COLUMNS[gas]} Emissions by Country`} headingLevel={3}>
             <Chart
@@ -158,9 +158,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
           </ChartCard>
         )
       ) : cumulative.loading ? (
-        <Spinner />
+        <Spinner label="Loading…" />
       ) : cumulative.error ? (
-        <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
+        <InlineAlert variant="error">{cumulative.error}</InlineAlert>
       ) : cumulative.data ? (
         <ChartCard source={OWID} title={viewCopy(view, from).title} headingLevel={3}>
           <p className="syn-caption" style={{ margin: '0 0 8px', color: 'var(--syn-color-text-muted)' }}>
@@ -186,9 +186,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         {selectedCountries.length === 0 ? (
           <InlineAlert variant="warning">Select at least one country.</InlineAlert>
         ) : composition.loading ? (
-          <Spinner />
+          <Spinner label="Loading…" />
         ) : composition.error ? (
-          <InlineAlert variant="warning">{composition.error}</InlineAlert>
+          <InlineAlert variant="error">{composition.error}</InlineAlert>
         ) : (
           <ChartCard source={PRIMAP} title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`} headingLevel={3}>
             <Chart
@@ -218,8 +218,8 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
 export default function HistoricalTrendsPage() {
   const countries = useCountries();
 
-  if (countries.loading) return <Spinner />;
-  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (countries.loading) return <Spinner label="Loading…" />;
+  if (countries.error) return <InlineAlert variant="error">{countries.error}</InlineAlert>;
   if (!countries.data) return null;
 
   return (

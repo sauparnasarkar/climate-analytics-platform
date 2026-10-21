@@ -34,7 +34,7 @@ export function MethodologySection({ meta, metaFailed, splice, children }: { met
       <p className="syn-text-lg" style={{ margin: '0 0 12px', maxWidth: 880 }}>
         Every figure on this page is read from the pipeline output. This section says where each comes from, which baseline each view uses, and why numbers that look alike differ.
       </p>
-      {metaFailed && !meta && <InlineAlert variant="warning">The sources, licences and data vintages could not be loaded right now. The baseline rules below do not depend on them.</InlineAlert>}
+      {metaFailed && !meta && <InlineAlert variant="error">The sources, licences and data vintages could not be loaded right now. The baseline rules below do not depend on them.</InlineAlert>}
       {!meta && !metaFailed && <p className="syn-text-lg" style={{ margin: 0 }}>Loading…</p>}
 
       {sources.length > 0 && (
