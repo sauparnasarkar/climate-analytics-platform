@@ -1,5 +1,6 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { PageChrome } from './PageChrome';
 import { afterEach, describe, expect, it } from 'vitest';
 import { recordResponse, resetSavedData } from '../lib/savedCopy';
 import { DashboardLayout } from './DashboardLayout';
@@ -60,5 +61,49 @@ describe('DashboardLayout saved-data notice', () => {
     mount('/ask');
     act(() => recordResponse('/api/correlation', '2026-01-14T09:00:00.000Z'));
     expect(screen.queryByText(/Showing saved data/)).toBeNull();
+  });
+});
+
+describe('DashboardLayout page description on a phone', () => {
+  const realMatchMedia = window.matchMedia;
+  afterEach(() => { window.matchMedia = realMatchMedia; });
+  /** matchMedia where only the compact (drawer) query matches, or none do. */
+  const phone = (compact: boolean) => { window.matchMedia = ((q: string) => ({ matches: compact && /max-width/.test(q), media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+  const PURPOSE = 'Where emissions are and how they moved.';
+  const mountPage = (chrome: { title: string; purpose?: string; ownsPurpose?: boolean }) => render(
+    <MemoryRouter initialEntries={['/overview']}>
+      <Routes>
+        <Route element={<DashboardLayout theme="night" setTheme={() => {}} />}>
+          <Route path="/overview" element={<><PageChrome {...chrome} /><p>first section</p></>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  it('on a phone, writes the description as the first item of the page content, once, and not inside anything pinned', () => {
+    phone(true);
+    mountPage({ title: 'Overview', purpose: PURPOSE });
+    const main = document.getElementById('content') as HTMLElement;
+    const copies = screen.getAllByText(PURPOSE);
+    expect(copies).toHaveLength(1);
+    expect(main.firstElementChild).toBe(copies[0]);
+    expect(copies[0].closest('[data-syn-sticky]')).toBeNull();
+  });
+
+  it('on a desktop shell the page content does not carry it (the analysis bar does)', () => {
+    phone(false);
+    mountPage({ title: 'Overview', purpose: PURPOSE });
+    const main = document.getElementById('content') as HTMLElement;
+    expect(within(main).queryByText(PURPOSE)).toBeNull();
+    expect(screen.getAllByText(PURPOSE)).toHaveLength(1);
+  });
+
+  it('writes nothing for a page with no description, or one that writes its own', () => {
+    phone(true);
+    mountPage({ title: 'Overview' });
+    expect(document.getElementById('content')?.firstElementChild).toHaveTextContent('first section');
+    cleanup();
+    mountPage({ title: 'About', purpose: PURPOSE, ownsPurpose: true });
+    expect(screen.queryByText(PURPOSE)).toBeNull();
   });
 });

@@ -33,7 +33,7 @@ export default function AboutPage() {
 
   return (
     <div>
-      <PageChrome title="About This Project" purpose="How the platform was built and where its data comes from." />
+      <PageChrome title="About This Project" purpose="How the platform was built and where its data comes from." ownsPurpose />
       <h2 className="syn-title-md" style={{ margin: '16px 0 8px' }}>{PRODUCT_NAME}</h2>
       <p className="syn-text-md" style={{ marginBottom: 24 }}>
         The backend and AI/ML processes for this dashboard began as a 7-week data science project.
