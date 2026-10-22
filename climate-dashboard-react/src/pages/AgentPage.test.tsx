@@ -4,6 +4,8 @@ import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AskThreadProvider } from '../agent/AskThreadProvider';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppShell } from '@syena/ds';
+import { PageChromeContext } from '../layouts/PageChrome';
 import { AgentPage } from './AgentPage';
 import { useAgentStream } from '../agent/useAgentStream';
 import type { AgentQueryResult } from '../agent/types';
@@ -408,5 +410,34 @@ describe('AgentPage', () => {
     expect(scrollTo).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
     mockReducedMotion(false);
+  });
+});
+
+describe('AgentPage description under its heading on a phone', () => {
+  const shell = (compact: boolean) => (
+    <MemoryRouter>
+      <AskThreadProvider>
+        <PageChromeContext.Provider value={{ set: () => {}, setHasFilters: () => {}, slot: null }}><AppShell compact={compact} rail={null} topBar={null} analysisBar={null} strip={null} footer={null}><AgentPage /></AppShell></PageChromeContext.Provider>
+      </AskThreadProvider>
+    </MemoryRouter>
+  );
+  const DESCRIPTION = /Answers from emissions data for 1990–2024/;
+
+  it('in the compact shell writes its own copy under the heading, once', () => {
+    stubStream({});
+    render(shell(true));
+    const copies = screen.getAllByText(DESCRIPTION);
+    expect(copies).toHaveLength(1);
+    const heading = screen.getByRole('heading', { level: 2, name: 'Ask about emissions and climate outcomes' });
+    expect(heading.parentElement).toContainElement(copies[0]);
+  });
+
+  it('not in a wide shell (the analysis bar carries it there) and not outside a shell (the page chrome draws it)', () => {
+    stubStream({});
+    const { unmount } = render(shell(false));
+    expect(screen.queryByRole('heading', { level: 2, name: 'Ask about emissions and climate outcomes' })?.parentElement?.textContent).not.toMatch(DESCRIPTION);
+    unmount();
+    render(page());
+    expect(screen.getAllByText(DESCRIPTION)).toHaveLength(1);
   });
 });

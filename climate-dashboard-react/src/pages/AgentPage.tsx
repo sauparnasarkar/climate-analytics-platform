@@ -1,12 +1,12 @@
-import { useEffect, useId, useRef } from 'react';
-import { Button, InlineAlert, Progress, PromptBar, Text, useReducedMotion } from '@syena/ds';
+import { useContext, useEffect, useId, useRef } from 'react';
+import { Button, InlineAlert, Progress, PromptBar, Text, useReducedMotion, useShell } from '@syena/ds';
 import { AnswerSection, QuestionHeading } from '../agent/AnswerSection';
 import { AnswerSkeleton } from '../agent/AnswerSkeleton';
 import { FollowUpChips } from '../agent/FollowUpChips';
 import { StarterPromptColumns } from '../agent/StarterPromptColumns';
 import { categoryFor } from '../agent/starterPrompts';
 import { useAskThread } from '../agent/askThread';
-import { PageChrome } from '../layouts/PageChrome';
+import { PageChrome, PageChromeContext } from '../layouts/PageChrome';
 
 // The Ask the Agent page.
 // Landing: a title, the input with its hint, and three columns of starter prompts under it. After the first question the input is pinned to the
@@ -40,7 +40,14 @@ function FailedAnswer({ query, message, onRetry }: { query: string; message: str
   );
 }
 
+/** Said in the analysis bar on a wide screen and, on a phone, here under the heading. */
+const PURPOSE = "Answers from emissions data for 1990–2024, global temperature and CO₂ records, and the platform's forecasts. Every chart shows its source.";
+
 export function AgentPage() {
+  // On a phone the analysis bar that carries the description is not on the page, so the page writes it under its own heading (inside the dashboard shell only).
+  const compactShell = useShell()?.compact === true;
+  const inChrome = useContext(PageChromeContext) != null;
+  const phoneShell = compactShell && inChrome;
   // The conversation lives in AskThreadProvider (above the routes), so it survives navigating away and back.
   const { answers, pendingQuery, value, setValue, submit, retry, newQuestion, scrollYRef, progress, result, error, loading } = useAskThread();
   const promptBarRef = useRef<HTMLTextAreaElement>(null);
@@ -94,10 +101,11 @@ export function AgentPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minHeight: 'calc(100vh - 140px)', padding: hasSubmitted ? '16px 0 0' : '48px 24px' }}>
-      <PageChrome title="Ask the Agent" purpose="Answers from emissions data for 1990–2024, global temperature and CO₂ records, and the platform's forecasts. Every chart shows its source." />
+      <PageChrome title="Ask the Agent" purpose={PURPOSE} ownsPurpose />
       {!hasSubmitted && (
         <div style={{ textAlign: 'center', margin: '0 auto', maxWidth: 680 }}>
           <Text as="h2" type="title-lg">Ask about emissions and climate outcomes</Text>
+          {phoneShell ? <p className="syn-text-md" style={{ margin: '8px 0 0', color: 'var(--syn-color-text-muted)' }}>{PURPOSE}</p> : null}
         </div>
       )}
 

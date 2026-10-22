@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 export interface PageChromeState {
   title: string;
   purpose?: string;
+  /** The page writes its description itself in the compact layout (or has its own introduction), so the shell does not add one. */
+  ownsPurpose?: boolean;
   summary?: string;
 }
 
@@ -31,13 +33,13 @@ export function PageFilters({ children }: { children: ReactNode }) {
 }
 
 /** A page's heading and, optionally, its page-wide filters. Outside a shell it draws the heading in place, so a page can be rendered on its own. */
-export function PageChrome({ title, purpose, summary, filters }: { title: string; purpose?: string; summary?: string; filters?: ReactNode }) {
+export function PageChrome({ title, purpose, ownsPurpose, summary, filters }: { title: string; purpose?: string; ownsPurpose?: boolean; summary?: string; filters?: ReactNode }) {
   const chrome = useContext(PageChromeContext);
   const set = chrome?.set;
   useLayoutEffect(() => {
-    set?.({ title, purpose, summary });
+    set?.({ title, purpose, ownsPurpose, summary });
     return () => set?.(null);
-  }, [set, title, purpose, summary]);
+  }, [set, title, purpose, ownsPurpose, summary]);
   return (
     <>
       {chrome ? null : (
