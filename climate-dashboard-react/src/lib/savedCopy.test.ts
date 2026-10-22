@@ -24,10 +24,26 @@ describe('savedCopyPlugin', () => {
     expect(describeSavedAt(served.headers.get(SAVED_AT_HEADER) as string, new Date('2026-10-22T08:00:00Z'))).toBe('14 October 2025');
   });
 
+  it('a copy saved before the stamp existed is dated by its Date header when it is served', async () => {
+    const old = new Response('x', { headers: { date: 'Tue, 14 Oct 2025 09:30:00 GMT' } });
+    const served = await savedCopyPlugin.cachedResponseWillBeUsed({ cachedResponse: old });
+    expect(served?.headers.get(SAVED_AT_HEADER)).toBe('2025-10-14T09:30:00.000Z');
+    expect(await served?.text()).toBe('x');
+  });
+
+  it('keeps the stamp a copy already has, and leaves a copy with neither stamp nor Date as it is', async () => {
+    const stamped = new Response('x', { headers: { 'x-saved-at': '2025-01-02T03:04:05.000Z', date: 'Tue, 14 Oct 2025 09:30:00 GMT' } });
+    expect((await savedCopyPlugin.cachedResponseWillBeUsed({ cachedResponse: stamped }))?.headers.get(SAVED_AT_HEADER)).toBe('2025-01-02T03:04:05.000Z');
+    const bare = new Response('x');
+    expect((await savedCopyPlugin.cachedResponseWillBeUsed({ cachedResponse: bare }))?.headers.get(SAVED_AT_HEADER)).toBeNull();
+    expect(await savedCopyPlugin.cachedResponseWillBeUsed({ cachedResponse: undefined })).toBeUndefined();
+  });
+
   it('is self-contained, so the worker script generated from it has nothing to resolve', () => {
-    const source = savedCopyPlugin.cacheWillUpdate.toString();
-    expect(source).toContain('x-saved-at');
-    expect(source).not.toContain('SAVED_AT_HEADER');
+    for (const source of [savedCopyPlugin.cacheWillUpdate.toString(), savedCopyPlugin.cachedResponseWillBeUsed.toString()]) {
+      expect(source).toContain('x-saved-at');
+      expect(source).not.toContain('SAVED_AT_HEADER');
+    }
   });
 });
 
