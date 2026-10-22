@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { shortScreenQuery } from '@syena/ds';
 import { AnchorScroll, StickyAnchorRow } from './StickyAnchorRow';
 
 describe('StickyAnchorRow', () => {
@@ -13,6 +14,11 @@ describe('StickyAnchorRow', () => {
     expect(css).toMatch(/flex-wrap: nowrap/);
     expect(css).toMatch(/overflow-x: auto/);
     expect(css).toMatch(/scrollbar-width: none/);
+  });
+  it('is the same one scrolling line on a short, narrow screen (a phone turned sideways), where the width alone would let it wrap', () => {
+    render(<StickyAnchorRow innerRef={() => {}}><span>row</span></StickyAnchorRow>);
+    const css = (screen.getByText('row').closest('[style*="position: sticky"]') as HTMLElement).querySelector('style')!.textContent!;
+    expect(css).toContain(`@media (max-width: 640px), ${shortScreenQuery} {`);
   });
   it("sits on the design system's sticky layer, below its menus: a select's list opened above the row is never covered by it", () => {
     render(<StickyAnchorRow innerRef={() => {}}><span>row</span></StickyAnchorRow>);

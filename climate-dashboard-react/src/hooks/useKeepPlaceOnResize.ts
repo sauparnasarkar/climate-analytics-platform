@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { stickyOffset } from '@syena/ds';
 
 /** Slack (px) so a section whose top is just under the pinned rows still counts as reached (the scroll spy uses the same). */
 const REACHED_SLACK_PX = 4;
@@ -12,9 +13,7 @@ interface Place {
 }
 
 /** The bottom edge of the bars pinned to the top of the page; the same measure a jump link lands below. */
-function pinnedBottom() {
-  return Math.max(0, ...[...document.querySelectorAll('[data-syn-sticky="top"]')].map((el) => el.getBoundingClientRect().bottom));
-}
+const pinnedBottom = stickyOffset;
 
 /** The sections the page's jump links point to, in link order; links to ids with no element yet (data still loading) are skipped. */
 function jumpTargets(): HTMLElement[] {
