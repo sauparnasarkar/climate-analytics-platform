@@ -4,6 +4,7 @@ import { AnalysisBar, AppShell, BackToTop, Button, Footer, Rail, SourceStrip, To
 
 import type { AppTheme } from '../lib/theme';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { useKeepPlaceOnResize } from '../hooks/useKeepPlaceOnResize';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { FOOTER_COPYRIGHT, HOME_ITEM, NAV_ITEMS, PRODUCT_NAME, RAIL_PRODUCT_NAME, type AppNavItem } from '../navigation';
 import { PageChromeContext, type PageChromeState } from './PageChrome';
@@ -39,6 +40,7 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
   // The shell owns <main id="content">; the route announcement moves focus there.
   useEffect(() => { mainRef.current = document.getElementById('content'); });
   useRouteAnnouncements(mainRef);
+  useKeepPlaceOnResize(location.pathname);
 
   const [chrome, setChrome] = useState<PageChromeState | null>(null);
   const [hasFilters, setHasFilters] = useState(false);
