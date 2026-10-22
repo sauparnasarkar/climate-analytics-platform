@@ -36,13 +36,17 @@ import type {
   TemperatureBaseline,
   TemperatureView,
 } from './correlationTypes';
+import { SAVED_AT_HEADER, recordResponse } from '../lib/savedCopy';
 import { ApiError } from './types';
 
 async function get<T>(path: string): Promise<T> {
   // BASE_URL is "/" locally and "/app-prefix/" in the tunnel deployment
   // (see vite.config.ts DEPLOY_BASE_PATH) — Cloudflare Tunnel forwards the full
   // request path to the origin, so /api must be nested under it in production.
-  const res = await fetch(`${import.meta.env.BASE_URL}api${path}`);
+  const url = `${import.meta.env.BASE_URL}api${path}`;
+  const res = await fetch(url);
+  // A response the service worker served from its saved copy says when it was saved; a live one does not.
+  recordResponse(url, res.headers.get(SAVED_AT_HEADER));
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(res.status, body.detail ?? res.statusText);

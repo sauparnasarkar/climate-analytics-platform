@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnalysisBar, AppShell, BackToTop, Button, Footer, Rail, SourceStrip, TopBar, useShell, type NavGroup, type NavItem } from '@syena/ds';
 
 import type { AppTheme } from '../lib/theme';
+import { SavedDataNotice } from '../components/SavedDataNotice';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useKeepPlaceOnResize } from '../hooks/useKeepPlaceOnResize';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
@@ -88,6 +89,7 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
         strip={<SourceStrip summary="Sources: Our World in Data, Berkeley Earth, NOAA, PRIMAP-hist" compactSummary="Sources" />}
         footer={<Footer copyright={FOOTER_COPYRIGHT} links={[]} />}
       >
+        <SavedDataNotice />
         <Outlet />
         <BackToTop targetId="content" avoidSelector="footer" />
       </AppShell>

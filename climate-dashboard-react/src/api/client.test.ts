@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resetSavedData, savedDataSince } from '../lib/savedCopy';
 import { api } from './client';
 import { ApiError } from './types';
 
@@ -8,6 +9,7 @@ function mockFetchOnce(body: unknown, init: { ok?: boolean; status?: number; sta
     ok,
     status,
     statusText,
+    headers: new Headers(),
     json: () => Promise.resolve(body),
   } as Response;
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
@@ -85,11 +87,31 @@ describe('api client', () => {
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
+      headers: new Headers(),
       json: () => Promise.reject(new Error('not json')),
     } as Response;
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
     await expect(api.overview()).rejects.toBeInstanceOf(ApiError);
     await expect(api.overview()).rejects.toMatchObject({ message: 'Internal Server Error' });
+  });
+});
+
+describe('api client — saved copies', () => {
+  const answer = (headers: Record<string, string>) => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"latest_year":2024}', { status: 200, headers })));
+  afterEach(resetSavedData);
+
+  it('notes a response the service worker served from its saved copy, with the time it was saved', async () => {
+    answer({ 'x-saved-at': '2026-10-14T09:00:00.000Z' });
+    await api.overview();
+    expect(savedDataSince()).toBe('2026-10-14T09:00:00.000Z');
+  });
+
+  it('a live response for the same URL clears it', async () => {
+    answer({ 'x-saved-at': '2026-10-14T09:00:00.000Z' });
+    await api.overview();
+    answer({});
+    await api.overview();
+    expect(savedDataSince()).toBeNull();
   });
 });
 
