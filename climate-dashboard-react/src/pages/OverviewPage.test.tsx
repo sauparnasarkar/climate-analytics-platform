@@ -609,7 +609,7 @@ function mountWithClimate() {
   vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
   return render(
     <MemoryRouter>
-      <div data-testid="shell-bar" data-syn-sticky="top" />
+      <div data-testid="shell-bar" data-syn-sticky="top" style={{ position: 'sticky' }} />
       <div id="content"><OverviewPage /></div>
     </MemoryRouter>,
   );

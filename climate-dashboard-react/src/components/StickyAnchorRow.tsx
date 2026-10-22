@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { shortScreenQuery } from '@syena/ds';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 
 /**
@@ -15,11 +16,11 @@ export function StickyAnchorRow({ innerRef, children }: { innerRef: (el: HTMLDiv
   );
 }
 
-/** The row's layout: wrapping on larger screens; on a phone one horizontally scrolling line, scrollbar hidden, with a soft fade at the trailing edge. */
+/** The row's layout: wrapping on larger screens; on a phone (upright or turned sideways) one horizontally scrolling line, scrollbar hidden, with a soft fade at the trailing edge. */
 const ANCHOR_ROW_STYLES = `
 .area2-anchor-line { display: flex; align-items: center; justify-content: space-between; gap: 4px 16px; flex-wrap: wrap; }
 .area2-anchor-scroll { flex: 1 1 auto; min-width: 0; }
-@media (max-width: 640px) {
+@media (max-width: 640px), ${shortScreenQuery} {
   .area2-anchor-line { flex-wrap: nowrap; gap: 8px; }
   .area2-anchor-scroll { overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
   .area2-anchor-scroll::-webkit-scrollbar { display: none; }

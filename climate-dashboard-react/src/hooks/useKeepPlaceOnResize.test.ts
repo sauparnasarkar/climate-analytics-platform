@@ -10,9 +10,19 @@ let scrollY: number;
 let innerWidth: number;
 const scrollTo = vi.fn((arg: ScrollToOptions) => { scrollY = arg.top ?? scrollY; });
 
-function addPage() {
+function addPage({ unpinnedBar = false } = {}) {
   const row = document.createElement('div');
   row.dataset.synSticky = 'top';
+  row.style.position = 'sticky';
+  row.style.top = '56px'; // pinned below the 56px bar, so its bottom edge is PINNED
+  if (unpinnedBar) {
+    // The shell's bar on a short screen: it scrolls away with the page, so it is no part of what is pinned.
+    const bar = document.createElement('section');
+    bar.dataset.synSticky = 'top';
+    bar.style.position = 'static';
+    bar.getBoundingClientRect = () => ({ top: 0, bottom: 300, left: 0, right: 0, width: 0, height: 300, x: 0, y: 0, toJSON: () => ({}) });
+    document.body.appendChild(bar);
+  }
   row.getBoundingClientRect = () => ({ top: 56, bottom: PINNED, left: 0, right: 0, width: 0, height: 44, x: 0, y: 56, toJSON: () => ({}) });
   for (const id of Object.keys(STARTS.narrow)) {
     const link = document.createElement('a');
@@ -49,6 +59,17 @@ beforeEach(() => {
 afterEach(() => { document.body.innerHTML = ''; vi.useRealTimers(); });
 
 describe('useKeepPlaceOnResize', () => {
+  it('measures only what is pinned: a bar that scrolls away with the page is not counted', () => {
+    document.body.innerHTML = '';
+    addPage({ unpinnedBar: true });
+    renderHook(() => useKeepPlaceOnResize('/overview'));
+    scrollY = 800; // section b starts 200px down: below the pinned row (100px), so the reader is still in section a, 600px in
+    scroll();
+    rotate(844, 'wide');
+    resize();
+    expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ top: 260 - PINNED + 600 }));
+  });
+
   it('after the width changes, puts the reader back in the same place in the same section', () => {
     renderHook(() => useKeepPlaceOnResize('/overview'));
     scrollY = 1000 - PINNED + 150; // 150px into section b

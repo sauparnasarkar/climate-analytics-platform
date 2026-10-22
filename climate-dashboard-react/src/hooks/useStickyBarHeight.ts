@@ -3,7 +3,8 @@ import { useShell } from '@syena/ds';
 
 /**
  * The height in px of the shell's bar pinned to the top of the page (the analysis bar, or the top bar on a phone), kept current as the bar
- * changes size or the shell swaps one for the other. Anything pinned beneath it uses this as its `top`. 0 where there is no shell.
+ * changes size or the shell swaps one for the other. Anything pinned beneath it uses this as its `top`. 0 where there is no shell, and
+ * while the bar is not pinned (on a short screen it scrolls away with the page, so what is beneath it pins at the top).
  */
 export function useStickyBarHeight(): number {
   const [height, setHeight] = useState(0);
@@ -20,7 +21,8 @@ export function useStickyBarHeight(): number {
         observed = bar;
         if (bar) bars.observe(bar);
       }
-      setHeight(bar ? Math.ceil(bar.getBoundingClientRect().height) : 0);
+      const pinned = bar !== null && ['sticky', 'fixed'].includes(getComputedStyle(bar).position);
+      setHeight(bar && pinned ? Math.ceil(bar.getBoundingClientRect().height) : 0);
     }
     measure();
     window.addEventListener('resize', measure);

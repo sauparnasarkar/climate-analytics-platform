@@ -286,7 +286,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     });
     render(
       <MemoryRouter initialEntries={['/climate-correlation']}>
-        <div data-testid="shell-bar" data-syn-sticky="top" />
+        <div data-testid="shell-bar" data-syn-sticky="top" style={{ position: 'sticky' }} />
         <div id="content"><ClimateCorrelationPage /></div>
       </MemoryRouter>,
     );
