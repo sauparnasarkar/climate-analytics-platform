@@ -113,7 +113,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
       {/* First in the DOM (so first in tab order) but drawn below the slides (CSS `order`): the pause control
           must be reachable before the moving content. */}
       <div className="hero-carousel__controls">
-        <button type="button" className="hero-carousel__btn hero-carousel__btn--playpause" onClick={c.autoplay ? c.pause : c.play} aria-label={c.autoplay ? 'Pause automatic rotation' : 'Start automatic rotation'}>
+        <button type="button" className="hero-carousel__btn hero-carousel__btn--playpause" onClick={c.autoplay ? c.pause : c.play} aria-label={c.autoplay ? 'Pause automatic rotation' : 'Play automatic rotation'}>
           {c.autoplay ? 'Pause' : 'Play'}
         </button>
         <button type="button" className="hero-carousel__btn hero-carousel__btn--prev" onClick={c.prev} aria-label="Previous slide"><Icon name="previous" size="small" /></button>

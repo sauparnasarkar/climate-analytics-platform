@@ -24,6 +24,16 @@ describe('HeroCarousel controls', () => {
     expect(controls.compareDocumentPosition(document.querySelector('.hero-carousel__slides')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('names the Pause/Play button with the word it shows, in both states (label in name)', () => {
+    mount();
+    const button = document.querySelector('.hero-carousel__btn--playpause') as HTMLElement;
+    expect(button).toHaveTextContent('Pause');
+    expect(button).toHaveAccessibleName(/^Pause\b/);
+    fireEvent.click(button);
+    expect(button).toHaveTextContent('Play');
+    expect(button).toHaveAccessibleName(/^Play\b/);
+  });
+
   it('has a dot per banner that keeps its name for assistive technology, marks the current one, and shows a "1 of 2" count (not announced twice)', () => {
     mount();
     const dots = Array.from(document.querySelectorAll('.hero-carousel__btn--dot'));
