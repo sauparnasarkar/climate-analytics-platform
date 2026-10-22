@@ -38,9 +38,9 @@ export function MethodologySection({ meta, metaFailed, splice, children }: { met
       {!meta && !metaFailed && <p className="syn-text-lg" style={{ margin: 0 }}>Loading…</p>}
 
       {sources.length > 0 && (
-        <div style={{ ...card, marginBottom: 16, overflowX: 'auto' }}>
+        <div role="region" aria-labelledby="sources-caption" tabIndex={0} style={{ ...card, marginBottom: 16, overflowX: 'auto' }}>
           <table style={table}>
-            <caption className="syn-caption" style={{ textAlign: 'left', paddingBottom: 6 }}>Sources</caption>
+            <caption id="sources-caption" className="syn-caption" style={{ textAlign: 'left', paddingBottom: 6 }}>Sources</caption>
             <thead>
               <tr className="syn-text-lg" style={weak}>
                 <th scope="col" className="syn-text-lg" style={th}>Source</th>
@@ -65,9 +65,9 @@ export function MethodologySection({ meta, metaFailed, splice, children }: { met
         </div>
       )}
 
-      <div style={{ ...card, marginBottom: 16, overflowX: 'auto' }}>
+      <div role="region" aria-labelledby="baselines-caption" tabIndex={0} style={{ ...card, marginBottom: 16, overflowX: 'auto' }}>
         <table style={table}>
-          <caption className="syn-caption" style={{ textAlign: 'left', paddingBottom: 6 }}>Baselines by view</caption>
+          <caption id="baselines-caption" className="syn-caption" style={{ textAlign: 'left', paddingBottom: 6 }}>Baselines by view</caption>
           <thead>
             <tr className="syn-text-lg" style={weak}>
               <th scope="col" className="syn-text-lg" style={th}>View</th>

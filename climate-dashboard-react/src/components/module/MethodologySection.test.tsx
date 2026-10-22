@@ -29,6 +29,15 @@ describe('MethodologySection', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(1 + 5); // header + five sources
   });
 
+  it('lets the keyboard scroll each table that scrolls sideways: a focusable region named by its caption', () => {
+    render(<MethodologySection meta={META} metaFailed={false} splice={SPLICE} />);
+    for (const name of ['Sources', 'Baselines by view']) {
+      const region = screen.getByRole('region', { name });
+      expect(region).toHaveAttribute('tabindex', '0');
+      expect(within(region).getByRole('table', { name })).toBeInTheDocument();
+    }
+  });
+
   it('shows the baselines by view and the computed temperature offset', () => {
     render(<MethodologySection meta={META} metaFailed={false} splice={SPLICE} />);
     const table = screen.getByRole('table', { name: 'Baselines by view' });

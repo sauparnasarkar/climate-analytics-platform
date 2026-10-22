@@ -466,7 +466,7 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: /^warming tracks the co₂/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Pause automatic rotation' }));
-    expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play automatic rotation' })).toBeInTheDocument();
   });
 
   it('switches slides with the tab buttons and the arrow keys', async () => {
