@@ -7,6 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { apiRuntimeCachePattern, backendProxyKey, navigateFallbackDenylist, stripTrailingSlash } from './src/lib/basePath.js'
 import { SECURITY_HEADERS } from './src/lib/securityHeaders.js'
 import { WORKER_CACHE_CONTROL, isWorkerScript } from './src/lib/workerCache.js'
+import { savedCopyPlugin } from './src/lib/savedCopy.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -238,6 +239,8 @@ export default defineConfig({
               // Only real 200s: `0` would also store opaque cross-origin responses, and the pattern's host part
               // is a wildcard (the origin is not known at build time).
               cacheableResponse: { statuses: [200] },
+              // Each saved copy is stamped with the time it was saved (src/lib/savedCopy.ts); the page says so when it shows one.
+              plugins: [savedCopyPlugin],
               // Bounded now that the route actually matches: every distinct query string (country
               // sets, years, scenarios) is its own entry. A week is long enough for the offline/slow-network
               // fallback and short next to the monthly data refresh.

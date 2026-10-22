@@ -190,6 +190,9 @@ describe('AgentPage', () => {
     stream.error = 'Connection to the agent failed.';
     rerender(page());
     expect(screen.getByText('Connection to the agent failed.')).toBeInTheDocument();
+    // A failure here is red and assertive, with Try again, and never the amber notice about saved data.
+    expect(screen.getByRole('alert')).toHaveTextContent('Connection to the agent failed.');
+    expect(screen.queryByText(/saved data/)).toBeNull();
     expect(screen.getByDisplayValue('My question')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(stream.submit).toHaveBeenLastCalledWith('My question', null);
