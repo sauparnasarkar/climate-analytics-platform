@@ -150,3 +150,52 @@ def test_it_fails_when_the_server_it_started_dies_even_if_something_else_answers
     out = real_run(tmp_path, script, bins)
     assert out.returncode != 0
     assert "up on" not in out.stdout
+
+
+# ---------------------------------------------------------------- the guard: never rebuild the folder the production front-end job serves
+
+import plistlib
+
+REPO_APP = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", "climate-dashboard-react"))
+
+
+def fake_job(tmp_path, working_directory):
+    plist = tmp_path / "frontend.plist"
+    plist.write_bytes(plistlib.dumps({"Label": "com.ghgemissions.vitepreview", "WorkingDirectory": working_directory}))
+    return str(plist)
+
+
+def test_it_refuses_to_run_in_the_folder_the_production_front_end_job_serves(tmp_path):
+    code, out, err = dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=fake_job(tmp_path, REPO_APP))
+    assert code == 2
+    assert "production front-end" in err and "separate clone" in err
+    assert steps(out) == []  # refused before any step, even in dry-run mode
+
+
+def test_the_comparison_follows_symlinks_and_trailing_slashes(tmp_path):
+    link = tmp_path / "link"
+    link.symlink_to(REPO_APP)
+    code, _, err = dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=fake_job(tmp_path, str(link) + "/"))
+    assert code == 2 and "production front-end" in err
+
+
+def test_a_clone_elsewhere_runs_normally_when_the_production_job_serves_another_folder(tmp_path):
+    other = tmp_path / "production" / "climate-dashboard-react"
+    other.mkdir(parents=True)
+    code, out, err = dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=fake_job(tmp_path, str(other)))
+    assert code == 0, err
+    assert any("npm run build" in l for l in steps(out))
+
+
+def test_no_production_job_on_the_machine_means_no_guard(tmp_path):
+    code, _, err = dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0, err
+
+
+def test_a_plist_without_a_working_directory_or_a_broken_one_does_not_block(tmp_path):
+    broken = tmp_path / "broken.plist"
+    broken.write_text("not a plist")
+    assert dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=str(broken))[0] == 0
+    bare = tmp_path / "bare.plist"
+    bare.write_bytes(plistlib.dumps({"Label": "x"}))
+    assert dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=str(bare))[0] == 0
