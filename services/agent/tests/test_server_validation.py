@@ -110,3 +110,18 @@ def test_cors_allows_the_release_20_subdomain_and_rejects_strangers():
     assert "access-control-allow-origin" not in bad.headers
     retired = client.get("/health", headers={"Origin": "https://labs.syena.io"})
     assert "access-control-allow-origin" not in retired.headers
+
+
+def test_the_interactive_docs_and_schema_are_off_by_default():
+    """The agent is reachable from the internet; its schema lists the admin route and its request model, and nothing needs it there."""
+    from fastapi.testclient import TestClient
+
+    client = TestClient(server.app)  # no lifespan: nothing starts
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404, path
+
+
+def test_the_docs_can_be_switched_on_for_development():
+    assert server.docs_urls({}) == {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    assert server.docs_urls({"AGENT_ENABLE_DOCS": "1"}) == {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+    assert server.docs_urls({"AGENT_ENABLE_DOCS": "true"}) == {"docs_url": None, "redoc_url": None, "openapi_url": None}
