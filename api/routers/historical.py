@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ..constants import CUMULATIVE_YEAR_START, FEATURED_COUNTRIES, GAS_COLUMNS, MAX_SELECTED_COUNTRIES, PCT_CHANGE_BASELINE_YEAR
 from ..cumulative_period import base_cumulative, check_from_year, rebase, share_of_period
+from ..params import distinct
 from ..data_loaders import DataNotFoundError, load_cumulative, load_expanded_countries, load_raw, load_raw_sovereign
 from ..schemas import (
     CumulativeSeries,
@@ -53,7 +54,7 @@ def get_timeseries(
     # No expanded-country validation here (unlike country_profile.py) -- this endpoint
     # already accepts an arbitrary explicit `countries` list and silently omits any that
     # don't match, a pre-existing lenient convention this Release doesn't change.
-    selected = countries if countries else FEATURED_COUNTRIES
+    selected = distinct(countries) or FEATURED_COUNTRIES
     df_plot = df_raw[df_raw["country"].isin(selected)].dropna(subset=[gas])
 
     per_capita_col = f"{gas}_per_capita"  # gas is Literal-validated (422 before reaching here);
@@ -147,6 +148,7 @@ def get_decade_composition(
     # No `countries` filter provided preserves this endpoint's original unfiltered-across-
     # all-countries behavior; callers that want a subset (e.g. the Historical Trends page's
     # own country picker) now get one, matching get_timeseries()'s pattern above.
+    countries = distinct(countries)
     df_filtered = df_raw[df_raw["country"].isin(countries)] if countries else df_raw
 
     gas_cols_list = list(GAS_COLUMNS.keys())

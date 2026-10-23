@@ -4,6 +4,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
 from ..constants import FEATURED_COUNTRIES, SCENARIO_COLORS
+from ..params import distinct
 from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features, load_scenarios
 from ..schemas import (
     ScenarioCompareResponse,
@@ -135,6 +136,7 @@ def get_scenario_cumulative(sort_by: SortScenario = "BAU"):
 
 @router.get("/scenarios/compare", response_model=ScenarioCompareResponse)
 def get_scenario_compare(countries: list[str] = Query(...)):
+    countries = distinct(countries)
     if not countries:
         raise HTTPException(status_code=400, detail="At least one country is required")
     unknown = sorted(set(countries) - set(load_expanded_countries()))
