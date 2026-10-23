@@ -52,7 +52,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ghgemissions.uvicorn
 Start the jobs in dependency order: API, MCP server, agent, front end, then (once) the tunnel and the refresh job.
 **Changing a plist's environment needs `launchctl bootout gui/$(id -u)/<label>` and `bootstrap`**, not `kickstart`, which
 re-runs the already-loaded definition and keeps the old environment. Before the first start, create the three virtual
-environments (the repository root, `services/mcp-server`, `services/agent`; to get the versions the running services hold, add `-c constraints/<root|mcp-server|agent>.txt` to the `pip install`), run `npm ci` and the build in
+environments (the repository root, `services/mcp-server`, `services/agent`; to get the tested, advisory-free versions, add `-c constraints/<root|mcp-server|agent>.txt` to the `pip install`, and upgrade pip first with `python -m pip install -U pip`: the pip a new environment starts with can itself carry advisories), run `npm ci` and the build in
 `climate-dashboard-react/` with `DEPLOY_BASE_PATH=/`, and set up the design system (see the root `README.md`).
 
 ## Trying a stack beside a running one

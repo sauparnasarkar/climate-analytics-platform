@@ -20,6 +20,9 @@ dependencies = [
     # Floors for indirect dependencies, raised past known advisories (pip-audit, 2026-10-13): urllib3 < 2.8.0, langgraph-sdk < 0.4.4
     "urllib3>=2.8.0",
     "langgraph-sdk>=0.4.4",
+    # pip-audit, 2026-10-23: mcp (the client library here) < 1.30.0 carries CVE-2026-59951; certifi < 2026.10.19 still trusts a revoked root.
+    "mcp>=1.30.0",
+    "certifi>=2026.10.19",
 ]
 
 [project.optional-dependencies]
