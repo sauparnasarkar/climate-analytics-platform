@@ -334,7 +334,7 @@ def test_every_data_file_copy_preserves_mtime_so_a_restored_old_file_stays_stale
     import time
 
     text = open(SCRIPT).read()
-    copies = re.findall(r'^\s*(cp [^\n]*"\$(?:DATA_FILE|TODAY_BACKUP)"[^\n]*)$', text, re.M)
+    copies = re.findall(r'^\s*(cp [^\n]*"\$(?:DATA_FILE|TODAY_BACKUP|BACKUP)"[^\n]*)$', text, re.M)
     assert len(copies) == 4 and all(c.startswith("cp -p ") for c in copies)  # 1 backup + 3 restores, none plain
 
     # behavioural: backup then restore with the script's own commands; the old mtime must survive both
@@ -343,11 +343,85 @@ def test_every_data_file_copy_preserves_mtime_so_a_restored_old_file_stays_stale
     old = time.time() - 120 * 86400
     os.utime(data, (old, old))
     backup_cmd = next(c for c in copies if c.endswith('"$TODAY_BACKUP"') and c.split()[2] == '"$DATA_FILE"')
-    restore_cmd = next(c for c in copies if c.split()[2] == '"$TODAY_BACKUP"')
-    script = f'''DATA_FILE="{data}"; TODAY_BACKUP="{backup}"
+    restore_cmd = next(c for c in copies if c.split()[2] == '"$BACKUP"')
+    script = f'''DATA_FILE="{data}"; TODAY_BACKUP="{backup}"; BACKUP="{backup}"
 {backup_cmd}
 rm -f "$DATA_FILE"
 {restore_cmd}
 '''
     assert subprocess.run(["bash", "-c", script]).returncode == 0
     assert abs(os.stat(backup).st_mtime - old) < 2 and abs(os.stat(data).st_mtime - old) < 2
+
+
+# ---------------------------------------------------------------- OWID backup rule: no copy of an unchanged file, newest 3 kept
+
+
+def backup_snippet():
+    text = open(SCRIPT).read()
+    m = re.search(r"# >>> owid_backup.*?# <<< owid_backup", text, re.S)
+    assert m, "owid_backup markers not found"
+    return m.group(0)
+
+
+def run_backup(tmp_path, live, backups, today="20261023", after=""):
+    """Runs the backup step in a repo whose data folder holds `live` and the named backups; `after` is more bash run afterwards."""
+    repo = tmp_path / "repo"
+    (repo / "data").mkdir(parents=True)
+    (repo / "data" / "owid-co2-data.csv").write_text(live)
+    for name, content in backups.items():
+        (repo / "data" / f"owid-co2-data.csv.bak-{name}").write_text(content)
+    script = f'''
+cd "{repo}"; DATA_FILE="{repo}/data/owid-co2-data.csv"; LOG_FILE="{tmp_path}/log"
+log() {{ echo "$1" >> "$LOG_FILE"; }}
+date() {{ echo {today}; }}
+{backup_snippet()}
+echo "BACKUP=$BACKUP"
+{after}
+'''
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    names = sorted(p.name.split("bak-")[1] for p in (repo / "data").glob("owid-co2-data.csv.bak-*"))
+    return out, names, (tmp_path / "log").read_text() if (tmp_path / "log").exists() else ""
+
+
+def test_an_unchanged_data_file_gets_no_new_backup_and_the_newest_one_stands_in(tmp_path):
+    out, names, log = run_backup(tmp_path, "a\n", {"20261010": "a\n"})
+    assert out.returncode == 0, out.stderr
+    assert names == ["20261010"] and "BACKUP=data/owid-co2-data.csv.bak-20261010" in out.stdout
+    assert "no new backup written" in log
+
+
+def test_a_changed_data_file_is_backed_up_under_todays_date(tmp_path):
+    out, names, _ = run_backup(tmp_path, "b\n", {"20261010": "a\n"})
+    assert names == ["20261010", "20261023"] and "BACKUP=data/owid-co2-data.csv.bak-20261023" in out.stdout
+    assert (tmp_path / "repo" / "data" / "owid-co2-data.csv.bak-20261023").read_text() == "b\n"
+
+
+def test_the_first_ever_run_writes_a_backup(tmp_path):
+    out, names, _ = run_backup(tmp_path, "a\n", {})
+    assert names == ["20261023"]
+
+
+def test_a_backup_made_today_is_never_overwritten(tmp_path):
+    out, names, log = run_backup(tmp_path, "new\n", {"20261023": "old\n"})
+    assert names == ["20261023"] and (tmp_path / "repo" / "data" / "owid-co2-data.csv.bak-20261023").read_text() == "old\n"
+    assert "already exists" in log
+
+
+def test_pruning_keeps_the_newest_three_backups_and_never_the_one_in_use(tmp_path):
+    backups = {d: "x\n" for d in ("20260901", "20260910", "20260920", "20261001", "20261010")}
+    out, names, log = run_backup(tmp_path, "x\n", backups, after="prune_backups")
+    assert out.returncode == 0, out.stderr
+    assert names == ["20260920", "20261001", "20261010"] and "BACKUP=data/owid-co2-data.csv.bak-20261010" in out.stdout
+
+
+def test_pruning_with_fewer_than_four_backups_removes_nothing(tmp_path):
+    out, names, _ = run_backup(tmp_path, "b\n", {"20261001": "a\n", "20261010": "a\n"}, after="prune_backups")
+    assert names == ["20261001", "20261010", "20261023"]
+
+
+def test_every_restore_uses_the_backup_the_step_chose_and_pruning_waits_for_a_good_download():
+    text = open(SCRIPT).read()
+    after_step = text.split("# <<< owid_backup", 1)[1]
+    assert "TODAY_BACKUP" not in after_step, "a restore still names today's backup, which may not exist when the file was unchanged"
+    assert after_step.count('cp -p "$BACKUP" "$DATA_FILE"') == 3
+    assert after_step.index("prune_backups") > after_step.index("Downloaded new file OK")
