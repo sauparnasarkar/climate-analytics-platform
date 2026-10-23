@@ -60,10 +60,17 @@ class StripDeployPrefixMiddleware:
 # regardless of the above — confirmed via direct source reading of
 # starlette/routing.py — so it still redirects to a broken, prefix-less URL. None of
 # our routes need slash-forgiving matching, so it stays disabled outright.
+def docs_urls(environ=os.environ) -> dict:
+    """The interactive docs and the schema list every route and its parameters. Off unless API_ENABLE_DOCS=1 is set (for development)."""
+    on = environ.get("API_ENABLE_DOCS") == "1"
+    return {"docs_url": "/docs" if on else None, "redoc_url": "/redoc" if on else None, "openapi_url": "/openapi.json" if on else None}
+
+
 app = FastAPI(
     title="GHG Emissions Analysis API",
     redirect_slashes=False,
     root_path=DEPLOY_PATH_PREFIX,
+    **docs_urls(),
 )
 
 app.add_middleware(StripDeployPrefixMiddleware)

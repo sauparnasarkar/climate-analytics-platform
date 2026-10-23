@@ -87,7 +87,7 @@ Extends the four-boundary model `services/mcp-server/SPEC.md` §8 established:
 
 | Boundary | Leg | Auth |
 |---|---|---|
-| B1/B2 | Browser → `services/agent` | None — public, same tier as `api/`. Protected at the Cloudflare edge by an existing domain-level rate-limit rule matching `/app-prefix*` (50 req/10s per IP), not app-layer code. |
+| B1/B2 | Browser → `services/agent` | None — public, same tier as `api/`. Protected at the Cloudflare edge by an existing domain-level rate-limit rule (set in the Cloudflare dashboard, outside this repository) plus the in-app admission limits in `limits.py`. |
 | B3 | `services/agent` → `services/mcp-server` | None — localhost-only, co-located (see above). |
 | B3 | `services/mcp-server` → `api/` | None — unchanged from Stage 1. |
 | B4 | External MCP clients (Claude Desktop, testers) → `services/mcp-server` | Cloudflare Access, Service Tokens — unchanged from Stage 1; `services/agent` does **not** use this path. |

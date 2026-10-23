@@ -223,10 +223,17 @@ async def _apply_llm_choice(app: FastAPI, allowed: settings.AllowedChoice) -> Ll
         return app.state.llm_choice
 
 
+def docs_urls(environ=os.environ) -> dict:
+    """The interactive docs and the schema list every route and its parameters. Off unless AGENT_ENABLE_DOCS=1 is set (for development)."""
+    on = environ.get("AGENT_ENABLE_DOCS") == "1"
+    return {"docs_url": "/docs" if on else None, "redoc_url": "/redoc" if on else None, "openapi_url": "/openapi.json" if on else None}
+
+
 app = FastAPI(
     title="Climate Emissions Conversational Agent",
     root_path=DEPLOY_PATH_PREFIX,
     lifespan=lifespan,
+    **docs_urls(),
 )
 app.add_middleware(StripDeployPrefixMiddleware)
 app.add_middleware(

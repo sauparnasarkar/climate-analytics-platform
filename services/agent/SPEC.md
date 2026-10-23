@@ -38,8 +38,7 @@ conversational-agent project that `services/mcp-server` began.
    [`ARCHITECTURE.md`](ARCHITECTURE.md) for the corrected boundary diagram.
 5. **Public endpoint abuse protection: the Cloudflare edge rate limit first, plus in-app admission limits.**
    `syena.io` already has a domain-level Cloudflare rate-limiting rule matching
-   `http.request.uri.path contains "/app-prefix"` (50 requests / 10s per IP,
-   confirmed live 2026-08-13). `services/agent`'s public endpoint deploys under that same path
+   the `/app-prefix` path (set in the Cloudflare dashboard, outside this repository; confirmed live 2026-08-13). `services/agent`'s public endpoint deploys under that same path
    prefix (`labs.syena.io/app-prefix/agent`), so it inherits this protection
    automatically. The edge rule only stops bursts, so `limits.py` also caps concurrent queries, queries per
    client per hour and queries per day before any LLM work (`AGENT_MAX_CONCURRENT_QUERIES`,
@@ -873,8 +872,7 @@ hypothetical.
    file never holds the raw value at all. Not designed further than this — revisit only if the
    deploy's threat model actually changes, not preemptively.
 7. **Per-IP rate limiting inside the agent service** (built as `limits.py`; the sketch below is the design it was built from). Why: every `POST /query` costs a real LLM call, and the only limit in front of it is
-   Cloudflare's Free-plan rate-limit rule on the `syena.io` zone (`rate_limit_10`: one rule for the whole
-   zone, URI Path matching only, **50 requests / 10 s per IP**, 10 s block). That stops floods but not a slow trickle: one query every ~10 s from one
+   the Cloudflare edge rate-limit rule (set in the Cloudflare dashboard, outside this repository). That stops floods but not a slow trickle: one query every ~10 s from one
    IP never trips it and still costs an LLM call each time. Sketch: an in-process sliding-window (or
    token-bucket) limiter on `/query` only, keyed by client IP — e.g. a few queries per minute plus a cap
    on concurrent in-flight queries per IP — answering `429` with `Retry-After`, and a friendly message in

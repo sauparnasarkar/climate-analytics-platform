@@ -233,3 +233,18 @@ def test_compare_history_stops_the_year_before_the_scenarios_begin(client):
     s = {x["name"]: x for x in client.get("/api/scenarios/compare", params={"countries": ["China"]}).json()["scenarios"]["BAU"]}["China"]
     history = [y for y in s["years"] if y < 2025]
     assert history == [1990, 2020, 2023] and max(history) < min(y for y in s["years"] if y >= 2025)
+
+
+def test_compare_gives_one_line_per_country_however_often_it_is_repeated(client):
+    one = client.get("/api/scenarios/compare", params={"countries": ["China"]}).json()
+    many = client.get("/api/scenarios/compare", params={"countries": ["China"] * 200 + ["Germany", "China"]})
+    assert many.status_code == 200
+    body = many.json()
+    for scenario, series in body["scenarios"].items() if isinstance(body.get("scenarios"), dict) else []:
+        assert [s["name"] for s in series].count("China") == 1
+    assert len(many.content) < 3 * len(client.get("/api/scenarios/compare", params={"countries": ["China", "Germany"]}).content)
+
+
+def test_compare_refuses_an_absurd_number_of_values(client):
+    resp = client.get("/api/scenarios/compare", params={"countries": ["China"] * 400})
+    assert resp.status_code == 422 and "at most" in resp.json()["detail"]
