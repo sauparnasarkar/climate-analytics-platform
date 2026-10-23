@@ -58,7 +58,7 @@ design changes here, not just this file.
   checkpointer and cached MCP tools forward — a naive rebuild with a fresh checkpointer would
   silently drop every live conversation's history.
 - **Public endpoint: edge rate limit first, in-app admission limits behind it.** The Cloudflare edge rule
-  (50 req/10s per IP) stops bursts; `limits.py` adds a concurrency cap, a per-client hourly allowance and a daily
+  stops bursts; `limits.py` adds a concurrency cap, a per-client hourly allowance and a daily
   budget, checked in `/query` before any LLM work. A request refused for its
   own shape (a malformed `thread_id`) must be refused before admission so it cannot use up an allowance.
 - **Own isolated `pyproject.toml`**, same pattern as `services/mcp-server`'s isolation from the
