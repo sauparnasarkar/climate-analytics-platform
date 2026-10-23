@@ -200,6 +200,9 @@ else
   NEWEST_BACKUP="$(ls -1 data/owid-co2-data.csv.bak-* 2>/dev/null | sort | tail -n 1)"
   if [ -n "$NEWEST_BACKUP" ] && cmp -s "$DATA_FILE" "$NEWEST_BACKUP"; then
     BACKUP="$NEWEST_BACKUP"
+    # Same content, but the stand-in may carry an older time (it was copied from an older data file). pipeline/owid.py reads the data file's
+    # mtime as its retrieval time, and a restore (`cp -p`) hands the backup's time back, so give the stand-in the data file's own time first.
+    touch -r "$DATA_FILE" "$NEWEST_BACKUP"
     log "Data file unchanged since $NEWEST_BACKUP -- no new backup written."
   else
     cp -p "$DATA_FILE" "$TODAY_BACKUP"

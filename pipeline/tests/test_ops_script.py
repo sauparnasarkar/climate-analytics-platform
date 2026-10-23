@@ -425,3 +425,28 @@ def test_every_restore_uses_the_backup_the_step_chose_and_pruning_waits_for_a_go
     assert "TODAY_BACKUP" not in after_step, "a restore still names today's backup, which may not exist when the file was unchanged"
     assert after_step.count('cp -p "$BACKUP" "$DATA_FILE"') == 3
     assert after_step.index("prune_backups") > after_step.index("Downloaded new file OK")
+
+
+def test_when_the_newest_backup_stands_in_a_failed_download_restores_the_data_files_own_time(tmp_path):
+    """owid.py reads the data file's mtime as its retrieval time, so a restore must give that time back, not an older stand-in's."""
+    import time
+
+    repo = tmp_path / "repo"
+    data = repo / "data"
+    data.mkdir(parents=True)
+    live, newest = data / "owid-co2-data.csv", data / "owid-co2-data.csv.bak-20261010"
+    live.write_text("same\n")
+    newest.write_text("same\n")
+    older, newer = time.time() - 40 * 86400, time.time() - 5 * 86400
+    os.utime(newest, (older, older))  # the stand-in was copied from an older data file
+    os.utime(live, (newer, newer))  # the live file was retrieved later, with identical content
+    script = f'''
+cd "{repo}"; DATA_FILE="{live}"; LOG_FILE="{tmp_path}/log"
+log() {{ echo "$1" >> "$LOG_FILE"; }}
+date() {{ echo 20261023; }}
+{backup_snippet()}
+rm -f "$DATA_FILE"            # the download step
+cp -p "$BACKUP" "$DATA_FILE"  # a forced download failure: the script's own restore
+'''
+    assert subprocess.run(["bash", "-c", script], capture_output=True, text=True).returncode == 0
+    assert abs(os.stat(live).st_mtime - newer) < 2, "the restored file looks 35 days staler than it is"
