@@ -7,12 +7,16 @@ requires-python = ">=3.11"
 license = "LicenseRef-Proprietary"
 classifiers = ["Private :: Do Not Upload"]
 dependencies = [
-    "mcp>=2.0.0",
+    "mcp>=2.2.0",
     "httpx>=0.28.1",
     "rapidfuzz>=3.9.0",
     # Floors for indirect dependencies, raised past known advisories (pip-audit, 2026-10-13): pyjwt < 2.15.0, urllib3 < 2.8.0
     "pyjwt>=2.15.0",
     "urllib3>=2.8.0",
+    # pip-audit, 2026-10-23: mcp < 2.2.0 never reclaims the state of a Streamable HTTP session (CVE-2026-59951); opentelemetry-api < 1.45.1
+    # spends quadratic time on a long tracestate header (CVE-2026-114603); certifi < 2026.10.19 still trusts a revoked root (PYSEC-2026-4320).
+    "certifi>=2026.10.19",
+    "opentelemetry-api>=1.45.1",
 ]
 
 [project.optional-dependencies]
