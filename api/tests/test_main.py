@@ -106,3 +106,17 @@ def test_middleware_respects_path_boundary(reloaded_main):
     resp = TestClient(main_module.app).get("/api/health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
+
+
+def test_the_interactive_docs_and_schema_are_off_by_default(client):
+    """They list every route and its parameters; nothing needs them in production."""
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404, path
+
+
+def test_the_docs_can_be_switched_on_for_development():
+    from api.main import docs_urls
+
+    assert docs_urls({}) == {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    assert docs_urls({"API_ENABLE_DOCS": "1"}) == {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+    assert docs_urls({"API_ENABLE_DOCS": "yes"}) == {"docs_url": None, "redoc_url": None, "openapi_url": None}  # only "1" turns them on
