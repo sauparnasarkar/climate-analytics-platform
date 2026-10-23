@@ -302,3 +302,19 @@ def test_change_summary_scope_changes_pool_size(data_dir):
     assert featured["country_pool_size"] == 3
     assert sovereign["country_pool_size"] == 7
     assert featured["country_pool_size"] != sovereign["country_pool_size"]
+
+
+def test_repeated_countries_in_one_request_give_one_series_each(client):
+    """A repeated value used to repeat its whole series: a request of a few kilobytes could ask for megabytes."""
+    one = client.get("/api/historical/timeseries", params={"countries": ["China"]}).json()
+    many = client.get("/api/historical/timeseries", params={"countries": ["China"] * 200 + ["Germany", "China"]})
+    assert many.status_code == 200
+    names = [s["name"] for s in many.json()["series"]]
+    assert names == ["China", "Germany"]  # distinct, in the order first asked for
+    assert many.json()["series"][0] == one["series"][0]
+
+
+def test_an_absurd_number_of_values_is_refused_before_any_lookup(client):
+    resp = client.get("/api/historical/timeseries", params={"countries": [f"Country {i}" for i in range(400)]})
+    assert resp.status_code == 422 and "at most" in resp.json()["detail"]
+    assert client.get("/api/historical/decade-composition", params={"countries": ["China"] * 400}).status_code == 422

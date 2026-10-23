@@ -4,6 +4,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from ..params import distinct
 from ..data_loaders import DataNotFoundError, load_filtered
 from ..schemas import ExplorerDataResponse, ExplorerMetaResponse, ModelComparisonResponse
 
@@ -33,6 +34,8 @@ def _filter(
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
 
+    countries = distinct(countries)
+    columns = distinct(columns, "columns")
     if countries:
         df = df[df["country"].isin(countries)]
     if year_min is not None:
