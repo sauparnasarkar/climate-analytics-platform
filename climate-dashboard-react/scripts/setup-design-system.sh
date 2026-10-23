@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Puts the design system where the app expects it: a checkout of syena-design-system beside this repository
 # (../../syena-design-system from this folder), at the commit pinned in syena-design-system.pin, with its tokens generated.
-# Set SYN_DS_PATH to use a different location; the build, the tests and the type check read the same variable.
+# Set SYN_DS_PATH to use a different location; this script, vite (the build) and vitest read the variable. The type check does not: tsc -b reads
+# fixed ../../syena-design-system paths from tsconfig.app.json and tsconfig.test.json, so `npm run build` needs the sibling position anyway.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
