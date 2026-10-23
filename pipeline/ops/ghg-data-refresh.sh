@@ -179,40 +179,65 @@ esac
 # `cp -p` everywhere the data file is copied (here and on every restore below): pipeline/owid.py takes the file's
 # mtime as its retrieval time and uses it to detect a stopped refresh job, so a restored (old) file must keep
 # its original mtime -- a plain cp would stamp it "now" and mask both the staleness and the true retrieval time.
+# >>> owid_backup
+# A backup is written only when the data file differs from the newest backup: a refresh that finds nothing new would otherwise add
+# another 14 MB copy of the same file (the old tree holds 15 identical ones). week1_eda.ipynb validates the new download against the
+# newest backup by name, so that backup must hold the data as it was before this run; when the file is unchanged the newest one
+# already does, and it stands in as $BACKUP for every restore below. Only the newest KEEP_BACKUPS are kept (pruned after a good download).
+KEEP_BACKUPS=3
 TODAY_BACKUP="data/owid-co2-data.csv.bak-$(date +%Y%m%d)"
+prune_backups() {
+  local old
+  ls -1 data/owid-co2-data.csv.bak-* 2>/dev/null | sort -r | tail -n +$((KEEP_BACKUPS + 1)) | while read -r old; do
+    rm -f "$old"
+    log "Removed old backup $old (keeping the newest $KEEP_BACKUPS)."
+  done
+}
+BACKUP="$TODAY_BACKUP"
 if [ -f "$TODAY_BACKUP" ]; then
   log "Backup for today already exists ($TODAY_BACKUP) -- not overwriting."
 else
-  cp -p "$DATA_FILE" "$TODAY_BACKUP"
-  log "Backed up $DATA_FILE -> $TODAY_BACKUP"
+  NEWEST_BACKUP="$(ls -1 data/owid-co2-data.csv.bak-* 2>/dev/null | sort | tail -n 1)"
+  if [ -n "$NEWEST_BACKUP" ] && cmp -s "$DATA_FILE" "$NEWEST_BACKUP"; then
+    BACKUP="$NEWEST_BACKUP"
+    # Same content, but the stand-in may carry an older time (it was copied from an older data file). pipeline/owid.py reads the data file's
+    # mtime as its retrieval time, and a restore (`cp -p`) hands the backup's time back, so give the stand-in the data file's own time first.
+    touch -r "$DATA_FILE" "$NEWEST_BACKUP"
+    log "Data file unchanged since $NEWEST_BACKUP -- no new backup written."
+  else
+    cp -p "$DATA_FILE" "$TODAY_BACKUP"
+    log "Backed up $DATA_FILE -> $TODAY_BACKUP"
+  fi
 fi
+# <<< owid_backup
 
 # --- Step 2: delete + download ---
 rm -f "$DATA_FILE"
 if ! curl -fsSL -o "$DATA_FILE" "$OWID_URL"; then
   log "Download FAILED (curl error) -- restoring backup."
-  cp -p "$TODAY_BACKUP" "$DATA_FILE"
+  cp -p "$BACKUP" "$DATA_FILE"
   notify "GHG data refresh: FAILED -- old data restored" "urgent" \
-    "curl failed to download $OWID_URL. Backup restored from $TODAY_BACKUP. See $LOG_FILE."
+    "curl failed to download $OWID_URL. Backup restored from $BACKUP. See $LOG_FILE."
   exit 1
 fi
 
 NEW_SIZE=$(stat -f%z "$DATA_FILE" 2>/dev/null || echo 0)
 if [ "$NEW_SIZE" -lt "$MIN_BYTES" ]; then
   log "Downloaded file implausibly small ($NEW_SIZE bytes) -- restoring backup."
-  cp -p "$TODAY_BACKUP" "$DATA_FILE"
+  cp -p "$BACKUP" "$DATA_FILE"
   notify "GHG data refresh: FAILED -- old data restored" "urgent" \
     "Downloaded file was only $NEW_SIZE bytes (expected >$MIN_BYTES). Backup restored. See $LOG_FILE."
   exit 1
 fi
 log "Downloaded new file OK ($NEW_SIZE bytes)"
+prune_backups
 
 # --- Step 3: run week1 (includes validation against the backup) ---
 rm -f data/.refresh_status data/.refresh_row_diff
 mkdir -p "$RUN_DIR"
 if ! (cd notebook && "$JUPYTER" nbconvert --to notebook --execute --output-dir "$RUN_DIR" week1_eda.ipynb) >> "$LOG_FILE" 2>&1; then
   log "week1_eda.ipynb FAILED -- restoring backup, skipping weeks 2-5."
-  cp -p "$TODAY_BACKUP" "$DATA_FILE"
+  cp -p "$BACKUP" "$DATA_FILE"
   pipeline_stage  # the OWID file is final again (restored); the other sources are independent
   restart_if_pipeline_ok  # the notebook CSVs are untouched, but the API serves the new Area 2 files only after a restart
   TAIL=$(tail -n 15 "$LOG_FILE")
