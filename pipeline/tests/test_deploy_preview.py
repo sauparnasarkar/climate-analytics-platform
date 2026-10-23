@@ -199,3 +199,28 @@ def test_a_plist_without_a_working_directory_or_a_broken_one_does_not_block(tmp_
     bare = tmp_path / "bare.plist"
     bare.write_bytes(plistlib.dumps({"Label": "x"}))
     assert dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=str(bare))[0] == 0
+
+
+def test_a_plist_that_exists_but_cannot_be_read_is_said_out_loud(tmp_path):
+    broken = tmp_path / "broken.plist"
+    broken.write_text("not a plist")
+    code, _, err = dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=str(broken))
+    assert code == 0 and "warning" in err and "could not read" in err and "guard did not run" in err
+
+
+def test_a_readable_plist_gives_no_warning(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    _, _, err = dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=fake_job(tmp_path, str(other)))
+    assert "warning" not in err
+    bare = tmp_path / "bare.plist"
+    bare.write_bytes(plistlib.dumps({"Label": "x"}))
+    assert "warning" not in dry_run(tmp_path, PRODUCTION_FRONTEND_PLIST=str(bare))[2]
+
+
+def test_the_comments_do_not_claim_the_type_check_reads_syn_ds_path():
+    """tsc -b reads fixed ../../syena-design-system paths in the tsconfig files, so only the setup script, vite and vitest read the variable."""
+    setup = open(os.path.join(os.path.dirname(SCRIPT), "..", "..", "climate-dashboard-react", "scripts", "setup-design-system.sh")).read()
+    assert "type check read the same variable" not in setup and "tsc -b" in setup
+    header = open(SCRIPT).read().split("set -euo pipefail")[0]
+    assert "the build and the tests alike" not in header and "tsc -b" in header

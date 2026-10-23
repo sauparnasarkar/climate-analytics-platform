@@ -13,7 +13,9 @@
 #   PREVIEW_STATE_DIR  where the pid file and the build and server logs go, $HOME/.climate-preview by default
 #   NODE_BIN_DIR       a folder with node and npm, put first on PATH when set
 #   NO_PULL=1          skip the git step (deploy what is checked out)
-#   SYN_DS_PATH        where the design system checkout lives; read by the setup script, the build and the tests alike
+#   SYN_DS_PATH        where the design system checkout lives; read by the setup script, vite (the build and the dev server) and vitest.
+#                      Not by the type check: tsc -b, which `npm run build` runs first, reads fixed ../../syena-design-system paths from
+#                      tsconfig.app.json and tsconfig.test.json, so the build needs the design system at that sibling position whatever this says.
 #   DRY_RUN=1          print each step as "+ ..." and run nothing
 #   PRODUCTION_FRONTEND_PLIST  the launchd plist of the production front-end job, $HOME/Library/LaunchAgents/com.ghgemissions.vitepreview.plist by default;
 #                      the script refuses to run in the folder that plist names as its working directory (see the guard below)
@@ -33,10 +35,13 @@ fi
 
 # The production front-end job serves climate-dashboard-react/dist of the checkout its plist names, and this script rebuilds dist/:
 # run in that checkout it would replace what production serves. Refuse, and say where to run it instead. A machine with no such plist
-# (a laptop, a fresh clone before the jobs exist) has nothing to guard; a plist that cannot be read does not block.
+# (a laptop, a fresh clone before the jobs exist) has nothing to guard; a plist that cannot be read does not block, but is said out loud.
 prod_plist="${PRODUCTION_FRONTEND_PLIST:-$HOME/Library/LaunchAgents/com.ghgemissions.vitepreview.plist}"
 if [[ -f "$prod_plist" ]]; then
-  prod_dir="$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb")).get("WorkingDirectory", ""))' "$prod_plist" 2>/dev/null || true)"
+  if ! prod_dir="$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb")).get("WorkingDirectory", ""))' "$prod_plist" 2>/dev/null)"; then
+    echo "warning: could not read $prod_plist; the production-folder guard did not run" >&2
+    prod_dir=""
+  fi
   if [[ -n "$prod_dir" && -d "$prod_dir" && "$(cd "$prod_dir" && pwd -P)" == "$(cd "$app" && pwd -P)" ]]; then
     echo "refusing: $app is the folder the production front-end job serves (named by $prod_plist); a preview rebuild here would change production. Run the preview from a separate clone." >&2
     exit 2
