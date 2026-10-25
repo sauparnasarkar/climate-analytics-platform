@@ -127,3 +127,71 @@ describe('HeroCarousel leaving slide', () => {
     expect(within(slideEl(1)).getByText('Second banner')).toBeInTheDocument();
   });
 });
+
+describe('HeroCarousel swipe', () => {
+  const stacked = () => { window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+  const drag = (el: Element, dx: number, dy = 0, opts: { pointerType?: string; ms?: number } = {}) => {
+    const base = { pointerId: 1, isPrimary: true, pointerType: opts.pointerType ?? 'touch' };
+    fireEvent.pointerDown(el, { ...base, clientX: 200, clientY: 300 });
+    if (opts.ms) act(() => { vi.advanceTimersByTime(opts.ms!); });
+    fireEvent.pointerUp(el, { ...base, clientX: 200 + dx, clientY: 300 + dy });
+  };
+  const current = () => Array.from(document.querySelectorAll('.hero-carousel__btn--dot')).findIndex((d) => d.getAttribute('aria-current') === 'true');
+  const area = () => document.querySelector('.hero-carousel__slides')!;
+
+  it('on a stacked layout a swipe left shows the next banner and a swipe right the previous', () => {
+    stacked();
+    mount();
+    expect(current()).toBe(0);
+    drag(area().querySelector('p')!, -120);
+    expect(current()).toBe(1);
+    drag(area().querySelector('p')!, 120);
+    expect(current()).toBe(0);
+  });
+
+  it('does not loop: a swipe past either end stays put', () => {
+    stacked();
+    mount();
+    drag(area(), 120);
+    expect(current()).toBe(0);
+    drag(area(), -120);
+    drag(area(), -120);
+    expect(current()).toBe(1);
+  });
+
+  it('ignores a short move, a mostly vertical move (scrolling), a slow drag and a mouse', () => {
+    stacked();
+    mount();
+    drag(area(), -20);
+    drag(area(), -120, 100);
+    drag(area(), -120, 0, { ms: 2000 });
+    drag(area(), -120, 0, { pointerType: 'mouse' });
+    expect(current()).toBe(0);
+  });
+
+  it('leaves a swipe that starts on a control, a slider or the globe to that control', () => {
+    stacked();
+    render(<HeroCarousel slides={[{ id: 'a', label: 'A', render: () => <><input type="range" aria-label="Year" /><canvas /></> }, { id: 'b', label: 'B', render: () => <p>B</p> }]} />);
+    drag(document.querySelector('input')!, -120);
+    drag(document.querySelector('canvas')!, -120);
+    expect(current()).toBe(0);
+  });
+
+  it('is off in the wide layout, and a second finger cancels it', () => {
+    mount();
+    drag(area(), -120);
+    expect(current()).toBe(0);
+    stacked();
+    document.body.innerHTML = '';
+    mount();
+    fireEvent.pointerDown(area(), { pointerId: 1, isPrimary: true, pointerType: 'touch', clientX: 200, clientY: 300 });
+    fireEvent.pointerDown(area(), { pointerId: 2, isPrimary: false, pointerType: 'touch', clientX: 260, clientY: 300 });
+    fireEvent.pointerUp(area(), { pointerId: 1, isPrimary: true, pointerType: 'touch', clientX: 80, clientY: 300 });
+    expect(current()).toBe(0);
+  });
+
+  it('lets the page scroll up and down but takes the sideways move, on a stacked layout only', () => {
+    mount();
+    expect(CAROUSEL_STYLES).toMatch(/max-width: 1100px\)[^@]*\.hero-carousel__slides \{ touch-action: pan-y; \}/);
+  });
+});

@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'rea
 import { Icon, useReducedMotion } from '@syena/ds';
 import { useCarousel } from '../../hooks/useCarousel';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useSwipe } from '../../hooks/useSwipe';
 
 // The landing's top-of-fold carousel (Area 2, requirements §2.1): two banners,
 // auto-rotate controlled only by an always-visible Pause/Play button; slides slide in and out sideways (no motion under reduced-motion settings).
@@ -69,8 +70,9 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__btn--dot { order: 1; flex: 1 1 0; min-width: 0; padding: 0 4px; gap: 6px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; margin-bottom: -1px; background: none; font-size: 14px; line-height: 1.15; text-align: center; }
   .hero-carousel__btn--dot[aria-current="true"] { background: none; border-bottom-color: var(--syn-color-accent-fill); }
   .hero-carousel__btn--dot .hero-carousel__num { margin-right: 0 !important; color: var(--syn-color-text-muted); }
-  /* No rotation here, so no Play/Pause: the tabs are the way to the other banner. */
+  /* No rotation here, so no Play/Pause: the tabs, or a swipe along the banner, are the way to the other banner. The page still scrolls up and down; the sideways move is left to the swipe. */
   .hero-carousel__btn--playpause { display: none; }
+  .hero-carousel__slides { touch-action: pan-y; }
 }
 /* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate and its Play/Pause button are only in the wide layout. */
 @media (max-width: 640px) {
@@ -93,6 +95,14 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: {
   const [holding, setHolding] = useState(false);
   const c = useCarousel({ count: slides.length, enabled: wide, hold: holding });
   const reducedMotion = useReducedMotion();
+  // In the stacked layout a swipe along the banner moves between the tabs: left for the next, right for the previous, and nothing past either end (two tabs are not a loop).
+  const swipe = useSwipe({
+    enabled: !wide,
+    onSwipe: (direction) => {
+      const to = c.index + (direction === 'left' ? 1 : -1);
+      if (to >= 0 && to < slides.length) c.goTo(to);
+    },
+  });
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.
   // The leaving slide only needs its state while its exit runs; after that it is plainly hidden (on a phone that frees its room).
@@ -146,7 +156,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: {
           </nav>
         )}
       </div>
-      <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'}>
+      <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'} {...swipe}>
         {slides.map((s, i) => (
           <div key={s.id} id={`${uid}-${s.id}`} className="hero-carousel__slide" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.label}`} data-active={i === c.index} data-motion={motionOf(i)}
             // Hidden slides are also removed from the accessibility tree and made inert (CSS `visibility` alone would do the
