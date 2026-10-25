@@ -9,7 +9,7 @@ const SLIDES = [
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: false, media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: q === '(min-width: 1101px)', media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -65,15 +65,30 @@ describe('HeroCarousel controls', () => {
     expect(CAROUSEL_STYLES).toMatch(/@media \(min-width: 1101px\) and \(pointer: coarse\) \{\s*\.hero-carousel__btn \{ min-width: 44px; height: 44px/);
   });
 
-  it('does not rotate on its own on a touch screen, and rotates where there is a pointer that can hover', () => {
-    window.matchMedia = ((q: string) => ({ matches: q === '(pointer: coarse)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+  it('stops rotating when the window goes from wide to upright without a remount', () => {
+    let wide = true;
+    const listeners = new Set<() => void>();
+    window.matchMedia = ((q: string) => ({ get matches() { return wide && q === '(min-width: 1101px)'; }, media: q, addEventListener: (_: string, l: () => void) => listeners.add(l), removeEventListener: (_: string, l: () => void) => listeners.delete(l) })) as unknown as typeof window.matchMedia;
+    mount();
+    expect(document.querySelector('.hero-carousel')).toHaveClass('hero-carousel--auto');
+    wide = false;
+    act(() => { listeners.forEach((l) => l()); });
+    expect(document.querySelector('.hero-carousel')).not.toHaveClass('hero-carousel--auto');
+    act(() => { vi.advanceTimersByTime(12000); });
+    expect(slideEl(0)).toHaveAttribute('data-motion', 'rest');
+  });
+
+  it('rotates on its own only in the wide layout (where Play slides is), whatever the pointer; not on a tablet upright or a phone', () => {
+    const at = (wide: boolean) => { window.matchMedia = ((q: string) => ({ matches: wide && q === '(min-width: 1101px)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+    at(false);
     const { unmount } = mount();
     expect(document.querySelector('.hero-carousel')).not.toHaveClass('hero-carousel--auto');
     act(() => { vi.advanceTimersByTime(12000); });
     expect(slideEl(0)).toHaveAttribute('data-motion', 'rest');
+    expect(CAROUSEL_STYLES).toMatch(/@media \(max-width: 1100px\) \{[^@]*\.hero-carousel__btn--playpause \{ display: none; \}/);
     unmount();
-    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
-    mount();
+    at(true);
+    mount(); // a touch screen as wide as an iPad turned sideways
     expect(document.querySelector('.hero-carousel')).toHaveClass('hero-carousel--auto');
   });
 });

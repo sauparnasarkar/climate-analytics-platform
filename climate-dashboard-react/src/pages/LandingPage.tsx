@@ -58,11 +58,13 @@ const PEEK_PX = 140;
 const GLOBE_SLIDE_EXTRA_PX = 102;
 // The smallest globe on a laptop, where the hero is short.
 const GLOBE_MIN_PX = 220;
+// On a phone both banners are this tall (the picture takes what the text, figures and button leave), so the page does not move when the slide changes.
+const HERO_PHONE_PX = 560;
 // On a tablet the globe stops here, so the next section shows under the hero.
 const TABLET_GLOBE_MAX_PX = 380;
 
 const STYLES = `
-.landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-h: clamp(${HERO_MIN_PX}px, calc(100svh - ${HEADER_PX + CAROUSEL_ROW_PX + PEEK_PX}px), ${HERO_MAX_PX}px); --hero-h-phone: 560px; --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
+.landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-h: clamp(${HERO_MIN_PX}px, calc(100svh - ${HEADER_PX + CAROUSEL_ROW_PX + PEEK_PX}px), ${HERO_MAX_PX}px); --hero-h-phone: ${HERO_PHONE_PX}px; --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
 .landing [id$="-heading"] { scroll-margin-top: 84px; }
 .landing-slide h1 { text-wrap: balance; }
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
@@ -76,7 +78,6 @@ const STYLES = `
 .landing-hero__globe > figure { width: 100%; container-type: inline-size; }
 /* The year and total sit at the card's own left edge (where the legend's name starts), not on the picture's corner, so they stay clear of the sphere and the labels: the picture is centred in the card, so the caption is moved back by the space beside it. */
 .landing-globe-caption { transform: translateX(min(0px, calc((var(--globe-size) - 100cqw) / 2))); }
-.landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
 .landing-race__text { flex: 0 0 min(380px, 34%); }
@@ -103,7 +104,6 @@ const STYLES = `
 @media (max-width: 640px) {
   /* One fixed hero height for both banners: the picture takes what the text, figures and button leave. */
   .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: auto minmax(0, 1fr) auto auto; align-items: stretch; }
-  .landing-globe-title--block { display: block; }
     .landing-grid3 { grid-template-columns: 1fr; }
   /* The hero banner on phones: the three KPIs stay in one row, the buttons are full-width and stacked. */
   .landing-hero { gap: 10px; padding-top: 8px; padding-bottom: 8px; }
@@ -114,19 +114,18 @@ const STYLES = `
   .landing-hero__text > p { display: none; } /* as in the design frame: the two figure cards below carry the same facts */
   /* Same order as the climate banner: copy, figures, picture, then the buttons (placed after the globe in the markup on a phone, so focus order matches). */
   /* Picture first: the year readout is the globe's caption on one line, then two figure cards, then the buttons. */
-  .landing-globe-title--block > div { flex-direction: row !important; align-items: baseline; justify-content: space-between; gap: 10px !important; }
-  /* The readout steps down with a small globe but keeps a legible floor: the year 22 -> 18 px, the total 13 -> 12 px. */
-  .landing-globe-title--block > div > span:first-child { font-size: clamp(18px, calc(var(--globe-size, 340px) * 0.065), 22px) !important; }
-  .landing-globe-title--block > div > span.syn-text-lg { font-size: clamp(12px, calc(var(--globe-size, 340px) * 0.05), 13px) !important; }
+  /* The year and total are on the picture's top-left corner, in three short lines (the figures step down with the globe but keep a legible floor). */
+  .landing-globe-year { font-size: 20px !important; line-height: 1.1 !important; }
+  .landing-globe-total, .landing-globe-all { font-size: 11px !important; line-height: 1.3 !important; }
   .landing-hero__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .landing-hero__cards > div { padding: 6px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; min-width: 0; }
-  .landing-hero__card-value { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--syn-color-text-primary); }
-  .landing-hero__cards .syn-caption { color: var(--syn-color-text-muted); }
+  .landing-hero__card-value { font-size: 1.375rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--syn-color-text-primary); }
+  .landing-hero__cards .syn-caption { color: var(--syn-color-text-muted); font-size: 12px; line-height: 1.3; }
   .climate-banner .climate-scatter { aspect-ratio: auto; height: auto; flex: 1 1 0; min-height: 90px; max-height: none; }
   .climate-banner__chart { min-height: 0; }
   .landing-hero__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .landing-hero__ctas > a { justify-content: center; }
-  .landing-hero__ctas > a.landing-hero__forecasts { text-align: center; padding: 6px 0; }  /* the text link, as Banner 1's on a phone */
+  .landing-hero__ctas > a.landing-hero__forecasts { display: none; } /* as on Banner 1 and in the design frame: one button; Forecasts is in the menu */
 }
 `;
 
@@ -146,7 +145,7 @@ const cardStyle = {
 const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const;
 
 // Own component so the ~5s year-steps re-render only the hero, never the stories/race/feature cards.
-function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview: OverviewResponse; map: WorldMapTimeSeries; globe: WorldMapTimeSeries; worldAnnualMt: ReadonlyArray<number>; active?: boolean }) {
+function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { overview: OverviewResponse; map: WorldMapTimeSeries; globe: WorldMapTimeSeries; worldAnnualMt: ReadonlyArray<number>; active?: boolean; onHold?: (holding: boolean) => void }) {
   // `map` is the 1990-based view the KPIs and "change since" use; `globe` is the longer 1970 series the animation plays.
   const baselineYear = map.years[0];
   const minYear = globe.years[0];
@@ -156,6 +155,11 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
   const sectionRef = useRef<HTMLElement>(null);
   const globeInView = useInView(globeRef);
   const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef, enabled: active });
+  // The carousel stays on this banner while the years play through; it moves on (after its usual dwell) once they finish or are paused.
+  useEffect(() => {
+    onHold?.(active && isPlaying);
+    return () => onHold?.(false);
+  }, [active, isPlaying, onHold]);
   const yearIdx = currentYear - minYear;
   // The globe takes the values of the year in view, by country code; a country with no value (or none above zero) is drawn as no data.
   const valuesForYear = useMemo(
@@ -181,6 +185,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
   const [globeTop, setGlobeTop] = useState(0);
   const [belowCanvas, setBelowCanvas] = useState<number | undefined>(undefined);
   const [sectionWidth, setSectionWidth] = useState(Infinity);
+  const [sectionTop, setSectionTop] = useState(0);
   useEffect(() => {
     const section = sectionRef.current;
     if (!section || typeof ResizeObserver === 'undefined') return;
@@ -189,6 +194,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
       if (!r || (r.width === 0 && r.height === 0)) return; // 0-size while its slide is hidden: keep the last values
       setGlobeTop(Math.round(r.top + window.scrollY));
       setSectionWidth(section.clientWidth);
+      setSectionTop(Math.round(section.getBoundingClientRect().top + window.scrollY));
       // Everything under the canvas down to the slide's end (the Globe's caption, legend and controls, the year row, the figures and the button), measured because the legend wraps more on a narrow phone.
       const fig = globeRef.current?.querySelector('figure');
       if (fig?.firstElementChild) setBelowCanvas(Math.round(section.getBoundingClientRect().bottom - fig.firstElementChild.getBoundingClientRect().bottom));
@@ -199,7 +205,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
     window.addEventListener('resize', measure);
     return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
   }, [isPhone]);
-  const globeMax = isPhone ? phoneGlobeMax({ viewportHeight: stableViewportHeight, top: globeTop, ceiling: laptopMax, below: belowCanvas, width: sectionWidth }) : laptopMax;
+  const globeMax = isPhone ? phoneGlobeMax({ viewportHeight: stableViewportHeight, top: globeTop, ceiling: laptopMax, below: belowCanvas, width: sectionWidth, bottom: sectionTop > 0 ? sectionTop + HERO_PHONE_PX : undefined }) : laptopMax;
   const totals = useMemo(() => worldTotals(globe), [globe]);
   // Same top-10 share as the ranking-race heading (one shared computation, so the two change together).
   // Of the World total (international aviation and shipping included), like every other share on the site; none if that total is unavailable.
@@ -213,13 +219,13 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
   // `onPanel`: drawn inside the globe's dark data panel (the phone caption), so in the panel's text colours rather than the page's.
   const globeHeading = (onPanel: boolean) => (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', color: onPanel ? 'var(--syn-data-ink-light)' : 'var(--syn-color-text-primary)' }}>{currentYear}</span>
+        <span className="landing-globe-year" style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', color: onPanel ? 'var(--syn-data-ink-light)' : 'var(--syn-color-text-primary)' }}>{currentYear}</span>
         {yearTotal != null && (
           // Two short lines rather than one long one: the overlay sits in the globe box's top-left corner, and
           // "22,899 MtCO₂ · all countries" at this size ran into the disc's edge.
           <>
-            <span className="syn-text-lg" style={{ color: onPanel ? 'var(--syn-data-text)' : 'var(--syn-color-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{fmtInt(yearTotal)} MtCO₂</span>
-            <span className="syn-caption" style={{ color: onPanel ? 'var(--syn-data-text)' : 'var(--syn-color-text-secondary)' }}>all countries</span>
+            <span className="syn-text-lg landing-globe-total" style={{ color: onPanel ? 'var(--syn-data-text)' : 'var(--syn-color-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{fmtInt(yearTotal)} MtCO₂</span>
+            <span className="syn-caption landing-globe-all" style={{ color: onPanel ? 'var(--syn-data-text)' : 'var(--syn-color-text-secondary)' }}>all countries</span>
           </>
         )}
       </div>
@@ -240,7 +246,9 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
   const yearControls = (
     // In the data panel (dark in both themes), so the readings use its own text colour, not the page's accent.
     <div style={{ display: 'contents', color: 'var(--syn-data-text)', ['--syn-color-accent-text' as string]: 'var(--syn-data-text)' }}>
-      <Button variant="ghost" onClick={toggle}>{isPlaying ? 'Pause years' : 'Play years'}</Button>
+      {isPhone
+        ? <Button variant="ghost" icon={isPlaying ? 'pause' : 'play'} aria-label={isPlaying ? 'Pause years' : 'Play years'} onClick={toggle} />
+        : <Button variant="ghost" onClick={toggle}>{isPlaying ? 'Pause years' : 'Play years'}</Button>}
       <div style={{ flex: 1, minWidth: 0 }}>
         <Slider label="Year" labelHidden min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels={false} />
       </div>
@@ -277,7 +285,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
         {/* The year and total are the globe's caption: on the picture's top-left corner on a wide screen, under it and above its legend on a phone. */}
         <Globe
           values={valuesForYear}
-          valueLabel={isPhone ? 'CO₂ emissions, MtCO₂' : 'CO₂ (MtCO₂)'}
+          valueLabel="CO₂ (MtCO₂)"
           unit="MtCO₂"
           ariaLabel={`Globe of CO₂ emissions by country in ${currentYear}, log-scaled colour from pale yellow (lowest) to deep red (highest)`}
           // The globe turns whenever it is on screen (and its banner is the showing one: a hidden slide still intersects the viewport), playing or paused (owner decision, 2026-10-06; Pause stops the years, not the turning).
@@ -286,9 +294,10 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
           turnPeriod={GLOBE_TURN_SECONDS}
           size={globeMax}
           compact={!isPhone}
+          dense={isPhone}
           // The largest emitters are named throughout, while the years step as well as when they are paused (owner decision, 2026-10-20).
           labels={globeLabels}
-          caption={<div className={isPhone ? 'landing-globe-title--block' : 'landing-globe-caption'} aria-live="off">{globeHeading(true)}</div>}
+          caption={<div className="landing-globe-caption" aria-live="off">{globeHeading(true)}</div>}
           // Pause and the year slider are in the panel, in the zoom row, and the keys' hint is left to a screen reader (a touch screen has no use for it drawn).
           controls={yearControls}
           hintVisibility="sr-only"
@@ -482,7 +491,7 @@ export default function LandingPage() {
               anchors={PAGE_ANCHORS}
               slides={[
                 { id: 'climate-signal', label: 'Climate signal', render: () => <ClimateSignalBanner signal={signal} headingId="climate-signal-title" /> },
-                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} active={active} /> },
+                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active, hold) => <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} active={active} onHold={hold} /> },
               ]}
             />
           ) : (

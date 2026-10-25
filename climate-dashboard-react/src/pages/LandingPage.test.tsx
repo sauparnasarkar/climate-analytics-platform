@@ -34,6 +34,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-compact={String(props.compact)}
         data-labels={JSON.stringify(props.labels)}
         data-hint-visibility={String(props.hintVisibility)}
+        data-dense={String(Boolean(props.dense))}
         aria-label={String(props.ariaLabel)}
       >
         {props.caption as ReactNode}
@@ -45,7 +46,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
 
 beforeAll(() => {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {},
+    matches: query === '(min-width: 1101px)', media: query, addEventListener: () => {}, removeEventListener: () => {},
     addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false, onchange: null,
   }));
 });
@@ -358,6 +359,26 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('button', { name: 'Pause slides: automatic rotation' })).toBeInTheDocument();
   });
 
+  it('on a phone the globe is dense (one controls row, icon-only Pause that keeps its name) and not compact; on a wide screen it is compact and not dense', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate();
+      await screen.findByRole('region', { name: 'Featured' });
+      const globe = await screen.findByTestId('globe');
+      expect(globe.dataset.dense).toBe('true');
+      expect(globe.dataset.compact).toBe('false');
+      const pause = globe.querySelector('button[aria-label$=" years"]'); // Banner 2 is not the showing slide, so it is looked up by its attribute
+      expect(pause?.getAttribute('aria-label')).toMatch(/^(Pause|Play) years$/);
+      expect(pause).toHaveTextContent(/^$/); // an icon, named for a screen reader
+    } finally { restoreMedia(); }
+    cleanup();
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const wide = await screen.findByTestId('globe');
+    expect(wide.dataset.dense).toBe('false');
+    expect(wide.dataset.compact).toBe('true');
+  });
+
   it('the carousel row links to the sections under the hero, in page order', async () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
@@ -409,7 +430,7 @@ describe('LandingPage — climate-signal carousel', () => {
       expect(cards).toHaveTextContent('80%');
       expect(cards).toHaveTextContent('From the top 10 emitters, 2024');
       // The year readout is handed to the Globe as its caption (it renders it under the canvas, before its legend and controls), not placed as a sibling around it.
-      expect(screen.getByTestId('globe')).toContainElement(document.querySelector('.landing-globe-title--block') as HTMLElement);
+      expect(screen.getByTestId('globe')).toContainElement(document.querySelector('.landing-globe-caption') as HTMLElement);
       expect(document.querySelectorAll('.landing-hero__ctas')).toHaveLength(1); // rendered once, not duplicated
     } finally { restoreMedia(); }
   });
@@ -422,7 +443,7 @@ describe('LandingPage — climate-signal carousel', () => {
       const status = document.querySelector('.landing-hero [role="status"]') as HTMLElement;
       expect(status).toHaveTextContent(/^$/); // playing: silent
       // The carousel's own region is polite while it is paused: the caption opts out so it cannot announce each year.
-      expect(document.querySelector('.landing-globe-title--block')).toHaveAttribute('aria-live', 'off');
+      expect(document.querySelector('.landing-globe-caption')).toHaveAttribute('aria-live', 'off');
     } finally { restoreMedia(); }
     stubPhone(true);
     try {

@@ -17,6 +17,38 @@ describe('useCarousel', () => {
     expect(CAROUSEL_DWELL_MS).toBe(10000);
   });
 
+  it('stops rotating when it is no longer enabled and resumes when it is, without a remount; Pause is kept across the change', () => {
+    let enabled = true;
+    const { result, rerender } = renderHook(() => useCarousel({ count: 2, enabled }));
+    enabled = false;
+    rerender();
+    expect(result.current.autoplay).toBe(false);
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
+    expect(result.current.index).toBe(0);
+    enabled = true;
+    rerender();
+    expect(result.current.autoplay).toBe(true);
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    expect(result.current.index).toBe(1);
+    act(() => { result.current.pause(); });
+    enabled = false; rerender(); enabled = true; rerender();
+    expect(result.current.autoplay).toBe(false); // the choice to pause survived
+  });
+
+  it('stays on the slide while held, however long, and takes a fresh dwell once the hold ends', () => {
+    let hold = true;
+    const { result, rerender } = renderHook(() => useCarousel({ count: 2, hold }));
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 5); });
+    expect(result.current.index).toBe(0);
+    expect(result.current.autoplay).toBe(true); // holding is not Pause
+    hold = false;
+    rerender();
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS - 1); });
+    expect(result.current.index).toBe(0);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(result.current.index).toBe(1);
+  });
+
   it('rotates every dwell period while auto-rotate is on, and keeps going round', () => {
     const { result } = renderHook(() => useCarousel({ count: 2 }));
     expect(result.current.index).toBe(0);

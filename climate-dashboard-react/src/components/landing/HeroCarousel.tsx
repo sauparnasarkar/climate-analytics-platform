@@ -10,8 +10,8 @@ export interface CarouselSlide {
   id: string;
   /** Short name, used in the tab and the slide's accessible label */
   label: string;
-  /** `active` is false while the slide is hidden, so it can hold back its own animation */
-  render: (active: boolean) => ReactNode;
+  /** `active` is false while the slide is hidden, so it can hold back its own animation. `hold(true)` keeps the carousel on this slide (for example while its animation plays) until `hold(false)`. */
+  render: (active: boolean, hold: (holding: boolean) => void) => ReactNode;
 }
 
 export const CAROUSEL_STYLES = `
@@ -69,15 +69,18 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__btn--dot { order: 1; flex: 1 1 0; min-width: 0; padding: 0 4px; gap: 6px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; margin-bottom: -1px; background: none; font-size: 14px; line-height: 1.15; text-align: center; }
   .hero-carousel__btn--dot[aria-current="true"] { background: none; border-bottom-color: var(--syn-color-accent-fill); }
   .hero-carousel__btn--dot .hero-carousel__num { margin-right: 0 !important; color: var(--syn-color-text-muted); }
-  .hero-carousel__btn--playpause { order: 2; padding: 0 12px; }
+  /* No rotation here, so no Play/Pause: the tabs are the way to the other banner. */
+  .hero-carousel__btn--playpause { display: none; }
 }
-/* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate is off on a touch screen, so the Play/Pause button is there only while the banners are rotating. */
+/* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate and its Play/Pause button are only in the wide layout. */
 @media (max-width: 640px) {
   .hero-carousel__slides { min-height: var(--hero-h-phone); }
   .hero-carousel__slide { align-self: stretch; }
-  .hero-carousel:not(.hero-carousel--auto) .hero-carousel__btn--playpause { display: none; }
 }
 `;
+
+/** The layout with the chapter bar and its Play/Pause button (the stacked tabs are below this width). */
+const WIDE_QUERY = '(min-width: 1101px)';
 
 export interface PageAnchor {
   href: string;
@@ -85,9 +88,10 @@ export interface PageAnchor {
 }
 
 export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: { slides: CarouselSlide[]; ariaLabel?: string; anchors?: PageAnchor[] }) {
-  // A touch screen does not rotate on its own (the tabs are the way to the other banner); a pointer that can hover does.
-  const touch = useMediaQuery('(pointer: coarse)');
-  const c = useCarousel({ count: slides.length, autoplay: !touch });
+  // The banners rotate on their own only in the wide layout, where the Play/Pause button is: chosen by width, not by touch, so an iPad turned sideways rotates and one upright (the stacked tabs, as on a phone) does not.
+  const wide = useMediaQuery(WIDE_QUERY);
+  const [holding, setHolding] = useState(false);
+  const c = useCarousel({ count: slides.length, enabled: wide, hold: holding });
   const reducedMotion = useReducedMotion();
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.
@@ -148,7 +152,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: {
             // Hidden slides are also removed from the accessibility tree and made inert (CSS `visibility` alone would do the
             // same in a browser; this states it explicitly so focus and assistive tech can never reach a slide that isn't showing).
             aria-hidden={i !== c.index} inert={i !== c.index}>
-            {s.render(i === c.index)}
+            {s.render(i === c.index, setHolding)}
           </div>
         ))}
       </div>

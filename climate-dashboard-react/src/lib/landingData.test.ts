@@ -167,6 +167,14 @@ describe('phoneGlobeMax', () => {
     expect(phoneGlobeMax({ viewportHeight: 844, top: 270, ceiling: 600, width: 390 })).toBe(307);
     expect(phoneGlobeMax({ viewportHeight: 900, top: 100, ceiling: 600, width: 320 })).toBe(252);
   });
+  it('stops at the page height where the hero ends, so a tall screen does not make this banner taller than the other', () => {
+    // 875 high: the screen alone would allow 246; the hero ends at 600, so 600 - 415 - 12 - 122 = 51, which the minimum lifts to 160.
+    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600, bottom: 600 })).toBe(160);
+    // The hero ends at 700: 700 - 415 - 12 - 122 = 151 -> 160; at 780: 231.
+    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600, bottom: 780 })).toBe(231);
+    // A hero that ends below the screen's own limit changes nothing.
+    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600, bottom: 2000 })).toBe(246);
+  });
   it('before the globe has been measured (top 0) falls back to the 62% cap', () => {
     expect(phoneGlobeMax({ viewportHeight: 800, top: 0, ceiling: 600 })).toBe(496);
   });
