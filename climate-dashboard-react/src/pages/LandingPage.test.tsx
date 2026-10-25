@@ -33,9 +33,11 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-turn-period={String(props.turnPeriod)}
         data-compact={String(props.compact)}
         data-labels={JSON.stringify(props.labels)}
+        data-hint-visibility={String(props.hintVisibility)}
         aria-label={String(props.ariaLabel)}
       >
         {props.caption as ReactNode}
+        {props.controls as ReactNode}
       </div>
     ),
   };
@@ -125,7 +127,8 @@ describe('LandingPage', () => {
 
   it('computes the hero KPIs, eyebrow and lede from the API responses (no literals)', async () => {
     mount();
-    expect(await screen.findByText('OUR WORLD IN DATA CO₂ · 2022–2024 · 4 countries', { exact: false })).toBeInTheDocument();
+    await screen.findByTestId('globe');
+    expect(document.querySelector('.landing-hero__text .syn-caption')).toHaveTextContent('Our World in Data CO₂ · 2022–2024 · 4 countries'); // the country count is hidden by CSS on a phone, still in the page
     // +70.8% since 2022 -> "more than two-thirds"; the four fixture countries are 80% of the World total (international transport is the rest), so the top-10 share is 80% (same figure as the race heading's)
     expect(screen.getByText('Global CO₂ emissions have grown by more than two-thirds since 2022, and the 10 largest emitters now account for 80% of the total.')).toBeInTheDocument();
     expect(screen.getByText('427')).toBeInTheDocument(); // latest_co2_total
@@ -181,7 +184,7 @@ describe('LandingPage', () => {
     expect(screen.getByText('272 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('all countries')).toBeInTheDocument();
     expect(screen.getByRole('slider')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause years' })).toBeInTheDocument();
   });
 
   it('when the globe is not spinning the labels are still shown, with everything else unchanged -- also under reduced motion, which starts paused', async () => {
@@ -190,7 +193,7 @@ describe('LandingPage', () => {
     const globe = await screen.findByTestId('globe');
     expect(labelIds(globe)).toEqual(['BBB', 'AAA', 'DDD', 'CCC']);
     expect(screen.getByRole('slider')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play years' })).toBeInTheDocument();
     unmount();
     mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true });
     expect(labelIds(await screen.findByTestId('globe'))).toEqual(['BBB', 'AAA', 'DDD', 'CCC']);
@@ -344,6 +347,17 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
   });
 
+  it('puts Pause and the Year slider inside the globe\'s own controls on a wide screen, and keeps the keyboard hint for screen readers only; the carousel\'s Pause is named differently', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    fireEvent.click(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ }));
+    const globe = await screen.findByTestId('globe');
+    expect(globe.dataset.hintVisibility).toBe('sr-only');
+    expect(within(globe).getByRole('button', { name: 'Pause years' })).toBeInTheDocument();
+    expect(within(globe).getByRole('slider')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause slides: automatic rotation' })).toBeInTheDocument();
+  });
+
   it('the carousel row links to the sections under the hero, in page order', async () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
@@ -469,13 +483,13 @@ describe('LandingPage — climate-signal carousel', () => {
     mountWithClimate();
     const region = await screen.findByRole('region', { name: 'Featured' });
     const buttons = within(region).getAllByRole('button');
-    expect(buttons[0]).toHaveAccessibleName('Pause automatic rotation');
+    expect(buttons[0]).toHaveAccessibleName('Pause slides: automatic rotation');
     fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
-    expect(screen.getByRole('button', { name: 'Pause automatic rotation' })).toBeInTheDocument(); // still on
+    expect(screen.getByRole('button', { name: 'Pause slides: automatic rotation' })).toBeInTheDocument(); // still on
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: /^warming tracks the co₂/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Pause automatic rotation' }));
-    expect(screen.getByRole('button', { name: 'Play automatic rotation' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Pause slides: automatic rotation' }));
+    expect(screen.getByRole('button', { name: 'Play slides: automatic rotation' })).toBeInTheDocument();
   });
 
   it('switches slides with the tab buttons and the arrow keys', async () => {

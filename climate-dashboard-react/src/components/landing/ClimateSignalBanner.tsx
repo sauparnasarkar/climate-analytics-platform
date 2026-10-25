@@ -18,7 +18,8 @@ export const CLIMATE_BANNER_STYLES = CHART_PANEL_STYLES + `
 /* The theme's divider tokens are tuned for white cards: on the tinted landing background (Tidewater #dce8ed) even divider-strong is 1.24:1, so the KPI row's
    rules and the phone cards' borders vanished in the light theme. Derive the line from the themed text colour instead, so it holds contrast in both themes. */
 /* The sources disclosure: a line in the panel; its text opens over the chart's foot instead of making the panel taller. */
-.climate-banner__sources { position: relative; }
+.climate-banner__sources { position: relative; flex-basis: 100%; }
+.climate-banner__caption-short { display: none; }
 .climate-banner__sources > summary { cursor: pointer; color: var(--syn-data-text); text-decoration: underline; width: fit-content; }
 .climate-banner__sources-body { position: absolute; inset-inline: 0; bottom: 100%; z-index: 2; margin-bottom: 4px; padding: 4px 12px 8px; border: 1px solid rgba(148, 180, 192, 0.35); border-radius: 8px; background: var(--climate-panel-bg); }
 /* Text on the page background (not on the dark chart panel): the design's per-theme series colours. */
@@ -37,6 +38,15 @@ export const CLIMATE_BANNER_STYLES = CHART_PANEL_STYLES + `
   .climate-banner__metrics > div, .climate-banner__metrics > div + div { padding: 10px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; } /* no fill: the figures keep the contrast they were audited against on the page background */
   .climate-banner__metrics > div:nth-child(3) { display: none; }
   .climate-banner__more { display: none; }
+  /* The chart's foot is one line: the baseline and source, "observed, not modelled", and Sources, whose note opens over the chart. */
+  .climate-banner__chart { position: relative; padding-bottom: 10px; }
+  .climate-banner__caption-long, .climate-banner__chip { display: none; }
+  .climate-banner__caption-short { display: inline; }
+  .climate-banner__foot { flex-wrap: nowrap !important; gap: 8px !important; font-size: 11px; }
+  .climate-banner__foot > .syn-caption { font-size: 11px; flex: 1 1 0; min-width: 0; }
+  .climate-banner__foot summary { font-size: 11px; white-space: nowrap; }
+  .climate-banner__sources { position: static; flex-basis: auto; margin-left: auto; }
+  .climate-banner__sources-body { inset-inline: 12px; }
   .climate-banner__ctas > :nth-child(n+2) { display: none; } /* as in the design frame: one button; the other two links are in the menu */
   .climate-banner__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .climate-banner__ctas > a:not([class*="button"]) { text-align: center; padding: 6px 0; }
@@ -73,7 +83,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         <div className="syn-caption" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--syn-color-accent-text, inherit)' }}>
           Climate signal · Global · {fit.start}–{fit.end}
         </div>
-        <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
           Warming tracks the CO₂ we’ve accumulated
         </h1>
         <p className="syn-text-lg" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--syn-color-text-muted)' }}>
@@ -88,17 +98,18 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
           <ScatterLegend />
         </div>
         <ClimateScatter signal={signal} fit />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <BaselineChip inChartPanel baseline="1850–1900" source="Berkeley Earth" />
-          <span className="syn-caption">Global series. Long-term co-movement. {NOT_A_CLIMATE_MODEL}</span>
+        {/* One row: the baseline and source, what the series is, and (behind a disclosure that opens over the chart, so the panel keeps its height) the long source note and the file-vintage caveat. On a phone the row is a single line. */}
+        <div className="climate-banner__foot" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="climate-banner__chip"><BaselineChip inChartPanel baseline="1850–1900" source="Berkeley Earth" /></span>
+          <span className="syn-caption climate-banner__caption-long">Global series. Long-term co-movement. {NOT_A_CLIMATE_MODEL}</span>
+          <span className="syn-caption climate-banner__caption-short">Baseline 1850–1900 · Berkeley Earth · observed, not modelled</span>
+          <details className="climate-banner__sources">
+            <summary className="syn-caption">Sources<span className="climate-banner__caption-long"> and caveat</span></summary>
+            <div className="climate-banner__sources-body">
+              <SourceNote inChartPanel sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']}>{signal.vintageCaveat ?? undefined}</SourceNote>
+            </div>
+          </details>
         </div>
-        {/* The long source note and the file-vintage caveat sit behind a disclosure that opens over the chart, so the panel keeps its height. */}
-        <details className="climate-banner__sources">
-          <summary className="syn-caption">Sources and caveat</summary>
-          <div className="climate-banner__sources-body">
-            <SourceNote inChartPanel sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']}>{signal.vintageCaveat ?? undefined}</SourceNote>
-          </div>
-        </details>
       </figure>
       {isPhone && metrics}
       {isPhone && ctas}

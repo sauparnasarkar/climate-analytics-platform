@@ -27,11 +27,11 @@ describe('HeroCarousel controls', () => {
   it('names the Pause/Play button with the word it shows, in both states (label in name)', () => {
     mount();
     const button = document.querySelector('.hero-carousel__btn--playpause') as HTMLElement;
-    expect(button).toHaveTextContent('Pause');
-    expect(button).toHaveAccessibleName(/^Pause\b/);
+    expect(button).toHaveTextContent('Pause slides');
+    expect(button).toHaveAccessibleName(/^Pause slides/);
     fireEvent.click(button);
-    expect(button).toHaveTextContent('Play');
-    expect(button).toHaveAccessibleName(/^Play\b/);
+    expect(button).toHaveTextContent('Play slides');
+    expect(button).toHaveAccessibleName(/^Play slides/);
   });
 
   it('has a dot per banner that keeps its name for assistive technology, marks the current one, and shows a "1 of 2" count (not announced twice)', () => {
@@ -47,33 +47,34 @@ describe('HeroCarousel controls', () => {
     expect(count).toHaveTextContent('2 of 2');
   });
 
-  it('floats the controls as a pill pinned to the bottom of the screen on a phone, with scroll-padding so focus is never hidden behind it', () => {
-    expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__controls \{ position: sticky; bottom: calc\(12px \+ env\(safe-area-inset-bottom, 0px\)\);[^}]*border-radius: 999px/);
-    // the notch/home-indicator inset is part of both the pill's offset and the reserved scroll-padding (viewport-fit=cover is on)
-    expect(CAROUSEL_STYLES).toMatch(/scroll-padding-bottom: calc\(84px \+ env\(safe-area-inset-bottom, 0px\)\)/);
-    expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__btn--dot\[aria-current="true"\]::before \{ width: 32px/);
-    // every dot keeps a 44 px target (only the drawn dot is small), not just the active one
-    expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__btn--dot \{ min-width: 44px; position: relative; \}/);
-    expect(CAROUSEL_STYLES).not.toMatch(/min-width: 28px/);
-  });
-
-  it('the pill is frosted glass: a translucent tint with a backdrop blur, guarded by @supports, with opaque fallbacks', () => {
+  it('on a stacked layout the controls are a row of tabs under the header, above the banner, not a floating pill', () => {
     const css = CAROUSEL_STYLES;
-    expect(css).toMatch(/@supports \(\(-webkit-backdrop-filter: blur\(1px\)\) or \(backdrop-filter: blur\(1px\)\)\) and \(background: color-mix/);
-    expect(css).toMatch(/background: color-mix\(in srgb, var\(--syn-color-surface-raised\) 80%, transparent\)/);
-    expect(css).toMatch(/backdrop-filter: blur\(14px\) saturate\(1\.5\)/);
-    // The plain rule stays opaque (fallback where the glass is unsupported)...
-    expect(css).toMatch(/\.hero-carousel__controls \{ position: sticky;[^}]*background: var\(--syn-color-surface-raised\);/);
-    // ...and a reduced-transparency preference turns the glass off.
-    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\)[\s\S]*backdrop-filter: none !important/);
+    expect(css).not.toMatch(/position: sticky/);
+    expect(css).not.toMatch(/border-radius: 999px/);
+    const stacked = css.slice(css.indexOf('@media (max-width: 1100px)'));
+    expect(stacked).toMatch(/\.hero-carousel__controls \{ order: 0;/);
+    expect(stacked).toMatch(/min-width: 44px; height: 44px/);
+    expect(stacked).toMatch(/\.hero-carousel__slide\[data-motion="hidden"\] \{ display: none; \}/);
+    // every tab keeps a 44 px target, and the current one is marked by a rule under it
+    expect(stacked).toMatch(/\.hero-carousel__btn--dot\[aria-current="true"\] \{[^}]*border-bottom-color/);
   });
 
-  it('carries the phone layout: one non-wrapping row of 44px targets, and only the showing/leaving slide takes room', () => {
+  it('chooses the desktop layout by width, whatever the pointer: no fine-pointer condition on the hero height; finger-sized buttons on a touch screen', () => {
+    expect(CAROUSEL_STYLES).toMatch(/@media \(min-width: 1101px\) \{\s*\.hero-carousel__slides \{ min-height: var\(--hero-h\)/);
+    expect(CAROUSEL_STYLES).not.toMatch(/\(pointer: fine\)/);
+    expect(CAROUSEL_STYLES).toMatch(/@media \(min-width: 1101px\) and \(pointer: coarse\) \{\s*\.hero-carousel__btn \{ min-width: 44px; height: 44px/);
+  });
+
+  it('does not rotate on its own on a touch screen, and rotates where there is a pointer that can hover', () => {
+    window.matchMedia = ((q: string) => ({ matches: q === '(pointer: coarse)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+    const { unmount } = mount();
+    expect(document.querySelector('.hero-carousel')).not.toHaveClass('hero-carousel--auto');
+    act(() => { vi.advanceTimersByTime(12000); });
+    expect(slideEl(0)).toHaveAttribute('data-motion', 'rest');
+    unmount();
+    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
     mount();
-    expect(CAROUSEL_STYLES).toMatch(/@media \(max-width: 1100px\), \(max-width: 1440px\) and \(pointer: coarse\)/);
-    expect(CAROUSEL_STYLES).toMatch(/flex-wrap: nowrap/);
-    expect(CAROUSEL_STYLES).toMatch(/min-width: 44px; height: 44px/);
-    expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__slide\[data-motion="hidden"\] \{ display: none; \}/);
+    expect(document.querySelector('.hero-carousel')).toHaveClass('hero-carousel--auto');
   });
 });
 

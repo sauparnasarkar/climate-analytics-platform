@@ -54,16 +54,17 @@ const CAROUSEL_ROW_PX = 59;
 const HERO_MIN_PX = 504;
 const HERO_MAX_PX = 560;
 const PEEK_PX = 140;
-// What the globe slide holds besides the picture (the legend, the controls, the hint and the year slider, and the panel's padding), measured.
-const GLOBE_SLIDE_EXTRA_PX = 190;
+// What the globe slide holds besides the picture (the legend, the one row of controls -- zoom, reset, table, Pause and the year slider -- and the panel's padding), measured.
+const GLOBE_SLIDE_EXTRA_PX = 102;
 // The smallest globe on a laptop, where the hero is short.
 const GLOBE_MIN_PX = 220;
 // On a tablet the globe stops here, so the next section shows under the hero.
-const TABLET_GLOBE_MAX_PX = 420;
+const TABLET_GLOBE_MAX_PX = 380;
 
 const STYLES = `
-.landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-h: clamp(${HERO_MIN_PX}px, calc(100svh - ${HEADER_PX + CAROUSEL_ROW_PX + PEEK_PX}px), ${HERO_MAX_PX}px); --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
+.landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-h: clamp(${HERO_MIN_PX}px, calc(100svh - ${HEADER_PX + CAROUSEL_ROW_PX + PEEK_PX}px), ${HERO_MAX_PX}px); --hero-h-phone: 560px; --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
 .landing [id$="-heading"] { scroll-margin-top: 84px; }
+.landing-slide h1 { text-wrap: balance; }
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
 /* Both banners of the carousel share one layout, so nothing moves when the slide changes: a text column and a picture column in the same proportion,
    both starting at the same top edge. The lines are the one visible colour of the KPI strip (the divider tokens are lighter than the tinted light-theme background). */
@@ -75,19 +76,19 @@ const STYLES = `
 .landing-hero__globe > figure { width: 100%; container-type: inline-size; }
 /* The year and total sit at the card's own left edge (where the legend's name starts), not on the picture's corner, so they stay clear of the sphere and the labels: the picture is centred in the card, so the caption is moved back by the space beside it. */
 .landing-globe-caption { transform: translateX(min(0px, calc((var(--globe-size) - 100cqw) / 2))); }
-.landing-hero__controls { width: 100%; max-width: 624px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
 .landing-race__text { flex: 0 0 min(380px, 34%); }
 .landing-race__chart { flex: 1 1 0; min-width: 0; }
-@media (min-width: 1101px) and (pointer: fine) {
+@media (min-width: 1101px) {
   .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: minmax(0, 1fr); padding-top: 24px; padding-bottom: 12px; }
   .climate-banner__chart { align-self: stretch; min-height: 0; }
-  /* The text column is as tall as the picture beside it, so its buttons sit on the picture's bottom edge instead of leaving a gap under them. */
-  .climate-banner__text, .landing-hero__text { align-self: stretch; }
-  .climate-banner__ctas, .landing-hero__ctas { margin-top: auto; }
-  .climate-banner .climate-scatter { flex: 1 1 0; min-height: 0; aspect-ratio: auto; max-height: none; }
+  /* The text column is as tall as the picture beside it, its parts spread down it, so the buttons end on the picture's bottom edge and no gap opens under the figures. */
+  .climate-banner__text, .landing-hero__text { align-self: stretch; justify-content: space-between; }
+  /* The figures take up a share of what is left, so the space is inside the strip's rules rather than empty bands between the parts. */
+  .climate-banner__text .landing-kpi-strip, .landing-hero__text .landing-kpi-strip { flex: 1 1 auto; max-height: 176px; align-content: center; }
+  .climate-banner .climate-scatter { flex: 1 1 0; min-height: 160px; aspect-ratio: auto; max-height: none; }
 }
 @media (max-width: 1100px) {
   .landing-slide { grid-template-columns: 1fr; }
@@ -96,10 +97,12 @@ const STYLES = `
   .landing-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 /* Tablets: the chart is a band, not a page-high picture, so the next section shows under the hero. */
-@media (min-width: 641px) and (max-width: 1100px), (min-width: 1101px) and (max-width: 1440px) and (pointer: coarse) {
-  .climate-banner .climate-scatter { aspect-ratio: auto; height: 260px; max-height: none; }
+@media (min-width: 641px) and (max-width: 1100px) {
+  .climate-banner .climate-scatter { aspect-ratio: auto; height: 220px; max-height: none; }
 }
 @media (max-width: 640px) {
+  /* One fixed hero height for both banners: the picture takes what the text, figures and button leave. */
+  .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: auto minmax(0, 1fr) auto auto; align-items: stretch; }
   .landing-globe-title--block { display: block; }
     .landing-grid3 { grid-template-columns: 1fr; }
   /* The hero banner on phones: the three KPIs stay in one row, the buttons are full-width and stacked. */
@@ -107,7 +110,8 @@ const STYLES = `
   /* Tighter vertical rhythm so the globe, its caption and the legend fit above the pill. */
   .landing-hero__text { gap: 8px !important; }
   .landing-hero__globe { gap: 6px; }
-  .landing-hero__text > p { font-size: 0.9375rem !important; line-height: 1.45; }
+  .landing-hero__eyebrow-count { display: none; } /* one line on a phone */
+  .landing-hero__text > p { display: none; } /* as in the design frame: the two figure cards below carry the same facts */
   /* Same order as the climate banner: copy, figures, picture, then the buttons (placed after the globe in the markup on a phone, so focus order matches). */
   /* Picture first: the year readout is the globe's caption on one line, then two figure cards, then the buttons. */
   .landing-globe-title--block > div { flex-direction: row !important; align-items: baseline; justify-content: space-between; gap: 10px !important; }
@@ -115,10 +119,11 @@ const STYLES = `
   .landing-globe-title--block > div > span:first-child { font-size: clamp(18px, calc(var(--globe-size, 340px) * 0.065), 22px) !important; }
   .landing-globe-title--block > div > span.syn-text-lg { font-size: clamp(12px, calc(var(--globe-size, 340px) * 0.05), 13px) !important; }
   .landing-hero__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .landing-hero__cards > div { padding: 10px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; min-width: 0; }
+  .landing-hero__cards > div { padding: 6px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; min-width: 0; }
   .landing-hero__card-value { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--syn-color-text-primary); }
   .landing-hero__cards .syn-caption { color: var(--syn-color-text-muted); }
-  .climate-banner .climate-scatter { aspect-ratio: auto; height: clamp(150px, 24svh, 200px); max-height: none; }
+  .climate-banner .climate-scatter { aspect-ratio: auto; height: auto; flex: 1 1 0; min-height: 90px; max-height: none; }
+  .climate-banner__chart { min-height: 0; }
   .landing-hero__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .landing-hero__ctas > a { justify-content: center; }
   .landing-hero__ctas > a.landing-hero__forecasts { text-align: center; padding: 6px 0; }  /* the text link, as Banner 1's on a phone */
@@ -164,8 +169,8 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
   const viewportHeight = useViewportHeight();
   // On a phone the globe takes at most ~62% of the screen height so Play and the slider stay with it.
   const isPhone = useMediaQuery(PHONE_QUERY);
-  const roomy = useMediaQuery('(min-width: 1101px) and (pointer: fine)');
-  const tablet = useMediaQuery('(min-width: 641px) and (max-width: 1440px)');
+  const roomy = useMediaQuery('(min-width: 1101px)');
+  const tablet = useMediaQuery('(min-width: 641px) and (max-width: 1100px)');
   // On a laptop the picture takes what the hero leaves it, so the carousel's control row stays in view: the hero is the viewport less the header and the row (at least the minimum), less the slide's own padding and the other parts of the panel.
   const heroHeight = Math.min(HERO_MAX_PX, Math.max(HERO_MIN_PX, viewportHeight - HEADER_PX - CAROUSEL_ROW_PX - PEEK_PX));
   const slidePad = roomy ? 18 : Math.min(48, Math.max(16, viewportHeight * 0.03));
@@ -184,11 +189,9 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
       if (!r || (r.width === 0 && r.height === 0)) return; // 0-size while its slide is hidden: keep the last values
       setGlobeTop(Math.round(r.top + window.scrollY));
       setSectionWidth(section.clientWidth);
-      // The caption and legend under the canvas (the Globe's figure: canvas box, figcaption, legend), measured because the legend wraps more on a narrow phone.
+      // Everything under the canvas down to the slide's end (the Globe's caption, legend and controls, the year row, the figures and the button), measured because the legend wraps more on a narrow phone.
       const fig = globeRef.current?.querySelector('figure');
-      // The figure's children: the picture, the caption (on a phone), the legend, then the controls.
-      const legend = fig?.children[isPhone ? 2 : 1];
-      if (fig?.firstElementChild && legend) setBelowCanvas(Math.round(legend.getBoundingClientRect().bottom - fig.firstElementChild.getBoundingClientRect().bottom));
+      if (fig?.firstElementChild) setBelowCanvas(Math.round(section.getBoundingClientRect().bottom - fig.firstElementChild.getBoundingClientRect().bottom));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -233,13 +236,24 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
     </div>
   );
 
+  // Named for what they move (the years), so they are not read as the carousel's own Pause/Play beside them.
+  const yearControls = (
+    // In the data panel (dark in both themes), so the readings use its own text colour, not the page's accent.
+    <div style={{ display: 'contents', color: 'var(--syn-data-text)', ['--syn-color-accent-text' as string]: 'var(--syn-data-text)' }}>
+      <Button variant="ghost" onClick={toggle}>{isPlaying ? 'Pause years' : 'Play years'}</Button>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Slider label="Year" labelHidden min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels={false} />
+      </div>
+    </div>
+  );
+
   return (
     <section ref={sectionRef} aria-labelledby="landing-title" className="landing-slide landing-hero">
       <div className="landing-hero__text">
         <div className="syn-caption" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--syn-color-accent-text, inherit)' }}>
-          Our World in Data CO₂ · {minYear}–{maxYear} · {all.countries_count} countries
+          Our World in Data CO₂ · {minYear}–{maxYear}<span className="landing-hero__eyebrow-count"> · {all.countries_count} countries</span>
         </div>
-        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
           Where the world’s CO₂ comes from
         </h1>
         <p className="syn-text-lg" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--syn-color-text-muted)' }}>
@@ -275,15 +289,12 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
           // The largest emitters are named throughout, while the years step as well as when they are paused (owner decision, 2026-10-20).
           labels={globeLabels}
           caption={<div className={isPhone ? 'landing-globe-title--block' : 'landing-globe-caption'} aria-live="off">{globeHeading(true)}</div>}
+          // Pause and the year slider are in the panel, in the zoom row, and the keys' hint is left to a screen reader (a touch screen has no use for it drawn).
+          controls={yearControls}
+          hintVisibility="sr-only"
         />
         {/* The year is announced only when playback is paused or the slider is moved by hand (which pauses), never while it plays: the caption below changes every frame and is deliberately not a live region. */}
         <span role="status" style={VISUALLY_HIDDEN}>{!isPlaying && yearTotal != null ? `${currentYear}: ${fmtInt(yearTotal)} MtCO₂, all countries` : ''}</span>
-        <div className="landing-hero__controls">
-          <Button variant="ghost" onClick={toggle}>{isPlaying ? 'Pause' : 'Play'}</Button>
-          <div style={{ flex: 1 }}>
-            <Slider label="Year" labelHidden min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels />
-          </div>
-        </div>
       </div>
       {isPhone && (
         <div className="landing-hero__cards">
