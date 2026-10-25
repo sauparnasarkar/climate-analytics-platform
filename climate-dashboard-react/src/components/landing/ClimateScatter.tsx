@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { fmtAnomaly, niceTicks, type Era, type ClimateSignal } from '../../lib/climateSignal';
 import { ERA_COLORS, ERA_LABELS } from '../../lib/climateColors';
 
@@ -12,6 +12,8 @@ const GRID = 'rgba(148, 180, 192, 0.18)';
 
 const W = 600;
 const H = 360;
+const MIN_W = 260;
+const MIN_H = 140;
 const M = { l: 48, r: 16, t: 14, b: 46 };
 
 /** What the scatter draws: the dots and the fitted line. A ClimateSignal is one; so is the module's all-gas view. */
@@ -28,33 +30,49 @@ export interface ScatterAxes {
   xMin?: number;
 }
 
-export function ClimateScatter({ signal, xTitle = 'Cumulative CO₂ since 1850 (GtCO₂)', xQuantity = 'cumulative CO₂ since 1850', xUnit = 'GtCO₂', xStep = 500, xMin = 0 }: { signal: ScatterData } & ScatterAxes) {
+/** `fit`: draw at the size of the box the chart is given (the box must have its own height) instead of at 600 x 360 scaled to it. */
+export function ClimateScatter({ signal, fit = false, xTitle = 'Cumulative CO₂ since 1850 (GtCO₂)', xQuantity = 'cumulative CO₂ since 1850', xUnit = 'GtCO₂', xStep = 500, xMin = 0 }: { signal: ScatterData; fit?: boolean } & ScatterAxes) {
   const titleId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: W, h: H });
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!fit || !el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) setSize({ w: Math.max(MIN_W, Math.round(r.width)), h: Math.max(MIN_H, Math.round(r.height)) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit]);
+  const { w: W_, h: H_ } = fit ? size : { w: W, h: H };
   const { points, line } = signal;
   const xMax = Math.ceil(Math.max(...points.map((p) => p.gt)) / xStep) * xStep;
   const yMin = Math.floor(Math.min(...points.map((p) => p.temp)) * 2) / 2;
   const yMax = Math.ceil(Math.max(...points.map((p) => p.temp)) * 2) / 2;
-  const sx = (v: number) => M.l + ((v - xMin) / (xMax - xMin)) * (W - M.l - M.r);
-  const sy = (v: number) => M.t + (1 - (v - yMin) / (yMax - yMin)) * (H - M.t - M.b);
+  const sx = (v: number) => M.l + ((v - xMin) / (xMax - xMin)) * (W_ - M.l - M.r);
+  const sy = (v: number) => M.t + (1 - (v - yMin) / (yMax - yMin)) * (H_ - M.t - M.b);
   const last = points[points.length - 1];
   const first = points[0];
   const summary = `Scatter chart, one dot per year from ${first.year} to ${last.year}. Temperature anomaly rises from ${fmtAnomaly(first.temp)} to ${fmtAnomaly(last.temp)} as ${xQuantity} rises from ${Math.round(first.gt).toLocaleString('en-US')} to ${Math.round(last.gt).toLocaleString('en-US')} ${xUnit}. A fitted line is drawn through the points.`;
-  const labelRight = sx(last.gt) > W - 120;
+  const labelRight = sx(last.gt) > W_ - 120;
 
   return (
-    <div className="climate-scatter">
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId}>
+    <div className="climate-scatter" ref={box}>
+    <svg viewBox={`0 0 ${W_} ${H_}`} role="img" aria-labelledby={titleId}>
       <title id={titleId}>{summary}</title>
       {niceTicks(yMax, 0.5, yMin).map((t) => (
         <g key={`y${t}`}>
-          <line x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke={GRID} />
+          <line x1={M.l} x2={W_ - M.r} y1={sy(t)} y2={sy(t)} stroke={GRID} />
           <text x={M.l - 8} y={sy(t)} textAnchor="end" dominantBaseline="middle" fontSize="11" fill={PANEL_INK} opacity="0.75">{t}</text>
         </g>
       ))}
       {niceTicks(xMax, xStep, xMin).map((t) => (
-        <text key={`x${t}`} x={sx(t)} y={H - M.b + 16} textAnchor="middle" fontSize="11" fill={PANEL_INK} opacity="0.75">{t.toLocaleString('en-US')}</text>
+        <text key={`x${t}`} x={sx(t)} y={H_ - M.b + 16} textAnchor="middle" fontSize="11" fill={PANEL_INK} opacity="0.75">{t.toLocaleString('en-US')}</text>
       ))}
-      <text x={M.l} y={H - 6} fontSize="11" fill={PANEL_INK} opacity="0.75">{xTitle}</text>
+      <text x={M.l} y={H_ - 6} fontSize="11" fill={PANEL_INK} opacity="0.75">{xTitle}</text>
       <text x={M.l + 4} y={M.t + 10} fontSize="11" fill={PANEL_INK} opacity="0.75">°C above 1850–1900</text>
       <line x1={sx(line.x0)} y1={sy(line.y0)} x2={sx(line.x1)} y2={sy(line.y1)} stroke={PANEL_INK} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.85" />
       {points.map((p) => (

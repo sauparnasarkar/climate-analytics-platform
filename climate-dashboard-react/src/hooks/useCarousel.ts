@@ -7,6 +7,8 @@ export const CAROUSEL_DWELL_MS = 10000;
 export interface UseCarouselOptions {
   count: number;
   dwellMs?: number;
+  /** Whether it rotates on its own at the start (default true); Play still starts it. */
+  autoplay?: boolean;
 }
 
 export type CarouselDirection = 'forward' | 'back';
@@ -39,10 +41,10 @@ interface Nav {
  * not change that state -- the dwell simply starts afresh on the slide you chose. The pointer, focus and the browser tab have no
  * effect. Under `prefers-reduced-motion` it starts paused (an explicit Play is a request for movement).
  */
-export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS }: UseCarouselOptions): UseCarouselResult {
+export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS, autoplay: autoplayAtStart = true }: UseCarouselOptions): UseCarouselResult {
   const reducedMotion = useReducedMotion();
   const [nav, setNav] = useState<Nav>({ index: 0, previous: null, direction: 'forward' });
-  const [paused, setPaused] = useState(reducedMotion);
+  const [paused, setPaused] = useState(reducedMotion || !autoplayAtStart);
 
   useEffect(() => {
     if (reducedMotion) setPaused(true);

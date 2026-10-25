@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react';
 import { Icon, useReducedMotion } from '@syena/ds';
 import { useCarousel } from '../../hooks/useCarousel';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 // The landing's top-of-fold carousel (Area 2, requirements §2.1): two banners,
 // auto-rotate controlled only by an always-visible Pause/Play button; slides slide in and out sideways (no motion under reduced-motion settings).
@@ -33,52 +34,60 @@ export const CAROUSEL_STYLES = `
 .hero-carousel--static .hero-carousel__slide { animation: none !important; }
 .hero-carousel--static .hero-carousel__slide[data-motion^="enter"] { opacity: 1; }
 .hero-carousel--static .hero-carousel__slide[data-motion^="exit"] { visibility: hidden; opacity: 0; }
-/* A laptop or desktop: the hero is as tall as the view leaves room for -- the viewport less the header and the control row, never less than --hero-min -- and both banners fill it, so the row sits wholly in view and does not move between banners. */
-@media (min-width: 1101px) and (pointer: fine) {
-  .hero-carousel__slides { height: max(var(--hero-min), calc(100svh - var(--landing-header) - var(--carousel-row))); }
-  .hero-carousel__slide { align-self: stretch; }
-}
-.hero-carousel__controls { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 var(--landing-pad-x); padding: 10px 0 12px; --carousel-line: var(--syn-color-border-emphasis); --carousel-line: color-mix(in srgb, var(--syn-color-text-muted) 55%, transparent); border-top: 1px solid var(--carousel-line); } /* one visible line for the controls row, its buttons and the phone pill's fallback (same colour as the KPI row, ClimateSignalBanner): the divider tokens vanish on the tinted light background */
+.hero-carousel__controls { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 var(--landing-pad-x); padding: 10px 0 12px; --carousel-line: var(--syn-color-border-emphasis); --carousel-line: color-mix(in srgb, var(--syn-color-text-muted) 55%, transparent); border-top: 1px solid var(--carousel-line); } /* one visible line for the controls row, its buttons and the tab row's rule (same colour as the KPI row, ClimateSignalBanner): the divider tokens vanish on the tinted light background */
 .hero-carousel__btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 14px; color: inherit; background: transparent; border: 1px solid var(--carousel-line, currentColor); }
 .hero-carousel__btn[aria-current="true"] { background: var(--syn-color-surface-raised); font-weight: 600; }
 .hero-carousel__hint { margin-left: auto; font-size: 13px; color: var(--syn-color-text-muted); }
-/* Phones: one compact row -- previous, Pause/Play, a dot per banner, "1 of 2", next -- instead of wrapped labelled buttons. */
+/* With page anchors the row's right side is the anchors; the rotation hint stays for screen readers only. */
+.hero-carousel__hint--quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.hero-carousel__anchors { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 22px; font-size: 14px; }
+.hero-carousel__anchors-title { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--syn-color-text-muted); }
+.hero-carousel__anchors a { color: inherit; font-weight: 500; text-decoration: none; }
+.hero-carousel__anchors a:hover { text-decoration: underline; }
 .hero-carousel__count { display: none; }
-@media (max-width: 1100px), (max-width: 1440px) and (pointer: coarse) {
-  .hero-carousel__hint { display: none; }
-  /* Room under each banner for the pill (54 px + gap), which docks into it at rest instead of sitting below it, so at rest it covers nothing. */
-  .hero-carousel__slides { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
-  /* The slides are stacked in one grid cell, so the tallest would set the height and leave a gap above the controls under a shorter banner: on a phone only the showing (and, during the move, the leaving) slide takes room. */
+/* A laptop, desktop or tablet turned sideways (any pointer): the hero is at least --hero-h tall (set by the landing: the viewport less the header, the row and a peek of the next section, within a band) and grows only if the taller banner needs more, so the next section shows above the fold -- and both banners fill it, so the row does not move between banners. */
+@media (min-width: 1101px) {
+  .hero-carousel__slides { min-height: var(--hero-h); }
+  .hero-carousel__slide { align-self: stretch; }
+}
+/* A finger on the same bar (an iPad turned sideways): the buttons grow to a 44 px target instead of the bar changing into something else. */
+@media (min-width: 1101px) and (pointer: coarse) {
+  .hero-carousel__btn { min-width: 44px; height: 44px; }
+}
+/* A tablet turned sideways or a narrow laptop window: the page links stay on the one line beside the tabs. */
+@media (min-width: 1101px) and (max-width: 1320px) {
+  .hero-carousel__anchors { flex-wrap: nowrap; gap: 4px 16px; font-size: 13px; }
+  .hero-carousel__anchors-title { display: none; }
+}
+/* Stacked layouts (a tablet upright, a phone): the controls are a row of tabs under the header, one per banner, 44 px tall -- above the banner, so they cover nothing and the second banner can be found. Previous/Next, the count, the hint and the page links are dropped (the tabs do their job). */
+@media (max-width: 1100px) {
+  .hero-carousel__hint, .hero-carousel__anchors, .hero-carousel__btn--prev, .hero-carousel__btn--next { display: none; }
+  /* The slides are stacked in one grid cell, so the tallest would set the height: only the showing (and, during the move, the leaving) slide takes room. */
   .hero-carousel__slide[data-motion="hidden"] { display: none; }
-  /* A pill pinned to the bottom of the screen while the carousel is on view (it docks at the carousel's own end), so the controls are seen
-     without scrolling. Page scroll-padding keeps a focused element from sitting behind it. */
-  .hero-carousel__controls { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: calc(-66px - env(safe-area-inset-bottom, 0px)) 12px 0; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--carousel-line, #8896a8); border-radius: 999px; background: var(--syn-color-surface-raised); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
-  /* Frosted glass. An 80% tint of the surface over a backdrop blur, so the picture shows through while the text keeps >= 4.5:1 against the worst backdrop
-     either theme can put under it (measured: dark 5.3:1 over white, bright 5.0:1 over black). The opaque rule above is the fallback where backdrop-filter or color-mix
-     is missing, and for visitors who ask for reduced transparency. */
-  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) and (background: color-mix(in srgb, red 50%, transparent)) {
-    .hero-carousel__controls { background: color-mix(in srgb, var(--syn-color-surface-raised) 80%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.5); backdrop-filter: blur(14px) saturate(1.5); border-color: color-mix(in srgb, var(--syn-color-text-secondary) 28%, transparent); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent); }
-  }
-  @media (prefers-reduced-transparency: reduce) {
-    .hero-carousel__controls { background: var(--syn-color-surface-raised) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-  }
-  html:has(.hero-carousel__controls) { scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
-  .hero-carousel__btn { min-width: 44px; height: 44px; padding: 0; }
-  .hero-carousel__btn--playpause { padding: 0 12px; }
-  .hero-carousel__btn--prev { order: 1; margin-right: auto; }
-  .hero-carousel__btn--playpause { order: 2; }
-  .hero-carousel__btn--dot { order: 3; background: none; border: 0; }
-  .hero-carousel__count { order: 4; display: inline; font-size: 13px; color: var(--syn-color-text-muted); margin: 0 6px; }
-  .hero-carousel__btn--next { order: 5; margin-left: auto; }
-  .hero-carousel__btn--dot .hero-carousel__num, .hero-carousel__btn--dot .hero-carousel__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .hero-carousel__btn--dot { min-width: 44px; position: relative; } /* the target stays 44 px; only the drawn dot is small */
-  .hero-carousel__btn--dot::before { content: ""; display: block; width: 12px; height: 12px; border-radius: 6px; border: 2px solid var(--syn-color-text-secondary); box-sizing: border-box; }
-  .hero-carousel__btn--dot[aria-current="true"]::before { width: 32px; border-color: var(--syn-color-accent-fill); background: var(--syn-color-accent-fill); }
+  .hero-carousel__controls { order: 0; flex-wrap: nowrap; gap: 4px; padding: 8px 0 0; border-top: 0; border-bottom: 1px solid var(--carousel-line); }
+  .hero-carousel__btn { min-width: 44px; height: 44px; }
+  .hero-carousel__btn--dot { order: 1; flex: 1 1 0; min-width: 0; padding: 0 4px; gap: 6px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; margin-bottom: -1px; background: none; font-size: 14px; line-height: 1.15; text-align: center; }
+  .hero-carousel__btn--dot[aria-current="true"] { background: none; border-bottom-color: var(--syn-color-accent-fill); }
+  .hero-carousel__btn--dot .hero-carousel__num { margin-right: 0 !important; color: var(--syn-color-text-muted); }
+  .hero-carousel__btn--playpause { order: 2; padding: 0 12px; }
+}
+/* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate is off on a touch screen, so the Play/Pause button is there only while the banners are rotating. */
+@media (max-width: 640px) {
+  .hero-carousel__slides { min-height: var(--hero-h-phone); }
+  .hero-carousel__slide { align-self: stretch; }
+  .hero-carousel:not(.hero-carousel--auto) .hero-carousel__btn--playpause { display: none; }
 }
 `;
 
-export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: CarouselSlide[]; ariaLabel?: string }) {
-  const c = useCarousel({ count: slides.length });
+export interface PageAnchor {
+  href: string;
+  label: string;
+}
+
+export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: { slides: CarouselSlide[]; ariaLabel?: string; anchors?: PageAnchor[] }) {
+  // A touch screen does not rotate on its own (the tabs are the way to the other banner); a pointer that can hover does.
+  const touch = useMediaQuery('(pointer: coarse)');
+  const c = useCarousel({ count: slides.length, autoplay: !touch });
   const reducedMotion = useReducedMotion();
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.
@@ -97,7 +106,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
 
   return (
     <section
-      className={`hero-carousel${reducedMotion ? ' hero-carousel--static' : ''}`}
+      className={`hero-carousel${reducedMotion ? ' hero-carousel--static' : ''}${c.autoplay ? ' hero-carousel--auto' : ''}`}
       aria-roledescription="carousel"
       aria-label={ariaLabel}
       onKeyDown={(e) => {
@@ -113,8 +122,8 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
       {/* First in the DOM (so first in tab order) but drawn below the slides (CSS `order`): the pause control
           must be reachable before the moving content. */}
       <div className="hero-carousel__controls">
-        <button type="button" className="hero-carousel__btn hero-carousel__btn--playpause" onClick={c.autoplay ? c.pause : c.play} aria-label={c.autoplay ? 'Pause automatic rotation' : 'Play automatic rotation'}>
-          {c.autoplay ? 'Pause' : 'Play'}
+        <button type="button" className="hero-carousel__btn hero-carousel__btn--playpause" onClick={c.autoplay ? c.pause : c.play} aria-label={c.autoplay ? 'Pause slides: automatic rotation' : 'Play slides: automatic rotation'}>
+          {c.autoplay ? 'Pause slides' : 'Play slides'}
         </button>
         <button type="button" className="hero-carousel__btn hero-carousel__btn--prev" onClick={c.prev} aria-label="Previous slide"><Icon name="previous" size="small" /></button>
         {slides.map((s, i) => (
@@ -125,7 +134,13 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
         ))}
         <button type="button" className="hero-carousel__btn hero-carousel__btn--next" onClick={c.next} aria-label="Next slide"><Icon name="next" size="small" /></button>
         <span className="hero-carousel__count" aria-hidden="true">{c.index + 1} of {slides.length}</span>
-        <span className="hero-carousel__hint">{c.autoplay ? 'Auto-rotating · use Pause to stop' : 'Auto-rotate off · ← → to switch'}</span>
+        <span className={`hero-carousel__hint${anchors.length ? ' hero-carousel__hint--quiet' : ''}`}>{c.autoplay ? 'Auto-rotating · use Pause to stop' : 'Auto-rotate off · ← → to switch'}</span>
+        {anchors.length > 0 && (
+          <nav className="hero-carousel__anchors" aria-label="On this page">
+            <span className="hero-carousel__anchors-title"><Icon name="down" size="small" />On this page</span>
+            {anchors.map((a) => <a key={a.href} href={a.href}>{a.label}</a>)}
+          </nav>
+        )}
       </div>
       <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'}>
         {slides.map((s, i) => (

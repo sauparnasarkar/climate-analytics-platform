@@ -149,12 +149,12 @@ describe('growthPhrase', () => {
 });
 
 describe('phoneGlobeMax', () => {
-  it('fits the globe between where its column starts and the bottom, less the panel padding, the caption+legend below it and the pill zone', () => {
-    // 875 high, column starts 415 down: 875 - 415 - 12 - 122 - 78 = 248 (under the 62% cap of 542 and the ceiling).
-    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600 })).toBe(248);
+  it('fits the globe between where its column starts and the bottom, less the panel padding, everything below it and the toolbar zone', () => {
+    // 875 high, column starts 415 down: 875 - 415 - 12 - 122 - 80 = 246 (under the 62% cap of 542 and the ceiling).
+    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600 })).toBe(246);
   });
   it('uses the measured height under the canvas: a narrow phone whose legend wraps more gets a smaller globe', () => {
-    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600, below: 140 })).toBe(230);
+    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600, below: 140 })).toBe(228);
   });
   it('never exceeds the design cap of 62% of the height, nor the ceiling', () => {
     expect(phoneGlobeMax({ viewportHeight: 800, top: 40, ceiling: 600 })).toBe(496); // fit 548 > 62% of 800
