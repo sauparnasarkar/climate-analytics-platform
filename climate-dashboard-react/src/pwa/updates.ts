@@ -81,3 +81,44 @@ export function reloadWhenActivated(
   waiting.postMessage({ type: 'SKIP_WAITING' });
 }
 
+
+/** How long into a page's life an update may be applied without asking, and how soon a second automatic reload is refused. */
+export const STARTUP_WINDOW_MS = 30 * 1000;
+export const AUTO_RELOAD_LOCK_MS = 60 * 1000;
+export const AUTO_RELOAD_KEY = 'climate-analytics-auto-reload';
+
+/**
+ * A page that has only just loaded, and that nobody has touched, can be moved to the waiting version without a prompt: a returning
+ * visitor then runs the build they were served, not the one the old worker cached. Later (a tab left open) or after any press, tap or key,
+ * it does nothing and the prompt asks instead, so a reload never lands in the middle of what someone is doing. It reloads at most once a
+ * minute in a tab (a stored time, so a worker that never takes over cannot cause a loop). Returns whether it started the reload.
+ */
+export function applyUpdateIfIdle({
+  registration,
+  container,
+  interacted,
+  ageMs,
+  storage,
+  now = () => Date.now(),
+  reload,
+}: {
+  registration: ServiceWorkerRegistration;
+  container: ServiceWorkerContainer;
+  interacted: () => boolean;
+  ageMs: () => number;
+  storage?: Pick<Storage, 'getItem' | 'setItem'>;
+  now?: () => number;
+  reload?: () => void;
+}): boolean {
+  if (interacted() || ageMs() > STARTUP_WINDOW_MS) return false;
+  try {
+    const last = Number(storage?.getItem(AUTO_RELOAD_KEY));
+    if (last && now() - last < AUTO_RELOAD_LOCK_MS) return false;
+    storage?.setItem(AUTO_RELOAD_KEY, String(now()));
+  } catch {
+    // No storage (a private window): without the guard it must not reload on its own, the prompt asks instead.
+    return false;
+  }
+  reloadWhenActivated(registration, container, reload);
+  return true;
+}
