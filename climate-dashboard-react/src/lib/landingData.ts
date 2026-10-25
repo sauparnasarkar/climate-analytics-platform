@@ -183,9 +183,9 @@ export const PHONE_GLOBE_WIDTH_SHARE = 0.787;
 
 /** The largest a phone's globe may be (px): what fits between where its column starts on the page (`top`, 0 if not yet measured) and the stable viewport's bottom,
  * less the panel padding, everything that sits under the canvas on the slide (`below`: caption, legend, controls, figures and the button, measured because the legend wraps more on a narrow phone) and the toolbar's zone,
- * so the slide's last button sits clear of the browser's toolbar at rest -- never above the design's 62% of the height or the laptop-sized `ceiling`, never below the minimum. */
-export function phoneGlobeMax({ viewportHeight, top, ceiling, below = PHONE_GLOBE_BELOW_PX, width = Infinity }: { viewportHeight: number; top: number; ceiling: number; below?: number; width?: number }): number {
-  const fit = top > 0 ? viewportHeight - top - PHONE_GLOBE_PAD_PX - below - PHONE_GLOBE_PILL_ZONE_PX : Infinity;
+ * so the slide's last button sits clear of the browser's toolbar at rest, and no lower than `bottom` (the page's y where the hero ends, so a tall screen does not make this banner taller than the other) -- never above the design's 62% of the height or the laptop-sized `ceiling`, never below the minimum. */
+export function phoneGlobeMax({ viewportHeight, top, ceiling, below = PHONE_GLOBE_BELOW_PX, width = Infinity, bottom = Infinity }: { viewportHeight: number; top: number; ceiling: number; below?: number; width?: number; bottom?: number }): number {
+  const fit = top > 0 ? Math.min(viewportHeight - PHONE_GLOBE_PILL_ZONE_PX, bottom) - top - PHONE_GLOBE_PAD_PX - below : Infinity;
   return Math.max(PHONE_GLOBE_MIN_PX, Math.min(ceiling, Math.round(viewportHeight * PHONE_GLOBE_MAX_SHARE), Math.round(width * PHONE_GLOBE_WIDTH_SHARE), fit));
 }
 
