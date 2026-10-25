@@ -87,8 +87,8 @@ const STYLES = `
   .climate-banner__chart { align-self: stretch; min-height: 0; }
   /* The text column is as tall as the picture beside it, its parts spread down it, so the buttons end on the picture's bottom edge and no gap opens under the figures. */
   .climate-banner__text, .landing-hero__text { align-self: stretch; justify-content: space-between; }
-  /* The figures take up a share of what is left, so the space is inside the strip's rules rather than empty bands between the parts. */
-  .climate-banner__text .landing-kpi-strip, .landing-hero__text .landing-kpi-strip { flex: 1 1 auto; max-height: 176px; align-content: center; }
+  /* The figures keep their own height (the strip's rules hug them); what is left of the column goes into the gaps between eyebrow, headline, paragraph and figures. */
+  .climate-banner__text .landing-kpi-strip, .landing-hero__text .landing-kpi-strip { flex: 0 0 auto; }
   .climate-banner .climate-scatter { flex: 1 1 0; min-height: 160px; aspect-ratio: auto; max-height: none; }
 }
 @media (max-width: 1100px) {
