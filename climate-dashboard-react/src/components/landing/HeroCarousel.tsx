@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react';
 import { Icon, useReducedMotion } from '@syena/ds';
 import { useCarousel } from '../../hooks/useCarousel';
-import { PHONE_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 // The landing's top-of-fold carousel (Area 2, requirements §2.1): two banners,
 // auto-rotate controlled only by an always-visible Pause/Play button; slides slide in and out sideways (no motion under reduced-motion settings).
@@ -69,15 +69,18 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__btn--dot { order: 1; flex: 1 1 0; min-width: 0; padding: 0 4px; gap: 6px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; margin-bottom: -1px; background: none; font-size: 14px; line-height: 1.15; text-align: center; }
   .hero-carousel__btn--dot[aria-current="true"] { background: none; border-bottom-color: var(--syn-color-accent-fill); }
   .hero-carousel__btn--dot .hero-carousel__num { margin-right: 0 !important; color: var(--syn-color-text-muted); }
-  .hero-carousel__btn--playpause { order: 2; padding: 0 12px; }
+  /* No rotation here, so no Play/Pause: the tabs are the way to the other banner. */
+  .hero-carousel__btn--playpause { display: none; }
 }
-/* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate is off on a phone, so the Play/Pause button is there only while the banners are rotating. */
+/* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate and its Play/Pause button are only in the wide layout. */
 @media (max-width: 640px) {
   .hero-carousel__slides { min-height: var(--hero-h-phone); }
   .hero-carousel__slide { align-self: stretch; }
-  .hero-carousel:not(.hero-carousel--auto) .hero-carousel__btn--playpause { display: none; }
 }
 `;
+
+/** The layout with the chapter bar and its Play/Pause button (the stacked tabs are below this width). */
+const WIDE_QUERY = '(min-width: 1101px)';
 
 export interface PageAnchor {
   href: string;
@@ -85,10 +88,10 @@ export interface PageAnchor {
 }
 
 export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: { slides: CarouselSlide[]; ariaLabel?: string; anchors?: PageAnchor[] }) {
-  // A phone does not rotate on its own (the tabs are the way to the other banner); a tablet or a laptop does, whatever its pointer: chosen by width, not by touch, so an iPad rotates too.
-  const phone = useMediaQuery(PHONE_QUERY);
+  // The banners rotate on their own only in the wide layout, where the Play/Pause button is: chosen by width, not by touch, so an iPad turned sideways rotates and one upright (the stacked tabs, as on a phone) does not.
+  const wide = useMediaQuery(WIDE_QUERY);
   const [holding, setHolding] = useState(false);
-  const c = useCarousel({ count: slides.length, autoplay: !phone, hold: holding });
+  const c = useCarousel({ count: slides.length, autoplay: wide, hold: holding });
   const reducedMotion = useReducedMotion();
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.

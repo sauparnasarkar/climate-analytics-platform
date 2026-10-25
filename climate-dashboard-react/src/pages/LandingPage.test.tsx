@@ -46,7 +46,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
 
 beforeAll(() => {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {},
+    matches: query === '(min-width: 1101px)', media: query, addEventListener: () => {}, removeEventListener: () => {},
     addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false, onchange: null,
   }));
 });
