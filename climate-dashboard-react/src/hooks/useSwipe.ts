@@ -24,7 +24,7 @@ interface Start {
   at: number;
 }
 
-/** Pointer handlers that turn a quick sideways touch into `onSwipe`. Touch and pen only; a mouse drag is not a swipe. Put `touch-action: pan-y` on the element so the page still scrolls up and down and the browser leaves the sideways move to this. */
+/** Pointer handlers that turn a quick sideways touch into `onSwipe`. Touch and pen only; a mouse drag is not a swipe. Put `touch-action: pan-y pinch-zoom` on the element so the page still scrolls up and down and zooms and the browser leaves the sideways move to this. */
 export function useSwipe({ onSwipe, enabled = true }: UseSwipeOptions) {
   const start = useRef<Start | null>(null);
   return {

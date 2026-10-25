@@ -190,8 +190,8 @@ describe('HeroCarousel swipe', () => {
     expect(current()).toBe(0);
   });
 
-  it('lets the page scroll up and down but takes the sideways move, on a stacked layout only', () => {
+  it('lets the page scroll up and down and zoom by pinch but takes the sideways move, on a stacked layout only', () => {
     mount();
-    expect(CAROUSEL_STYLES).toMatch(/max-width: 1100px\)[^@]*\.hero-carousel__slides \{ touch-action: pan-y; \}/);
+    expect(CAROUSEL_STYLES).toMatch(/max-width: 1100px\)[^@]*\.hero-carousel__slides \{ touch-action: pan-y pinch-zoom; \}/);
   });
 });

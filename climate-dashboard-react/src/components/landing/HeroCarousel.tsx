@@ -70,9 +70,9 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__btn--dot { order: 1; flex: 1 1 0; min-width: 0; padding: 0 4px; gap: 6px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; margin-bottom: -1px; background: none; font-size: 14px; line-height: 1.15; text-align: center; }
   .hero-carousel__btn--dot[aria-current="true"] { background: none; border-bottom-color: var(--syn-color-accent-fill); }
   .hero-carousel__btn--dot .hero-carousel__num { margin-right: 0 !important; color: var(--syn-color-text-muted); }
-  /* No rotation here, so no Play/Pause: the tabs, or a swipe along the banner, are the way to the other banner. The page still scrolls up and down; the sideways move is left to the swipe. */
+  /* No rotation here, so no Play/Pause: the tabs, or a swipe along the banner, are the way to the other banner. The page still scrolls up and down and can be pinched to zoom; the sideways move is left to the swipe. */
   .hero-carousel__btn--playpause { display: none; }
-  .hero-carousel__slides { touch-action: pan-y; }
+  .hero-carousel__slides { touch-action: pan-y pinch-zoom; }
 }
 /* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate and its Play/Pause button are only in the wide layout. */
 @media (max-width: 640px) {
