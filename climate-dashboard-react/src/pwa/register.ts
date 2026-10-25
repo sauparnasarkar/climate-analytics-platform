@@ -1,5 +1,5 @@
 import { registerSW } from 'virtual:pwa-register';
-import { announceNewVersion, forgetNewVersion, onReloadForUpdate } from './updateState';
+import { announceNewVersion, announceStalePage, forgetNewVersion, onReloadForUpdate } from './updateState';
 import { applyUpdateIfIdle, reloadWhenActivated, trackUpdate, watchForUpdates } from './updates';
 
 /** Registers the service worker, keeps looking for a newer one, and tells the page when one is really waiting for it. */
@@ -18,7 +18,7 @@ export function registerServiceWorker() {
       watchForUpdates(registration);
       trackUpdate(registration, navigator.serviceWorker, {
         // A returning visitor's page is still the old worker's: at load, before any interaction, move to the new version at once; otherwise ask.
-        onWaiting: () => { if (!applyUpdateIfIdle({ registration, container: navigator.serviceWorker, interacted: () => interacted, ageMs: () => performance.now(), storage, onDeferred: announceNewVersion })) announceNewVersion(); },
+        onWaiting: () => { if (!applyUpdateIfIdle({ registration, container: navigator.serviceWorker, interacted: () => interacted, ageMs: () => performance.now(), storage, onDeferred: announceStalePage })) announceNewVersion(); },
         onClear: forgetNewVersion,
       });
     },
