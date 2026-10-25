@@ -9,16 +9,22 @@ export type AppTheme = Extract<ThemeName, 'night' | 'tidewater'>;
 
 const isAppTheme = (value: unknown): value is AppTheme => value === 'night' || value === 'tidewater';
 
-// Read in the state initializer, not an effect, so a returning Light user never sees a flash of Dark on first paint.
-// Dark is what a first-time visitor lands on; there is no prefers-color-scheme detection, because an explicit toggle
-// exists and a media-query default would only contradict it. Storage can throw (private browsing, a blocking
+// What the device asks for. With no matchMedia (an old browser, a test) Dark, the app's own look.
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+export function systemTheme(): AppTheme {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'night';
+  return window.matchMedia(DARK_QUERY).matches ? 'night' : 'tidewater';
+}
+
+// The visitor's own choice, if they have made one with the toggle; null until then. Read in the state initializer, not an effect,
+// so a returning Light user never sees a flash of Dark on first paint. Storage can throw (private browsing, a blocking
 // extension or policy), which would otherwise crash the app before it renders.
-export function readStoredTheme(): AppTheme {
+export function readStoredTheme(): AppTheme | null {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return isAppTheme(stored) ? stored : 'night';
+    return isAppTheme(stored) ? stored : null;
   } catch {
-    return 'night';
+    return null;
   }
 }
 

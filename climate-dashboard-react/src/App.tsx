@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { SynThemeProvider } from '@syena/ds';
-import { readStoredTheme, storeTheme, type AppTheme } from './lib/theme';
+import { useAppTheme } from './lib/useAppTheme';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { LandingLayout } from './layouts/LandingLayout';
 import LandingPage from './pages/LandingPage';
@@ -19,8 +18,7 @@ import { AskThreadProvider } from './agent/AskThreadProvider';
 import ClimateCorrelationPage from './pages/ClimateCorrelationPage';
 
 function App() {
-  const [theme, setTheme] = useState<AppTheme>(readStoredTheme);
-  useEffect(() => storeTheme(theme), [theme]);
+  const [theme, setTheme] = useAppTheme();
 
   return (
     <SynThemeProvider theme={theme} storageKey={null}>
