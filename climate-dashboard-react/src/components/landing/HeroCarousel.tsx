@@ -91,7 +91,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: {
   // The banners rotate on their own only in the wide layout, where the Play/Pause button is: chosen by width, not by touch, so an iPad turned sideways rotates and one upright (the stacked tabs, as on a phone) does not.
   const wide = useMediaQuery(WIDE_QUERY);
   const [holding, setHolding] = useState(false);
-  const c = useCarousel({ count: slides.length, autoplay: wide, hold: holding });
+  const c = useCarousel({ count: slides.length, enabled: wide, hold: holding });
   const reducedMotion = useReducedMotion();
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.

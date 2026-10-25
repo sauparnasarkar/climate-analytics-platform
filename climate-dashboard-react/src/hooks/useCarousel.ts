@@ -9,6 +9,8 @@ export interface UseCarouselOptions {
   dwellMs?: number;
   /** Whether it rotates on its own at the start (default true); Play still starts it. */
   autoplay?: boolean;
+  /** Whether rotation is allowed right now (default true), read on every render: while false nothing rotates, and the Play/Pause choice is kept for when it turns true (for example a window turned from upright to sideways). */
+  enabled?: boolean;
   /** While true the slide stays up, whatever the dwell (for example while the slide's own animation plays through). The dwell starts afresh when it turns false. */
   hold?: boolean;
 }
@@ -43,7 +45,7 @@ interface Nav {
  * not change that state -- the dwell simply starts afresh on the slide you chose. The pointer, focus and the browser tab have no
  * effect. Under `prefers-reduced-motion` it starts paused (an explicit Play is a request for movement).
  */
-export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS, autoplay: autoplayAtStart = true, hold = false }: UseCarouselOptions): UseCarouselResult {
+export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS, autoplay: autoplayAtStart = true, enabled = true, hold = false }: UseCarouselOptions): UseCarouselResult {
   const reducedMotion = useReducedMotion();
   const [nav, setNav] = useState<Nav>({ index: 0, previous: null, direction: 'forward' });
   const [paused, setPaused] = useState(reducedMotion || !autoplayAtStart);
@@ -57,7 +59,7 @@ export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS, autoplay: auto
     setNav((n) => (n.index === to ? n : { index: to, previous: n.index, direction }));
   }, []);
 
-  const running = !paused && !hold && count > 1;
+  const running = !paused && enabled && !hold && count > 1;
   useEffect(() => {
     if (!running) return;
     const id = setTimeout(() => move(wrap(nav.index + 1), 'forward'), dwellMs);
@@ -73,5 +75,5 @@ export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS, autoplay: auto
   const pause = useCallback(() => setPaused(true), []);
   const play = useCallback(() => setPaused(false), []);
 
-  return { index: nav.index, previous: nav.previous, direction: nav.direction, autoplay: !paused, goTo, next, prev, pause, play };
+  return { index: nav.index, previous: nav.previous, direction: nav.direction, autoplay: !paused && enabled, goTo, next, prev, pause, play };
 }
