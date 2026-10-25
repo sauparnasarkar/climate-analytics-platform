@@ -100,7 +100,8 @@ export function applyUpdateIfIdle({
   ageMs,
   storage,
   now = () => Date.now(),
-  reload,
+  reload = () => window.location.reload(),
+  onDeferred,
 }: {
   registration: ServiceWorkerRegistration;
   container: ServiceWorkerContainer;
@@ -109,16 +110,20 @@ export function applyUpdateIfIdle({
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
   now?: () => number;
   reload?: () => void;
+  /** Called instead of the reload when someone has pressed, tapped or typed while the worker was taking over: the prompt should ask then. */
+  onDeferred?: () => void;
 }): boolean {
   if (interacted() || ageMs() > STARTUP_WINDOW_MS) return false;
+  // No storage (a private window, or access blocked): without the lock it must not reload on its own, the prompt asks instead.
+  if (!storage) return false;
   try {
-    const last = Number(storage?.getItem(AUTO_RELOAD_KEY));
+    const last = Number(storage.getItem(AUTO_RELOAD_KEY));
     if (last && now() - last < AUTO_RELOAD_LOCK_MS) return false;
-    storage?.setItem(AUTO_RELOAD_KEY, String(now()));
+    storage.setItem(AUTO_RELOAD_KEY, String(now()));
   } catch {
-    // No storage (a private window): without the guard it must not reload on its own, the prompt asks instead.
     return false;
   }
-  reloadWhenActivated(registration, container, reload);
+  // Taking over can take a moment, and someone may start typing in it: look again at the moment of the reload.
+  reloadWhenActivated(registration, container, () => { if (interacted()) onDeferred?.(); else reload(); });
   return true;
 }

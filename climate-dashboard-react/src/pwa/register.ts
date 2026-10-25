@@ -18,7 +18,7 @@ export function registerServiceWorker() {
       watchForUpdates(registration);
       trackUpdate(registration, navigator.serviceWorker, {
         // A returning visitor's page is still the old worker's: at load, before any interaction, move to the new version at once; otherwise ask.
-        onWaiting: () => { if (!applyUpdateIfIdle({ registration, container: navigator.serviceWorker, interacted: () => interacted, ageMs: () => performance.now(), storage })) announceNewVersion(); },
+        onWaiting: () => { if (!applyUpdateIfIdle({ registration, container: navigator.serviceWorker, interacted: () => interacted, ageMs: () => performance.now(), storage, onDeferred: announceNewVersion })) announceNewVersion(); },
         onClear: forgetNewVersion,
       });
     },

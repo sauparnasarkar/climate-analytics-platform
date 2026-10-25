@@ -207,4 +207,30 @@ describe('applyUpdateIfIdle', () => {
     expect(applyUpdateIfIdle({ registration, container, interacted: () => false, ageMs: () => 100, storage })).toBe(false);
     expect(worker.postMessage).not.toHaveBeenCalled();
   });
+
+  it('does nothing when no storage is given (the lock cannot be kept)', () => {
+    const container = new EventTarget() as unknown as ServiceWorkerContainer;
+    const worker = new FakeWorker();
+    const registration = { waiting: worker } as unknown as ServiceWorkerRegistration;
+    expect(applyUpdateIfIdle({ registration, container, interacted: () => false, ageMs: () => 100 })).toBe(false);
+    expect(worker.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('does not reload if someone starts typing while the worker takes over; the prompt asks instead (both on controllerchange and on the fallback wait)', () => {
+    for (const trigger of ['controllerchange', 'fallback'] as const) {
+      let touched = false;
+      const container = new EventTarget() as unknown as ServiceWorkerContainer;
+      const worker = new FakeWorker();
+      const registration = { waiting: worker } as unknown as ServiceWorkerRegistration;
+      const store = new Map<string, string>();
+      const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } };
+      const reload = vi.fn();
+      const onDeferred = vi.fn();
+      expect(applyUpdateIfIdle({ registration, container, interacted: () => touched, ageMs: () => 100, storage, reload, onDeferred })).toBe(true);
+      touched = true; // typing starts after the take-over was asked for
+      if (trigger === 'controllerchange') container.dispatchEvent(new Event('controllerchange')); else vi.advanceTimersByTime(3000);
+      expect(reload).not.toHaveBeenCalled();
+      expect(onDeferred).toHaveBeenCalledTimes(1);
+    }
+  });
 });
