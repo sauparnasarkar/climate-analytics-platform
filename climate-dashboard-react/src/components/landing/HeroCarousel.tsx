@@ -33,19 +33,25 @@ export const CAROUSEL_STYLES = `
 .hero-carousel--static .hero-carousel__slide { animation: none !important; }
 .hero-carousel--static .hero-carousel__slide[data-motion^="enter"] { opacity: 1; }
 .hero-carousel--static .hero-carousel__slide[data-motion^="exit"] { visibility: hidden; opacity: 0; }
-/* A laptop or desktop: the hero is as tall as the view leaves room for -- the viewport less the header and the control row, never less than --hero-min -- and both banners fill it, so the row sits wholly in view and does not move between banners. */
+/* A laptop or desktop: the hero is --hero-h tall (set by the landing: the viewport less the header, the row and a peek of the next section, within a band), so the next section shows above the fold -- and both banners fill it, so the row does not move between banners. */
 @media (min-width: 1101px) and (pointer: fine) {
-  .hero-carousel__slides { height: max(var(--hero-min), calc(100svh - var(--landing-header) - var(--carousel-row))); }
+  .hero-carousel__slides { height: var(--hero-h); }
   .hero-carousel__slide { align-self: stretch; }
 }
 .hero-carousel__controls { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 var(--landing-pad-x); padding: 10px 0 12px; --carousel-line: var(--syn-color-border-emphasis); --carousel-line: color-mix(in srgb, var(--syn-color-text-muted) 55%, transparent); border-top: 1px solid var(--carousel-line); } /* one visible line for the controls row, its buttons and the phone pill's fallback (same colour as the KPI row, ClimateSignalBanner): the divider tokens vanish on the tinted light background */
 .hero-carousel__btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 14px; color: inherit; background: transparent; border: 1px solid var(--carousel-line, currentColor); }
 .hero-carousel__btn[aria-current="true"] { background: var(--syn-color-surface-raised); font-weight: 600; }
 .hero-carousel__hint { margin-left: auto; font-size: 13px; color: var(--syn-color-text-muted); }
+/* With page anchors the row's right side is the anchors; the rotation hint stays for screen readers only. */
+.hero-carousel__hint--quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.hero-carousel__anchors { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 22px; font-size: 14px; }
+.hero-carousel__anchors-title { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--syn-color-text-muted); }
+.hero-carousel__anchors a { color: inherit; font-weight: 500; text-decoration: none; }
+.hero-carousel__anchors a:hover { text-decoration: underline; }
 /* Phones: one compact row -- previous, Pause/Play, a dot per banner, "1 of 2", next -- instead of wrapped labelled buttons. */
 .hero-carousel__count { display: none; }
 @media (max-width: 1100px), (max-width: 1440px) and (pointer: coarse) {
-  .hero-carousel__hint { display: none; }
+  .hero-carousel__hint, .hero-carousel__anchors { display: none; }
   /* Room under each banner for the pill (54 px + gap), which docks into it at rest instead of sitting below it, so at rest it covers nothing. */
   .hero-carousel__slides { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
   /* The slides are stacked in one grid cell, so the tallest would set the height and leave a gap above the controls under a shorter banner: on a phone only the showing (and, during the move, the leaving) slide takes room. */
@@ -77,7 +83,12 @@ export const CAROUSEL_STYLES = `
 }
 `;
 
-export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: CarouselSlide[]; ariaLabel?: string }) {
+export interface PageAnchor {
+  href: string;
+  label: string;
+}
+
+export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: { slides: CarouselSlide[]; ariaLabel?: string; anchors?: PageAnchor[] }) {
   const c = useCarousel({ count: slides.length });
   const reducedMotion = useReducedMotion();
   const uid = useId();
@@ -125,7 +136,13 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
         ))}
         <button type="button" className="hero-carousel__btn hero-carousel__btn--next" onClick={c.next} aria-label="Next slide"><Icon name="next" size="small" /></button>
         <span className="hero-carousel__count" aria-hidden="true">{c.index + 1} of {slides.length}</span>
-        <span className="hero-carousel__hint">{c.autoplay ? 'Auto-rotating · use Pause to stop' : 'Auto-rotate off · ← → to switch'}</span>
+        <span className={`hero-carousel__hint${anchors.length ? ' hero-carousel__hint--quiet' : ''}`}>{c.autoplay ? 'Auto-rotating · use Pause to stop' : 'Auto-rotate off · ← → to switch'}</span>
+        {anchors.length > 0 && (
+          <nav className="hero-carousel__anchors" aria-label="On this page">
+            <span className="hero-carousel__anchors-title"><Icon name="down" size="small" />On this page</span>
+            {anchors.map((a) => <a key={a.href} href={a.href}>{a.label}</a>)}
+          </nav>
+        )}
       </div>
       <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'}>
         {slides.map((s, i) => (

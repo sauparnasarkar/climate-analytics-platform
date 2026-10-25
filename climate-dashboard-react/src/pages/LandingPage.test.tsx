@@ -340,8 +340,17 @@ describe('LandingPage — climate-signal carousel', () => {
     const primary = await screen.findByRole('link', { name: 'See the climate signal' });
     expect(primary).toHaveAttribute('href', '/overview#climate-signal');
     expect(screen.getByRole('link', { name: 'Explore climate correlation' })).toHaveAttribute('href', '/climate-correlation');
-    expect(screen.queryByRole('link', { name: 'Explore the data' })).not.toBeInTheDocument(); // the two buttons no longer both go to the Overview
+    expect(screen.queryAllByRole('link', { name: 'Explore the data' }).filter((l) => l.getAttribute('href')?.startsWith('/overview'))).toHaveLength(0); // the two buttons no longer both go to the Overview
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
+  });
+
+  it('the carousel row links to the sections under the hero, in page order', async () => {
+    mountWithClimate();
+    const nav = await screen.findByRole('navigation', { name: 'On this page' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((l) => l.textContent)).toEqual(['Chain reaction', 'Three stories', 'Top 10 emitters', 'Explore the data']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#chain-heading', '#stories-heading', '#race-heading', '#features-heading']);
+    for (const l of links) expect(document.getElementById(l.getAttribute('href')!.slice(1))).not.toBeNull();
   });
 
   it('the two banners are laid out alike: figures, then the button, then Forecasts as a plain text link with an arrow', async () => {

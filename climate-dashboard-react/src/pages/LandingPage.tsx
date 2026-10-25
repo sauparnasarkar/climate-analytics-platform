@@ -8,7 +8,7 @@ import { useInView } from '../hooks/useInView';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { RankRace } from '../components/landing/RankRace';
 import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
-import { CAROUSEL_STYLES, HeroCarousel } from '../components/landing/HeroCarousel';
+import { CAROUSEL_STYLES, HeroCarousel, type PageAnchor } from '../components/landing/HeroCarousel';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { ctaClass } from '../components/landing/cta';
 import { buildClimateSignal } from '../lib/climateSignal';
@@ -49,12 +49,21 @@ const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other count
 // The hero above the fold on a laptop: the landing header, the carousel's control row and the least height the hero is given.
 const HEADER_PX = 68;
 const CAROUSEL_ROW_PX = 59;
-const HERO_MIN_PX = 540;
+// The hero follows the screen but stays within a band, so a laptop shows the banner, its control row and the top of the next section:
+// the viewport less the header, the control row and a peek of the next section, kept between these two heights.
+const HERO_MIN_PX = 504;
+const HERO_MAX_PX = 560;
+const PEEK_PX = 140;
 // What the globe slide holds besides the picture (the legend, the controls, the hint and the year slider, and the panel's padding), measured.
 const GLOBE_SLIDE_EXTRA_PX = 190;
+// The smallest globe on a laptop, where the hero is short.
+const GLOBE_MIN_PX = 220;
+// On a tablet the globe stops here, so the next section shows under the hero.
+const TABLET_GLOBE_MAX_PX = 420;
 
 const STYLES = `
-.landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-min: ${HERO_MIN_PX}px; --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
+.landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-h: clamp(${HERO_MIN_PX}px, calc(100svh - ${HEADER_PX + CAROUSEL_ROW_PX + PEEK_PX}px), ${HERO_MAX_PX}px); --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
+.landing [id$="-heading"] { scroll-margin-top: 84px; }
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
 /* Both banners of the carousel share one layout, so nothing moves when the slide changes: a text column and a picture column in the same proportion,
    both starting at the same top edge. The lines are the one visible colour of the KPI strip (the divider tokens are lighter than the tinted light-theme background). */
@@ -73,8 +82,11 @@ const STYLES = `
 .landing-race__text { flex: 0 0 min(380px, 34%); }
 .landing-race__chart { flex: 1 1 0; min-width: 0; }
 @media (min-width: 1101px) and (pointer: fine) {
-  .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: minmax(0, 1fr); }
+  .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: minmax(0, 1fr); padding-top: 24px; padding-bottom: 12px; }
   .climate-banner__chart { align-self: stretch; min-height: 0; }
+  /* The text column is as tall as the picture beside it, so its buttons sit on the picture's bottom edge instead of leaving a gap under them. */
+  .climate-banner__text, .landing-hero__text { align-self: stretch; }
+  .climate-banner__ctas, .landing-hero__ctas { margin-top: auto; }
   .climate-banner .climate-scatter { flex: 1 1 0; min-height: 0; aspect-ratio: auto; max-height: none; }
 }
 @media (max-width: 1100px) {
@@ -82,6 +94,10 @@ const STYLES = `
   .landing-race { flex-direction: column; align-items: stretch; }
   .landing-race__text { flex: none; }
   .landing-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Tablets: the chart is a band, not a page-high picture, so the next section shows under the hero. */
+@media (min-width: 641px) and (max-width: 1100px), (min-width: 1101px) and (max-width: 1440px) and (pointer: coarse) {
+  .climate-banner .climate-scatter { aspect-ratio: auto; height: 260px; max-height: none; }
 }
 @media (max-width: 640px) {
   .landing-globe-title--block { display: block; }
@@ -102,11 +118,20 @@ const STYLES = `
   .landing-hero__cards > div { padding: 10px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; min-width: 0; }
   .landing-hero__card-value { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--syn-color-text-primary); }
   .landing-hero__cards .syn-caption { color: var(--syn-color-text-muted); }
+  .climate-banner .climate-scatter { aspect-ratio: auto; height: clamp(150px, 24svh, 200px); max-height: none; }
   .landing-hero__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .landing-hero__ctas > a { justify-content: center; }
   .landing-hero__ctas > a.landing-hero__forecasts { text-align: center; padding: 6px 0; }  /* the text link, as Banner 1's on a phone */
 }
 `;
+
+// The sections under the hero, in page order, as the carousel's "On this page" links (the chain band is there only with the climate signal).
+const PAGE_ANCHORS: PageAnchor[] = [
+  { href: '#chain-heading', label: 'Chain reaction' },
+  { href: '#stories-heading', label: 'Three stories' },
+  { href: '#race-heading', label: 'Top 10 emitters' },
+  { href: '#features-heading', label: 'Explore the data' },
+];
 
 const cardStyle = {
   padding: 28, borderRadius: 16, background: 'var(--syn-color-surface-raised)',
@@ -140,10 +165,11 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
   // On a phone the globe takes at most ~62% of the screen height so Play and the slider stay with it.
   const isPhone = useMediaQuery(PHONE_QUERY);
   const roomy = useMediaQuery('(min-width: 1101px) and (pointer: fine)');
+  const tablet = useMediaQuery('(min-width: 641px) and (max-width: 1440px)');
   // On a laptop the picture takes what the hero leaves it, so the carousel's control row stays in view: the hero is the viewport less the header and the row (at least the minimum), less the slide's own padding and the other parts of the panel.
-  const heroHeight = Math.max(HERO_MIN_PX, viewportHeight - HEADER_PX - CAROUSEL_ROW_PX);
-  const slidePad = Math.min(48, Math.max(16, viewportHeight * 0.03));
-  const laptopMax = roomy ? Math.max(300, Math.min(600, Math.floor(heroHeight - GLOBE_SLIDE_EXTRA_PX - 2 * slidePad))) : Math.max(300, Math.min(600, viewportHeight - 68 - 64 - 56 - 100 - 52));
+  const heroHeight = Math.min(HERO_MAX_PX, Math.max(HERO_MIN_PX, viewportHeight - HEADER_PX - CAROUSEL_ROW_PX - PEEK_PX));
+  const slidePad = roomy ? 18 : Math.min(48, Math.max(16, viewportHeight * 0.03));
+  const laptopMax = roomy ? Math.max(GLOBE_MIN_PX, Math.min(600, Math.floor(heroHeight - GLOBE_SLIDE_EXTRA_PX - 2 * slidePad))) : Math.max(300, Math.min(tablet ? TABLET_GLOBE_MAX_PX : 600, viewportHeight - 68 - 64 - 56 - 100 - 52));
   // ...and sized to what fits: from where the globe starts on the page down to the stable (toolbars-shown) viewport's bottom, less room for its
   // caption, the legend and the pill, so those sit clear of the pill at rest instead of under it.
   const stableViewportHeight = useStableViewportHeight();
@@ -442,6 +468,7 @@ export default function LandingPage() {
         <>
           {signal ? (
             <HeroCarousel
+              anchors={PAGE_ANCHORS}
               slides={[
                 { id: 'climate-signal', label: 'Climate signal', render: () => <ClimateSignalBanner signal={signal} headingId="climate-signal-title" /> },
                 { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} active={active} /> },

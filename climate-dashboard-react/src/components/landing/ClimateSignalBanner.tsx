@@ -36,6 +36,8 @@ export const CLIMATE_BANNER_STYLES = CHART_PANEL_STYLES + `
   .climate-banner__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border: 0; }
   .climate-banner__metrics > div, .climate-banner__metrics > div + div { padding: 10px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; } /* no fill: the figures keep the contrast they were audited against on the page background */
   .climate-banner__metrics > div:nth-child(3) { display: none; }
+  .climate-banner__more { display: none; }
+  .climate-banner__ctas > :nth-child(n+2) { display: none; } /* as in the design frame: one button; the other two links are in the menu */
   .climate-banner__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .climate-banner__ctas > a:not([class*="button"]) { text-align: center; padding: 6px 0; }
   .climate-banner__ctas > a[class*="button"] { justify-content: center; }
@@ -75,7 +77,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
           Warming tracks the CO₂ we’ve accumulated
         </h1>
         <p className="syn-text-lg" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--syn-color-text-muted)' }}>
-          Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Over {fit.nYears} years, warming has followed the cumulative total, not any single year’s emissions.
+          Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms.<span className="climate-banner__more"> Over {fit.nYears} years, warming has followed the cumulative total, not any single year’s emissions.</span>
         </p>
         {!isPhone && metrics}
         {!isPhone && ctas}
@@ -85,7 +87,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
           <figcaption style={{ fontWeight: 600 }}>Temperature anomaly vs cumulative CO₂</figcaption>
           <ScatterLegend />
         </div>
-        <ClimateScatter signal={signal} />
+        <ClimateScatter signal={signal} fit />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <BaselineChip inChartPanel baseline="1850–1900" source="Berkeley Earth" />
           <span className="syn-caption">Global series. Long-term co-movement. {NOT_A_CLIMATE_MODEL}</span>
