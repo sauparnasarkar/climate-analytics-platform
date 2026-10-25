@@ -65,15 +65,15 @@ describe('HeroCarousel controls', () => {
     expect(CAROUSEL_STYLES).toMatch(/@media \(min-width: 1101px\) and \(pointer: coarse\) \{\s*\.hero-carousel__btn \{ min-width: 44px; height: 44px/);
   });
 
-  it('does not rotate on its own on a touch screen, and rotates where there is a pointer that can hover', () => {
-    window.matchMedia = ((q: string) => ({ matches: q === '(pointer: coarse)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+  it('does not rotate on its own on a phone, and rotates on a tablet or laptop even where the pointer is touch', () => {
+    window.matchMedia = ((q: string) => ({ matches: q === '(max-width: 640px)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
     const { unmount } = mount();
     expect(document.querySelector('.hero-carousel')).not.toHaveClass('hero-carousel--auto');
     act(() => { vi.advanceTimersByTime(12000); });
     expect(slideEl(0)).toHaveAttribute('data-motion', 'rest');
     unmount();
-    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
-    mount();
+    window.matchMedia = ((q: string) => ({ matches: q === '(pointer: coarse)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+    mount(); // a touch screen as wide as an iPad
     expect(document.querySelector('.hero-carousel')).toHaveClass('hero-carousel--auto');
   });
 });

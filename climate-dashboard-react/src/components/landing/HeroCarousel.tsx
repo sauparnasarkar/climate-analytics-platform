@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react';
 import { Icon, useReducedMotion } from '@syena/ds';
 import { useCarousel } from '../../hooks/useCarousel';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { PHONE_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
 
 // The landing's top-of-fold carousel (Area 2, requirements §2.1): two banners,
 // auto-rotate controlled only by an always-visible Pause/Play button; slides slide in and out sideways (no motion under reduced-motion settings).
@@ -71,7 +71,7 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__btn--dot .hero-carousel__num { margin-right: 0 !important; color: var(--syn-color-text-muted); }
   .hero-carousel__btn--playpause { order: 2; padding: 0 12px; }
 }
-/* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate is off on a touch screen, so the Play/Pause button is there only while the banners are rotating. */
+/* A phone: the tab row, then a hero at least --hero-h-phone tall (the first banner's picture fills what its text leaves; the globe's banner needs more), then the next section's top. Auto-rotate is off on a phone, so the Play/Pause button is there only while the banners are rotating. */
 @media (max-width: 640px) {
   .hero-carousel__slides { min-height: var(--hero-h-phone); }
   .hero-carousel__slide { align-self: stretch; }
@@ -85,10 +85,10 @@ export interface PageAnchor {
 }
 
 export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: { slides: CarouselSlide[]; ariaLabel?: string; anchors?: PageAnchor[] }) {
-  // A touch screen does not rotate on its own (the tabs are the way to the other banner); a pointer that can hover does.
-  const touch = useMediaQuery('(pointer: coarse)');
+  // A phone does not rotate on its own (the tabs are the way to the other banner); a tablet or a laptop does, whatever its pointer: chosen by width, not by touch, so an iPad rotates too.
+  const phone = useMediaQuery(PHONE_QUERY);
   const [holding, setHolding] = useState(false);
-  const c = useCarousel({ count: slides.length, autoplay: !touch, hold: holding });
+  const c = useCarousel({ count: slides.length, autoplay: !phone, hold: holding });
   const reducedMotion = useReducedMotion();
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.
