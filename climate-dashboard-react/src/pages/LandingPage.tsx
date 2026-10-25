@@ -145,7 +145,7 @@ const cardStyle = {
 const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const;
 
 // Own component so the ~5s year-steps re-render only the hero, never the stories/race/feature cards.
-function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview: OverviewResponse; map: WorldMapTimeSeries; globe: WorldMapTimeSeries; worldAnnualMt: ReadonlyArray<number>; active?: boolean }) {
+function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { overview: OverviewResponse; map: WorldMapTimeSeries; globe: WorldMapTimeSeries; worldAnnualMt: ReadonlyArray<number>; active?: boolean; onHold?: (holding: boolean) => void }) {
   // `map` is the 1990-based view the KPIs and "change since" use; `globe` is the longer 1970 series the animation plays.
   const baselineYear = map.years[0];
   const minYear = globe.years[0];
@@ -155,6 +155,11 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
   const sectionRef = useRef<HTMLElement>(null);
   const globeInView = useInView(globeRef);
   const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef, enabled: active });
+  // The carousel stays on this banner while the years play through; it moves on (after its usual dwell) once they finish or are paused.
+  useEffect(() => {
+    onHold?.(active && isPlaying);
+    return () => onHold?.(false);
+  }, [active, isPlaying, onHold]);
   const yearIdx = currentYear - minYear;
   // The globe takes the values of the year in view, by country code; a country with no value (or none above zero) is drawn as no data.
   const valuesForYear = useMemo(
@@ -486,7 +491,7 @@ export default function LandingPage() {
               anchors={PAGE_ANCHORS}
               slides={[
                 { id: 'climate-signal', label: 'Climate signal', render: () => <ClimateSignalBanner signal={signal} headingId="climate-signal-title" /> },
-                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} active={active} /> },
+                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active, hold) => <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} active={active} onHold={hold} /> },
               ]}
             />
           ) : (

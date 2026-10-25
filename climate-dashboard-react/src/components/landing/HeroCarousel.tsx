@@ -10,8 +10,8 @@ export interface CarouselSlide {
   id: string;
   /** Short name, used in the tab and the slide's accessible label */
   label: string;
-  /** `active` is false while the slide is hidden, so it can hold back its own animation */
-  render: (active: boolean) => ReactNode;
+  /** `active` is false while the slide is hidden, so it can hold back its own animation. `hold(true)` keeps the carousel on this slide (for example while its animation plays) until `hold(false)`. */
+  render: (active: boolean, hold: (holding: boolean) => void) => ReactNode;
 }
 
 export const CAROUSEL_STYLES = `
@@ -87,7 +87,8 @@ export interface PageAnchor {
 export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: { slides: CarouselSlide[]; ariaLabel?: string; anchors?: PageAnchor[] }) {
   // A touch screen does not rotate on its own (the tabs are the way to the other banner); a pointer that can hover does.
   const touch = useMediaQuery('(pointer: coarse)');
-  const c = useCarousel({ count: slides.length, autoplay: !touch });
+  const [holding, setHolding] = useState(false);
+  const c = useCarousel({ count: slides.length, autoplay: !touch, hold: holding });
   const reducedMotion = useReducedMotion();
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.
@@ -148,7 +149,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: {
             // Hidden slides are also removed from the accessibility tree and made inert (CSS `visibility` alone would do the
             // same in a browser; this states it explicitly so focus and assistive tech can never reach a slide that isn't showing).
             aria-hidden={i !== c.index} inert={i !== c.index}>
-            {s.render(i === c.index)}
+            {s.render(i === c.index, setHolding)}
           </div>
         ))}
       </div>
