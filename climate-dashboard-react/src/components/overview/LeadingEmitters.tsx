@@ -20,11 +20,12 @@ export function LeadingEmitters({ year, mode, leaders, cumulativeFrom }: { year:
       <p className="syn-caption" style={{ margin: '2px 0 6px', color: 'var(--syn-color-text-muted)' }}>{subtitle}</p>
       <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {leaders.map((l, i) => (
-          <li key={l.iso} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto auto', gap: 8, alignItems: 'baseline' }}>
+          // Fixed value and share columns, the same in every row: sized to the text, each row's would differ from the next and change as the years play (a figure then wraps).
+          <li key={l.iso} style={{ display: 'grid', gridTemplateColumns: '18px minmax(0, 1fr) 6.5rem 3.5rem', gap: 8, alignItems: 'baseline' }}>
             <span className="syn-caption" style={{ color: 'var(--syn-color-text-muted)' }}>{i + 1}</span>
             <span className="syn-text-lg">{l.name}</span>
-            <span className="syn-text-lg" style={{ fontVariantNumeric: 'tabular-nums' }}>{cumulative ? `${fmtGt(l.value / 1000)} Gt` : `${fmtInt(l.value)} Mt`}</span>
-            <span className="syn-caption" style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--syn-color-text-muted)', minWidth: 44, textAlign: 'right' }}>{l.sharePct == null ? '' : `${l.sharePct.toFixed(1)}%`}</span>
+            <span className="syn-text-lg" style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', whiteSpace: 'nowrap' }}>{cumulative ? `${fmtGt(l.value / 1000)} Gt` : `${fmtInt(l.value)} Mt`}</span>
+            <span className="syn-caption" style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--syn-color-text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{l.sharePct == null ? '' : `${l.sharePct.toFixed(1)}%`}</span>
           </li>
         ))}
       </ol>
