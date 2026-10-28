@@ -9,4 +9,3 @@ Follow-ups recorded so they are not lost. Not a changelog: `SPEC.md` has the his
 ## Small loose ends
 
 - **Scenario Comparison's country picker** still stacks its label above the dropdown; the Overview and Historical Trends put the label on one line with the control (`pickerLabel` in each page). Match it if the page's filters are touched again.
-- **The agent's internal naming** still says "Correlation module" in a few code comments and `services/agent/SPEC.md`; the user-facing name everywhere is "Climate Correlation".

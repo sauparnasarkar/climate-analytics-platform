@@ -1,6 +1,6 @@
 // Fixed copy for the Area 2 climate-context surfaces (requirements doc §2.3/§2.4, SPEC.md §5.26).
 // One place, so the guardrail wording cannot drift between the landing page, the Overview and the
-// Correlation module. Figures never live here -- every number on screen comes from API output.
+// Climate Correlation page. Figures never live here -- every number on screen comes from API output.
 
 /** Overview anchors the Landing and the in-page jump links point at (one constant, so a link and its target cannot drift). */
 export const CLIMATE_SIGNAL_ANCHOR = 'climate-signal';

@@ -40,7 +40,7 @@ _TOOL_INTENT: dict[str, tuple[str, str | None]] = {
     "get_scenario_cumulative_impact": ("grid", None),
     "get_methodology_notes": ("text", None),
     # Area 2 (SPEC.md §15.2, §15.10). The frontend picks a renderer by tool NAME and wraps the
-    # Correlation module's own components, so `chart_kind` is only informational
+    # Climate Correlation page's own components, so `chart_kind` is only informational
     # here: None where there is no generic Chart kind to name.
     "get_emissions_temperature_relationship": ("chart", None),
     "get_scenario_temperature": ("chart", "line"),
