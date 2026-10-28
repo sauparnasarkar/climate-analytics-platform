@@ -121,7 +121,8 @@ def write_provenance(series_id: str, entry: dict, path: str = PROVENANCE_PATH) -
     if os.path.exists(path):
         with open(path) as f:
             store = json.load(f)
-    store[series_id] = entry
+    from .presentation import with_presentation  # imported here: presentation reads PROVENANCE_PATH from this module
+    store[series_id] = with_presentation(series_id, entry)
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(store, f, indent=2, sort_keys=True)

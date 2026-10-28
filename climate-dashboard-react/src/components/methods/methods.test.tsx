@@ -22,7 +22,7 @@ describe('SourcesSection', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(1 + 5); // header + five sources
   });
 
-  it('links each source to its landing page (a front-end lookup by source id) and cites it', () => {
+  it('links each source to its landing pages and cites it as the pipeline\'s metadata gives them', () => {
     render(<SourcesSection {...props} />);
     const table = screen.getByRole('table', { name: /Every source the platform uses/ });
     expect(within(table).getByRole('link', { name: /^OWID CO₂ data \(GitHub\)/ })).toHaveAttribute('href', 'https://github.com/owid/co2-data');

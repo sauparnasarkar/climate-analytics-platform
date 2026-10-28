@@ -254,6 +254,17 @@ def test_meta_describes_sources_baselines_matrix_and_the_two_totals(api):
     assert j["attribution"] and j["note"]
 
 
+def test_meta_passes_through_where_to_read_about_and_how_to_cite_a_source_only_when_the_pipeline_wrote_them(api, climate):
+    first = {s["id"]: s for s in api.get("/api/correlation/meta").json()["sources"]}["temperature_anomaly_annual"]
+    assert not {"landing_links", "short_citation", "short_license"} & set(first)
+    prov = json.loads((climate / "provenance.json").read_text())
+    prov["temperature_anomaly_annual"].update({"landing_links": [{"label": "Berkeley Earth data", "url": "https://berkeleyearth.org/data/"}], "short_citation": "Rohde & Hausfather 2020", "short_license": "CC BY-NC 4.0"})
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    cl.clear_caches()
+    got = {s["id"]: s for s in api.get("/api/correlation/meta").json()["sources"]}["temperature_anomaly_annual"]
+    assert got["landing_links"] == [{"label": "Berkeley Earth data", "url": "https://berkeleyearth.org/data/"}] and got["short_citation"] == "Rohde & Hausfather 2020" and got["short_license"] == "CC BY-NC 4.0"
+
+
 def test_meta_reports_each_output_as_available_missing_or_unavailable(api, climate):
     (climate / "correlation_all_gas.json").write_text(json.dumps({"schema_version": 1, "unavailable_reason": "PRIMAP missing"}))
     (climate / "correlation_composition.json").unlink()
