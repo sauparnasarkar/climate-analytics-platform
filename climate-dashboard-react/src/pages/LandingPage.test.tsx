@@ -334,9 +334,9 @@ describe('LandingPage — climate-signal carousel', () => {
 
   it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
     mountWithClimate();
-    const band = await screen.findByRole('region', { name: 'The chain reaction, step by step' });
-    expect(within(band).getAllByRole('listitem').filter((li) => li.getAttribute('aria-hidden') !== 'true')).toHaveLength(4);
-    expect(within(band).getByText('Berkeley Earth', { exact: false })).toBeInTheDocument();
+    const band = await screen.findByRole('region', { name: 'The chain reaction' });
+    expect(within(band).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(band).getByRole('link', { name: 'How this works → Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
   });
 
   it('Banner 1 sends the primary CTA to the Overview climate signal and sends the second button to Climate Correlation and keeps Forecasts as a link', async () => {
@@ -566,7 +566,7 @@ describe('LandingPage — climate-signal carousel', () => {
     await screen.findByTestId('globe'); // the hero itself (the loading placeholder shares its headline)
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'The chain reaction, step by step' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'The chain reaction' })).not.toBeInTheDocument();
     expect(screen.queryByText('+1.62 °C')).not.toBeInTheDocument();
   });
 

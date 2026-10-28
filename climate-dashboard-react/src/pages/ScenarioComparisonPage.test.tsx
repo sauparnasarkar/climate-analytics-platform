@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Themed } from '../test/Themed';
 import { api } from '../api/client';
 import type { CountriesResponse, ScenarioCompareResponse, ScenarioCumulativeResponse } from '../api/types';
+import { PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
+import { SCENARIO_TEMPERATURE } from '../test/scenarioFixtures';
 import ScenarioComparisonPage from './ScenarioComparisonPage';
 
 // JumpLinks (SPEC.md §5.19) calls the design system's useReducedMotion during render -- jsdom has
@@ -23,7 +25,7 @@ function mockReducedMotion(matches: boolean, mobile = false) {
 }
 
 vi.mock('../api/client', () => ({
-  api: { listCountries: vi.fn(), scenarioCumulative: vi.fn(), scenarioCompare: vi.fn() },
+  api: { listCountries: vi.fn(), scenarioCumulative: vi.fn(), scenarioCompare: vi.fn(), correlationScenarioTemperature: vi.fn(), correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn() },
 }));
 
 // See OverviewPage.test.tsx — the charts' own drawing is the design system's concern.
@@ -144,6 +146,10 @@ const COMPARE: ScenarioCompareResponse = {
 };
 
 beforeEach(() => {
+  // The implied-temperature section (moved here from Climate Correlation) is left out unless a test supplies its data: a failed scenario request omits it.
+  vi.mocked(api.correlationScenarioTemperature).mockRejectedValue(new Error('x'));
+  vi.mocked(api.correlationEmissionsTemperature).mockRejectedValue(new Error('x'));
+  vi.mocked(api.correlationTemperature).mockRejectedValue(new Error('x'));
   mockReducedMotion(false);
 });
 
@@ -447,5 +453,23 @@ describe('ScenarioComparisonPage', () => {
     } finally {
       window.history.replaceState(null, '', '/');
     }
+  });
+
+  it('shows the implied temperature by scenario first (it moved here from Climate Correlation), with its own jump link and its method note', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    vi.mocked(api.correlationScenarioTemperature).mockResolvedValue(SCENARIO_TEMPERATURE);
+    vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
+    vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
+    render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
+
+    const implied = await screen.findByRole('heading', { level: 2, name: /^Implied temperature by scenario, 2025–2040/ });
+    const reduction = await screen.findByRole('heading', { name: 'Reduction Scenarios by Country' });
+    expect(implied.compareDocumentPosition(reduction) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.getElementById('implied-temperature')).not.toBeNull();
+    const nav = screen.getByRole('navigation', { name: 'On this page' });
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#implied-temperature', '#reduction-map', '#country-comparison', '#cumulative-impact']);
+    expect(screen.getByRole('link', { name: 'Method →' })).toHaveAttribute('href', '/about#scenarios');
   });
 });

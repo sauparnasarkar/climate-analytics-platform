@@ -344,8 +344,8 @@ async def test_query_result_event_carries_follow_up_links():
         app.dependency_overrides.pop(get_graph, None)
     result = json.loads(_parse_sse(response.text)[-1]["data"])
     assert result["follow_up_links"] == [
-        {"label": "Open in Climate Correlation", "route": "/climate-correlation#scenarios"},
-        {"label": "Open in Scenario Comparison", "route": "/scenarios"},
+        {"label": "Open in Scenario Comparison", "route": "/scenarios#implied-temperature"},
+        {"label": "Open in Climate Correlation", "route": "/climate-correlation#global-relationship"},
     ]
 
 

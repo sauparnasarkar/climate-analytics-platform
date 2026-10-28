@@ -1937,6 +1937,20 @@ that actually owns `api/main.py`.
 | Method notes | `MethodNote` (two lines plus "Method →") at the foot of Overview, Historical Trends, Country Profile, Forecasts, Scenario Comparison, Data Explorer and Climate Correlation, each linking to its section. Climate Correlation's methodology block, sources table and derivation are removed; its "Methodology" jump link goes with them |
 | Stale facts | "Filtered to sovereign nations from 1990 onwards" no longer describes the platform (climate series 1850+, globe 1970+, PRIMAP-hist 1970+, ML window 1990–2018); the forecasting table now says the ML window only |
 
+### 5.30 One owner for each visual (Shipped: item 3 of the page consolidation)
+
+> Guiding rule (§5.29): each visual has one owning page; elsewhere it gets at most one line and a link.
+
+| Area | Specification |
+|---|---|
+| Causal chain | Climate Correlation keeps the full chain. Home's "The chain reaction" is one compact row of the four values (no sparklines, splice or vintage notes) with "How this works → Climate Correlation". Overview drops the "Why emissions matter" prose card and keeps its four KPI cards |
+| Scatter | Temperature against cumulative CO₂ stays on Home (Banner 1) and Climate Correlation. Overview's "Why the trend matters" drops the scatter toggle and keeps the emissions + temperature over-time chart, with a link to Climate Correlation |
+| Implied temperature by scenario | Moves from Climate Correlation to **Scenario Comparison**, first section (`#implied-temperature`, was `#scenarios` on Correlation), beside the emissions pathways; fed by `useScenarioTemperature`. Overview's "Where today's patterns lead" is one line (the implied range at the horizon year, "Illustrative") with links to Scenario Comparison and Forecasts |
+| Cumulative share by country | Overview owns the all-country view (`#share`), Country Profile the single-country one. Climate Correlation's "Country view" (which also re-drew the temperature chart) is removed, with `CountryView` and `lib/countryView` |
+| Gas composition | Both stay, each labelled with its source and a line on why they differ, linking the other: Climate Correlation (PRIMAP-hist, global, 1970 on) and Historical Trends (OWID, per decade, selected countries) |
+| Climate Correlation jump links | Causal chain, Global relationship, All-gas 1970 on, Gas composition, Method (the closing note) |
+| Agent links | `get_scenario_temperature` links to `/scenarios#implied-temperature` and `/climate-correlation#global-relationship`; the cumulative-share tool's fixed links are `/overview#share` and `/overview#top-emitters` (services/agent SPEC.md §15) |
+
 ---
 
 ## 6. Post-Ship Corrections to the Curriculum Notebooks

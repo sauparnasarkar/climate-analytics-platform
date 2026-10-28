@@ -13,6 +13,9 @@ import { MAX_SELECTED_COUNTRIES, SCENARIO_PANELS } from '../constants';
 import { PageChrome } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 import { SCENARIOS } from '../lib/sources';
+import { ScenarioSection } from '../components/module/ScenarioSection';
+import { useScenarioTemperature } from '../hooks/useScenarioTemperature';
+import { SCENARIOS_ANCHOR } from '../lib/scenarioView';
 
 // Countries whose cumulative BAU emissions fall below this share of the total are grouped
 // into a single "Other" tile rather than rendered individually -- at the treemap's default
@@ -47,6 +50,7 @@ interface TreemapTile {
 // Stable labels (SPEC.md §5.19). "Country Comparison" anchors the shared <h2> above the
 // per-scenario ChartCard loop below (one card per SCENARIO_PANELS entry) -- there's no single
 // stable per-card target otherwise.
+const IMPLIED_JUMP: JumpLinkItem = { id: SCENARIOS_ANCHOR, label: 'Implied Temperature' };
 const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'reduction-map', label: 'Reduction Map' },
   { id: 'country-comparison', label: 'Country Comparison' },
@@ -133,7 +137,8 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
   const { rowReady, onRowReady } = useStickyRowReady();
   // The jump waits for the page's data and for the layout to stop growing: a jump measured on the short, still-loading page lands short of the section.
-  const dataIn = !cumulative.loading && !compare.loading;
+  const implied = useScenarioTemperature();
+  const dataIn = !cumulative.loading && !compare.loading && !implied.loading;
   const layoutSettled = useLayoutSettled(rowReady && dataIn);
   useJumpToHashOnLoad(rowReady && dataIn && layoutSettled, reduceMotion);
 
@@ -143,7 +148,10 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
         title="Scenario Comparison (2025–2040)"
         purpose="Compare Business as Usual (BAU), Moderate Mitigation (−2%/yr) and Aggressive Mitigation (−5%/yr), starting from 2025."
       />
-      <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
+      <StickyJumpLinks onReady={onRowReady} items={implied.view ? [IMPLIED_JUMP, ...JUMP_ITEMS] : JUMP_ITEMS} />
+
+      {/* Emissions and implied temperature for the same three pathways, side by side: the section moved here from Climate Correlation. */}
+      {implied.view && <ScenarioSection view={implied.view} />}
 
       <h2 id="reduction-map" className="syn-title-sm">Reduction Scenarios by Country</h2>
       <p className="syn-text-lg" style={{ marginBottom: 8, color: 'var(--syn-color-text-muted)' }}>

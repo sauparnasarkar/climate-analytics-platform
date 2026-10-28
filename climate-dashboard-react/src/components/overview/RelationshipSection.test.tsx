@@ -5,7 +5,6 @@ import type { ClimateSignal } from '../../lib/climateSignal';
 import { RelationshipSection } from './RelationshipSection';
 
 vi.mock('@syena/ds', async (importOriginal) => ({ ...(await importOriginal<object>()), Chart: () => null }));
-vi.mock('../landing/ClimateScatter', () => ({ ClimateScatter: () => null, ScatterLegend: () => null }));
 
 const signal: ClimateSignal = {
   points: [{ year: 1990, gt: 1, temp: 0.4, era: 'recent' } as never, { year: 2000, gt: 2, temp: 0.5, era: 'recent' } as never],
@@ -19,13 +18,10 @@ const signal: ClimateSignal = {
 const series = [{ year: 1990, value: 22000 }, { year: 2000, value: 25000 }];
 
 describe('RelationshipSection layout', () => {
-  it('lets its columns shrink below their content width at every width, so a wide child cannot push the page sideways', () => {
+  it('is a single column (the explanation card and the toggle moved to Climate Correlation), so no two-column grid can be pushed sideways by a wide child', () => {
     const { container } = render(<MemoryRouter><RelationshipSection signal={signal} emissionsSeries={series} /></MemoryRouter>);
-    const grid = container.querySelector('.overview-relationship-grid') as HTMLElement;
-    // A bare 1fr is minmax(auto, 1fr): the column grows to its content's minimum width and overflows a narrow container.
-    expect(grid.style.gridTemplateColumns).toBe('minmax(0, 2fr) minmax(0, 1fr)');
-    const css = container.querySelector('style')!.textContent!;
-    const narrow = /\.overview-relationship-grid\s*\{\s*grid-template-columns:\s*([^;]+?)\s*(?:!important)?\s*;/.exec(css);
-    expect(narrow?.[1]).toBe('minmax(0, 1fr)');
+    expect(container.querySelector('.overview-relationship-grid')).toBeNull();
+    expect(container.querySelector('style')?.textContent ?? '').not.toMatch(/grid-template-columns/);
+    expect(container.querySelector('section[id="relationship"]')).not.toBeNull();
   });
 });

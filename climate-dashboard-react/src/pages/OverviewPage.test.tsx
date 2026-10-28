@@ -658,7 +658,7 @@ describe('OverviewPage — climate signal', () => {
     expect(within(section).getByRole('region', { name: 'Baseline for Temperature anomaly · 2024' })).toHaveTextContent(/vintage 2025-01-10/);
   });
 
-  it('shows the relationship chart over time on two axes by default, and swaps to the cumulative scatter with the toggle', async () => {
+  it('shows the emissions and temperature over time on two axes, with no scatter toggle and no "Why emissions matter" card (Climate Correlation owns both)', async () => {
     mountWithClimate();
     const section = await screen.findByRole('region', { name: 'Why the trend matters' });
     expect(within(section).getByRole('heading', { level: 3, name: 'CO₂ emissions and temperature anomaly, 1970–2024' })).toBeInTheDocument();
@@ -666,15 +666,13 @@ describe('OverviewPage — climate signal', () => {
     expect(chart).toHaveAttribute('data-axes', JSON.stringify(['y', 'y2'])); // emissions on the left axis, temperature on the right
     expect(within(section).getByText(/^Purpose:/)).toBeInTheDocument();
     expect(within(section).getByText(/Long-term co-movement, shown as context. No single factor or year explains warming./)).toBeInTheDocument();
-    // The only baselined series is the temperature anomaly (1850–1900), in both views; the window is in the title.
+    // The only baselined series is the temperature anomaly (1850–1900); the window is in the title.
     expect(within(section).getByText('Baseline 1850–1900 · Berkeley Earth')).toBeInTheDocument();
-    fireEvent.click(within(section).getByRole('radio', { name: 'Against cumulative CO₂' }));
-    expect(within(section).getByRole('heading', { level: 3, name: 'Temperature anomaly vs cumulative CO₂, 1850–2024' })).toBeInTheDocument();
-    expect(within(section).queryByTestId('chart')).not.toBeInTheDocument();
-    expect(within(section).getByRole('img', { name: /scatter chart, one dot per year/i })).toBeInTheDocument();
-    expect(within(section).getByText('Baseline 1850–1900 · Berkeley Earth')).toBeInTheDocument();
+    expect(within(section).queryByRole('radio', { name: 'Against cumulative CO₂' })).not.toBeInTheDocument();
+    expect(within(section).queryByRole('img', { name: /scatter chart/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Why emissions matter' })).not.toBeInTheDocument();
+    expect(within(section).getByRole('link', { name: 'see the relationship on Climate Correlation →' })).toHaveAttribute('href', '/climate-correlation');
   });
-
   it('states the percent formula of the concentration card in full, including the × 100%', async () => {
     mountWithClimate();
     const section = await screen.findByRole('region', { name: 'What is happening globally' });
@@ -682,20 +680,7 @@ describe('OverviewPage — climate signal', () => {
     expect(within(section).getByRole('region', { name: 'Baseline for Atmospheric CO₂ · 2024' })).toHaveTextContent('(ppm ÷ ppm₁₈₅₀ − 1) × 100%');
   });
 
-  it('explains the chain in the "Why emissions matter" card (data-driven) and links to Climate Correlation without attributing warming to a country', async () => {
-    mountWithClimate();
-    // a labelled region, not an <aside>: a complementary landmark must be top level and this one sits inside <main>
-    const card = await screen.findByRole('region', { name: 'Why emissions matter' });
-    expect(card.tagName).toBe('SECTION');
-    expect(card).toHaveTextContent(/concentration of CO₂ in the atmosphere \(now 424.6 ppm\)/);
-    expect(card).toHaveTextContent(/radiative forcing/);
-    expect(card).toHaveTextContent(/temperature anomaly: \+1.62 °C in 2024/);
-    expect(card).toHaveTextContent(/accumulated global forcing and the response of the ocean and climate system, not only this year’s emissions/);
-    expect(card).toHaveTextContent(/do not assign warming to any country/);
-    expect(within(card).getByRole('link', { name: /^Climate Correlation →$/ })).toHaveAttribute('href', '/climate-correlation');
-  });
-
-  it('states the sources, the not-a-climate-model note and the Berkeley vintage caveat behind "Sources & method"', async () => {
+ it('states the sources, the not-a-climate-model note and the Berkeley vintage caveat behind "Sources & method"', async () => {
     mountWithClimate();
     const section = await screen.findByRole('region', { name: 'Why the trend matters' });
     expect(within(section).getByText('Sources & method')).toBeInTheDocument();
@@ -991,27 +976,21 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     }
   });
 
-  it('closes the page with the Pathways block from the scenario output, with a jump link and the illustrative label', async () => {
+  it('closes the page with one line on the pathways and links on, with a jump link and the illustrative label', async () => {
     vi.mocked(api.correlationScenarioTemperature).mockResolvedValue(SCENARIO_TEMPERATURE);
     mountFullRange(2024);
     const section = await screen.findByRole('region', { name: "Where today's patterns lead" });
     expect(section.id).toBe('pathways');
-    expect(within(section).getByText('Illustrative · implied outcomes, not projections')).toBeInTheDocument();
-    expect(within(section).getByText(/diverge 2\.2× in annual emissions, yet their implied temperatures differ by only 0\.11 °C/)).toBeInTheDocument();
-    for (const [label, temp, mt] of [['Business as usual', '1.78 °C', '44,877'], ['Moderate', '1.73 °C', '33,145'], ['Aggressive', '1.67 °C', '20,791']]) {
-      const card = within(section).getByText(label).parentElement as HTMLElement;
-      expect(within(card).getByText(temp)).toBeInTheDocument();
-      expect(within(card).getByText(`${mt} Mt a year`)).toBeInTheDocument();
-    }
-    expect(within(section).getByText(/Pathways start in 2025, 0\.9% above the 2024 observed total of the covered countries, and hold the rest of the world at its 2024 share/)).toBeInTheDocument();
+    expect(within(section).getByText('Illustrative')).toBeInTheDocument();
+    expect(section).toHaveTextContent(/By 2040 the three pathways imply 1\.67–1\.78 °C/); // the lowest and highest implied level, from the scenario output
+    expect(within(section).queryByText(/Mt a year/)).not.toBeInTheDocument(); // the per-pathway cards live on Scenario Comparison
     expect(within(section).getByRole('link', { name: 'Forecasts to 2043 →' })).toHaveAttribute('href', '/forecasts');
-    expect(within(section).getByRole('link', { name: 'Scenario Comparison →' })).toHaveAttribute('href', '/scenarios');
+    expect(within(section).getByRole('link', { name: 'compare them on Scenario Comparison →' })).toHaveAttribute('href', '/scenarios');
     const nav = screen.getByRole('navigation', { name: 'On this page' });
     expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href')).at(-1)).toBe('#pathways');
     // it sits after the % Change section
     expect(document.getElementById('percent-change')!.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
-
   it('omits the Pathways section and its jump link when the scenario output is unavailable, and keeps the old #pct-change id', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
