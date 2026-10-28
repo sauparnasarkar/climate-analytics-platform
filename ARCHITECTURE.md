@@ -175,9 +175,10 @@ consolidation that gave each visual one owning page, §5.29–5.33). Patterns wo
   share bars and By Country (`lib/yearViews.ts`, computed client-side to match the API); `useYearAnimation` drives Play.
   There is no Year control in the header: the map's Play, decade stops and slider move the year, and the Share section's
   Replay animates 1970 → that year. Historical Trends' Top Movers and % Change (`lib/movers.ts`) have their own Year control.
-- **Sources have a front-end lookup.** The Methods & data sources table is built from `/correlation/meta`; the landing pages
-  and short citations and licences come from `lib/sources.ts` (`SOURCE_INFO`, keyed by source id) until the pipeline carries
-  them (recorded in `STATUS.md`).
+- **The sources table reads everything from `/correlation/meta`.** Each public source's provenance entry carries its landing
+  pages, short citation and short licence (`landing_links`, `short_citation`, `short_license`, from `pipeline/presentation.py`,
+  added by `write_provenance`); the dashboard keeps no list of its own. `python -m pipeline.presentation` adds them to an
+  existing `provenance.json` without refetching any source.
 - **The ranking race is cumulative.** Home's Top 10 ranks on everything emitted since the API's `cumulative_from`, built as the
   Overview's Cumulative map is built (`lib/cumulative.ts`: one all-countries snapshot plus the running sum of the annual
   values the page holds); if the snapshot is unavailable the race is left out, not shown on another basis.
