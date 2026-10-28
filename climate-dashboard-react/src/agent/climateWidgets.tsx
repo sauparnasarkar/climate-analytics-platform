@@ -27,7 +27,7 @@ import { singleYearRows, sourceRows } from './climateRows';
 import type { WidgetSpec } from './types';
 import { widgetSource } from '../lib/sources';
 
-// The Area 2 tools' widgets (services/agent SPEC.md §15.2). Where the Correlation module already has a component for the
+// The Area 2 tools' widgets (services/agent SPEC.md §15.2). Where the Climate Correlation page already has a component for the
 // same result, that component is used, fed the tool's own result through the module's own pure builders -- so an answer and the module page can
 // never disagree, and nothing is typed in here. Everything the module component needs beyond the tool result (the observed temperature history, the
 // concentration, the fossil-only comparison) is fetched from the same dashboard API the module page uses.

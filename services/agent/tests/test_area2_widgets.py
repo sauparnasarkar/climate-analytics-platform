@@ -51,7 +51,7 @@ def test_indicator_tools_build_a_card_or_a_line_chart_with_result_based_titles()
 
 
 def test_headline_relationship_widget_has_no_generic_chart_kind_and_is_titled_headline():
-    # The frontend renders it with the Correlation module's own component, chosen by tool name
+    # The frontend renders it with the Climate Correlation page's own component, chosen by tool name
     #, so there is no generic Chart kind to name.
     w = build_widget(_rec("get_emissions_temperature_relationship", _relationship("headline long-run relationship (...)", [1850, 2024])), "q")
     assert (w.intent, w.chart_kind) == ("chart", None) and w.title == "Emissions vs. temperature (headline, 1850–2024)"

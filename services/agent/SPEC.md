@@ -1048,7 +1048,7 @@ model's tool choice, steered by `AGENT_SYSTEM_PROMPT`:
 
 ### 15.2 Tool → widget mapping (extends §3's table; as built in step 3.4)
 
-`WidgetSpec.chart_kind` is unchanged (`line`/`bar`/`band`/`choropleth`). **Revised 2026-10-08:** the frontend chooses a renderer by tool *name* and wraps the Correlation module's own components with the tool result as props, so the new widgets carry no generic chart kind (`None`) — an earlier draft of this table added `scatter` and `area`, now removed. `props` is the tool's full result, unshaped.
+`WidgetSpec.chart_kind` is unchanged (`line`/`bar`/`band`/`choropleth`). **Revised 2026-10-08:** the frontend chooses a renderer by tool *name* and wraps the Climate Correlation page's own components with the tool result as props, so the new widgets carry no generic chart kind (`None`) — an earlier draft of this table added `scatter` and `area`, now removed. `props` is the tool's full result, unshaped.
 
 | Tool | Intent | Chart kind / component |
 |---|---|---|
@@ -1230,7 +1230,7 @@ eval shows what the model actually uses.
 Amends §3, §4, §15.2, §15.5 and §15.6; implemented in steps 3.4b-3.5d. Where this section and an earlier one disagree, this section wins.
 
 - **Starter prompts (§4, §15.6).** Six prompts in three category columns, prefill-and-focus on click (unchanged behavior): HISTORICAL TRENDS — "What are China's historical emissions trends, and how do they compare to the other top 10 emitters?" / "How have India's emissions grown compared with other countries?"; CLIMATE OUTCOMES (NEW) — "Show the relationship between cumulative emissions and warming." / "How do temperature outcomes vary based on different emissions pathways?"; FORECASTS — "What are the top 10 forecasted emitters in 2040?" / "How do today's top 10 emitters compare with the projected top 10 in 2040?". The 2×3 grid of §15.6 is superseded.
-- **Renderers (§15.2).** `chart_kind` `scatter` and `area` are removed. The seven Area 2 tools get `WidgetRenderer` entries (it dispatches by tool name) that wrap the Correlation module's components with the tool result as props. Widget `intent` stays; titles stay (the deep links and the all-gas/headline labelling are unchanged).
+- **Renderers (§15.2).** `chart_kind` `scatter` and `area` are removed. The seven Area 2 tools get `WidgetRenderer` entries (it dispatches by tool name) that wrap the Climate Correlation page's components with the tool result as props. Widget `intent` stays; titles stay (the deep links and the all-gas/headline labelling are unchanged).
 - **Links (§15.5).** `follow_up_links` routes gain confirmed hash anchors and URL state: relationship -> `/climate-correlation#global-relationship`; scenario temperature -> `/scenarios#implied-temperature` and `/climate-correlation#global-relationship` (the section moved from Climate Correlation to Scenario Comparison, SPEC.md §5.30); composition -> `#gas-composition`; share -> `/overview#share` (the Correlation country view was removed, §5.30); all-gas -> `#recent-all-gas`; concentration/temperature -> `/overview#climate-signal`; top emitters -> `/overview#top-emitters`. Labels follow the design ("Open in Historical Trends", "Open China in Country Profile"). State params are defined with the dashboard PR (3.5b); until then the pages ignore them.
 - **Follow-up chips** are a new, separate field of up to three prompts per answer (the design moves the user from emissions toward climate outcomes); chosen by a fixed per-tool lookup, shown above the docked input.
 - **Not adopted:** "click sends the prompt".

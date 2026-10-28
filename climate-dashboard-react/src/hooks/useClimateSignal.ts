@@ -27,8 +27,8 @@ export interface ClimateSignalData {
  * 5-year mean. `signal` is null when the pair, the temperature or the concentration is missing, so a page leaves the climate pieces out instead of showing
  * gaps or zeros. A late answer after `waitMs` is still used (the page already has its anchors).
  *
- * The four requests are independent: the annual and 5-year-mean temperature series are exposed on their own, so a page that wants only those (the
- * correlation module's country view) reuses these answers instead of asking again, and still has them when the signal as a whole is unavailable. */
+ * The four requests are independent: the annual and 5-year-mean temperature series are exposed on their own, so a page that wants only those
+ * reuses these answers instead of asking again, and still has them when the signal as a whole is unavailable. */
 export function useClimateSignal(waitMs = 3000): ClimateSignalData {
   const pair = useAsync(async () => api.correlationEmissionsTemperature(), []);
   const temperature = useAsync(async () => api.correlationTemperature({ baseline: '1850_1900' }), []);

@@ -413,7 +413,7 @@ const RENDERERS: Record<string, (props: WidgetProps) => ReactElement> = {
   get_scenario_cumulative_impact: ScenarioCumulativeWidget,
   get_emissions_change_summary: EmissionsChangeSummaryWidget,
   get_methodology_notes: MethodologyNotesWidget,
-  // Area 2 climate-context tools: the Correlation module's components fed the tool result.
+  // Area 2 climate-context tools: the Climate Correlation page's components fed the tool result.
   get_emissions_temperature_relationship: EmissionsTemperatureWidget,
   get_ghg_composition: GhgCompositionWidget,
   get_scenario_temperature: ScenarioTemperatureWidget,
