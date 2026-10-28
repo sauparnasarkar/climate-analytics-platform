@@ -72,10 +72,31 @@ export const COUNTRY_SNAPSHOT = {
   rows: [shareRow(1, 'USA', 'United States', 24.1), shareRow(2, 'CHN', 'China', 15.8), shareRow(3, 'RUS', 'Russia', 6.8), shareRow(4, 'DEU', 'Germany', 5.3), shareRow(5, 'GBR', 'United Kingdom', 4.4), shareRow(6, 'JPN', 'Japan', 3.9)],
 } as unknown as import('../api/correlationTypes').CorrelationCountryShareResponse;
 
+const NOAA_GML = { label: 'NOAA GML: Trends in CO₂', url: 'https://gml.noaa.gov/ccgg/trends/' };
+const OWID_REPO = { label: 'OWID CO₂ data (GitHub)', url: 'https://github.com/owid/co2-data' };
+const PRIMAP_ZENODO = { label: 'PRIMAP-hist v2.8 (Zenodo)', url: 'https://zenodo.org/records/22876287' };
+const OWID_TEXTS = { short_citation: 'Our World in Data, CO₂ and Greenhouse Gas Emissions; Global Carbon Budget', short_license: 'CC BY 4.0 (OWID compilation)' };
+const PRIMAP_TEXTS = { short_citation: 'Gütschow & Pflüger, PRIMAP-hist v2.8', short_license: 'CC BY-NC-SA 4.0 · non-commercial' };
+/** What the pipeline's provenance adds to each public source for the Methods & data table (`pipeline/presentation.py`), by source id. */
+const PRESENTATION: Record<string, Record<string, unknown>> = {
+  owid_country_co2: { landing_links: [OWID_REPO], ...OWID_TEXTS },
+  owid_world_co2_annual: { landing_links: [OWID_REPO], ...OWID_TEXTS },
+  co2_concentration_annual: {
+    landing_links: [NOAA_GML, { label: 'NCEI: Law Dome 2000-year record', url: 'https://www.ncei.noaa.gov/access/paleo-search/study/9959' }],
+    short_citation: 'NOAA GML Mauna Loa; Etheridge et al. 2010 and MacFarling Meure et al. 2006 (Law Dome)',
+    short_license: 'Public domain (NOAA); cite Law Dome',
+  },
+  co2_concentration_monthly_mlo: { landing_links: [NOAA_GML], short_citation: 'NOAA GML Mauna Loa', short_license: 'Public domain; cite NOAA GML' },
+  primap_country_annual: { landing_links: [PRIMAP_ZENODO], ...PRIMAP_TEXTS },
+  primap_global_composition_annual: { landing_links: [PRIMAP_ZENODO], ...PRIMAP_TEXTS },
+  temperature_anomaly_annual: { landing_links: [{ label: 'Berkeley Earth data', url: 'https://berkeleyearth.org/data/' }], short_citation: 'Rohde & Hausfather 2020, ESSD 12, 3469–3479', short_license: 'CC BY-NC 4.0 · non-commercial' },
+};
+const withPresentation = <T extends { id: string }>(sources: T[]) => sources.map((s) => ({ ...s, ...PRESENTATION[s.id] }));
+
 /** `/meta` shaped like the real response: dataset-level sources (two OWID rows, two PRIMAP rows, Berkeley, two NOAA/Law Dome, a derived crosswalk), baselines, offset, the totals note. */
 export const META = {
   ...env, name: 'meta',
-  sources: [
+  sources: withPresentation([
     { id: 'co2_concentration_annual', source: 'NOAA GML Mauna Loa (1959+) spliced to Law Dome ice-core/firn spline (pre-1959)', license: 'NOAA GML: public domain, citation requested. Law Dome: cite Etheridge et al. 2010.', coverage: [1750, 2025], retrieved_at: '2026-10-02T03:33:27+00:00', source_release: { noaa_last_modified: '2026-09-08T14:44:18+00:00' } },
     { id: 'co2_concentration_monthly_mlo', source: 'NOAA GML Mauna Loa monthly mean', license: 'NOAA GML: public domain, citation requested.', coverage: [1958, 2026], retrieved_at: '2026-10-02T03:33:27+00:00', source_release: { noaa_last_modified: '2026-09-08T14:44:18+00:00' } },
     { id: 'country_crosswalk', source: 'Derived: PRIMAP-hist area codes x OWID iso_code/country', license: 'Derived metadata', retrieved_at: '2026-10-02T13:40:57+00:00' },
@@ -84,7 +105,7 @@ export const META = {
     { id: 'primap_country_annual', source: 'PRIMAP-hist v2.8 (Gütschow & Pflüger)', license: 'CC BY-NC-SA 4.0. Non-commercial use only. Upstream sources have their own terms -- not yet verified.', coverage: [1750, 2024], retrieved_at: '2026-10-02T13:40:57+00:00', source_release: { published: '2026-09-29', version: 'v2.8' } },
     { id: 'primap_global_composition_annual', source: 'PRIMAP-hist v2.8 (Gütschow & Pflüger)', license: 'CC BY-NC-SA 4.0. Non-commercial use only. Upstream sources have their own terms -- not yet verified.', coverage: [1750, 2024], retrieved_at: '2026-10-02T13:40:57+00:00', source_release: { published: '2026-09-29', version: 'v2.8' } },
     { id: 'temperature_anomaly_annual', source: 'Berkeley Earth Land/Ocean global temperature (annual)', license: "CC BY-NC 4.0 International (Berkeley Earth's data page: 'in general ... for non-commercial use only'; commercial use needs a licence from Berkeley Earth). Attribution to Berkeley Earth, including a reference to www.berkeleyearth.org. Cite Rohde & Hausfather 2020, ESSD 12, 3469-3479, doi:10.5194/essd-12-3469-2020.", coverage: [1850, 2024], retrieved_at: '2026-10-02T03:33:28+00:00', source_release: { http_last_modified: '2025-01-10T04:48:46+00:00' } },
-  ],
+  ]),
   baselines: {}, temperature_offset: { derivation: 'Mean of the annual anomaly over 1850-1900.', reference_period: [1850, 1900], std_c: 0.1252, value_c: -0.3062, years: 51 },
   // the API's TWO_GLOBAL_TOTALS constant (api/routers/correlation.py), word for word (the field keeps its name; it now says the totals agree for OWID)
   two_global_totals: "The OWID country shares and the emissions-temperature regression use the same global total: OWID's World row, which includes international aviation and shipping (they are real atmospheric loading, so excluding them would understate cumulative CO2). Country shares are therefore shares of the World total and sum to less than 100%; the remainder is international transport and a small unassigned residual, published beside them. PRIMAP-hist has no world aggregate and excludes international aviation and shipping, so its country shares are of the sum of its own reporting areas (they sum to 100%): a PRIMAP share is of that source's total, not of the World total.",

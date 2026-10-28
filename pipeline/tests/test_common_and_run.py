@@ -15,6 +15,39 @@ def test_write_provenance_upserts_and_preserves_other_series(tmp_path):
     assert not (tmp_path / "prov.json.tmp").exists()
 
 
+def test_write_provenance_adds_a_known_series_presentation_but_keeps_what_its_own_script_set(tmp_path):
+    p = str(tmp_path / "prov.json")
+    common.write_provenance("temperature_anomaly_annual", {"license": "CC BY-NC 4.0"}, p)
+    common.write_provenance("temperature_anomaly_annual_override", {"x": 1}, p)  # not a public series: nothing added
+    common.write_provenance("co2_concentration_monthly_mlo", {"short_license": "set by the source's own script"}, p)
+    store = json.load(open(p))
+    assert store["temperature_anomaly_annual"]["landing_links"][0]["url"] == "https://berkeleyearth.org/data/"
+    assert store["temperature_anomaly_annual"]["short_citation"].startswith("Rohde & Hausfather") and store["temperature_anomaly_annual"]["license"] == "CC BY-NC 4.0"
+    assert store["temperature_anomaly_annual_override"] == {"x": 1}
+    assert store["co2_concentration_monthly_mlo"]["short_license"] == "set by the source's own script"
+
+
+def test_every_presented_series_has_https_landing_pages_and_short_texts():
+    from pipeline.presentation import SOURCE_PRESENTATION
+
+    for sid, p in SOURCE_PRESENTATION.items():
+        assert p["landing_links"] and all(link["url"].startswith("https://") and link["label"] for link in p["landing_links"]), sid
+        assert p["short_citation"] and p["short_license"], sid
+
+
+def test_the_presentation_backfill_updates_an_existing_store_in_place_and_is_safe_to_repeat(tmp_path):
+    from pipeline import presentation
+
+    p = tmp_path / "prov.json"
+    p.write_text(json.dumps({"primap_country_annual": {"license": "CC BY-NC-SA 4.0", "n": 1}, "derived_thing": {"license": "derived"}}))
+    assert presentation.backfill(str(p)) == ["primap_country_annual"]
+    after = json.loads(p.read_text())
+    assert after["primap_country_annual"]["n"] == 1 and after["primap_country_annual"]["short_license"] == "CC BY-NC-SA 4.0 · non-commercial" and after["derived_thing"] == {"license": "derived"}
+    mtime = p.stat().st_mtime_ns
+    assert presentation.backfill(str(p)) == [] and p.stat().st_mtime_ns == mtime  # nothing to change: the file is not rewritten
+    assert not (tmp_path / "prov.json.tmp").exists()
+
+
 def test_fetch_retries_then_succeeds(monkeypatch):
     calls = {"n": 0}
 

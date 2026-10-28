@@ -1,5 +1,5 @@
 import type { CorrelationMetaResponse } from '../api/correlationTypes';
-import { SOURCE_INFO, type SourceLink } from './sources';
+import type { SourceLink } from './sources';
 
 /** The Methods & data page's section anchors (one constant each, so a "Method →" link and its target cannot drift). */
 export const METHODS_ANCHORS = {
@@ -25,10 +25,10 @@ export interface SourceRow {
   vintage: string | null;
   /** The licence wording as the API states it (more than one when a source's datasets differ) */
   licences: string[];
-  /** Landing pages (front-end lookup by source id) and the short citation */
+  /** Landing pages and the short citation, as the pipeline's provenance carries them (`landing_links`, `short_citation`) */
   links: SourceLink[];
   citation: string | null;
-  /** The licence in a few words (front-end lookup); null when the source has none, and the table then shows the API's full wording */
+  /** The licence in a few words (`short_license`); null when the source has none, and the table then shows the API's full wording */
   licenceShort: string | null;
   /** The raw data files the pipeline reads (the API's `source_urls`), a secondary link */
   dataUrls: string[];
@@ -65,6 +65,15 @@ function vintageOf(entry: Record<string, unknown>): Vintage | null {
   return retrieved ? { date: day(retrieved), label: `retrieved ${day(retrieved)}` } : null;
 }
 
+const linkOf = (raw: unknown): SourceLink | null => {
+  const l = rec(raw);
+  const label = str(l?.label);
+  const url = str(l?.url);
+  return label && url && /^https:\/\//.test(url) ? { label, url } : null;
+};
+
+const dedupeLinks = (links: SourceLink[]): SourceLink[] => links.filter((l, i) => links.findIndex((o) => o.url === l.url) === i);
+
 /** The sources table from `/meta.sources`: dataset-level entries merged by source name, derived metadata (the country crosswalk) left out because it is
  * not a data source. Coverage spans the merged datasets; the vintage is the most recent the API states; licences are the API's own wording. */
 export function buildSources(meta: CorrelationMetaResponse | null | undefined): SourceRow[] {
@@ -80,7 +89,9 @@ export function buildSources(meta: CorrelationMetaResponse | null | undefined): 
     // The newest by the underlying date -- not by the label text, whose prefix (published / file of / retrieved) would decide the order -- keeping that entry's label.
     const vintages = entries.map(vintageOf).filter((v): v is Vintage => v !== null).sort((a, b) => a.date.localeCompare(b.date));
     const id = str(entries[0].id) ?? '';
-    const info = entries.map((e) => SOURCE_INFO[str(e.id) ?? '']).find((i) => i !== undefined);
+    // The datasets merged under one source name carry the same landing pages and texts; take the first that has any, and keep the links of every dataset that has its own.
+    const text = (key: string) => entries.map((e) => str(e[key])).find((v): v is string => v !== null) ?? null;
+    const links = dedupeLinks(entries.flatMap((e) => (Array.isArray(e.landing_links) ? e.landing_links : []).map(linkOf).filter((l): l is SourceLink => l !== null)));
     const dataUrls = [...new Set(entries.flatMap((e) => (Array.isArray(e.source_urls) ? e.source_urls : [])).filter((u): u is string => typeof u === 'string' && /^https:\/\//.test(u)))];
     return {
       name,
@@ -88,9 +99,9 @@ export function buildSources(meta: CorrelationMetaResponse | null | undefined): 
       coverage: spans.length ? `${Math.min(...spans.map((s) => s[0]))}–${Math.max(...spans.map((s) => s[1]))}` : null,
       vintage: vintages.length ? vintages[vintages.length - 1].label : null,
       licences: [...new Set(entries.map((e) => str(e.license)).filter((l): l is string => l !== null))],
-      links: info?.links ?? [],
-      citation: info?.citation ?? null,
-      licenceShort: info?.licence ?? null,
+      links,
+      citation: text('short_citation'),
+      licenceShort: text('short_license'),
       dataUrls,
     };
   });

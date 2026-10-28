@@ -71,7 +71,7 @@ OUTPUT_FILES = ("indicator_catalog.json", "correlation_headline.json", "correlat
 IMPLEMENTED_ENDPOINTS = ["/api/correlation/meta", "/api/correlation/concentration", "/api/correlation/temperature", "/api/correlation/emissions-temperature", "/api/correlation/ghg-composition",
                          "/api/correlation/country-share", "/api/correlation/scenario-temperature"]
 SOURCE_KEYS = ("source", "license", "coverage", "retrieved_at", "source_release", "update_cadence", "units", "geography", "gas_scope", "caveats", "citations",
-               "required_citation_format", "land_use_license_note", "methodology", "source_urls")
+               "required_citation_format", "land_use_license_note", "methodology", "source_urls", "landing_links", "short_citation", "short_license")
 
 
 def _unavailable(e: cl.ClimateDataUnavailable):

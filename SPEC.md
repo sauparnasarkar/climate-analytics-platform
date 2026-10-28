@@ -473,6 +473,7 @@ Sections to include:
 | v71 | Oct 2026 | §5.31: the annual map is "Where emissions come from" (anchor "All Countries", no Pathways link); the Overview header Year select and Play are removed; Top Movers and % Change move to Historical Trends with their own Year control (`?year=`); the country picker's label shares a line with the control on Overview and Historical |
 | v72 | Oct 2026 | §5.32: Home's Top 10 ranking race is ranked on cumulative CO₂ since the API's `cumulative_from` (no new endpoint); hero banner 2 says its annual share is of the year's emissions |
 | v73 | Oct 2026 | §5.33: the Home globe names the ten largest emitters (five on a phone); overlapping labels keep the larger value (syena-design-system PR #69, pin `0e99730`); the source strip's control is a Methods & data link (design-system PR #68) |
+| v74 | Oct 2026 | §5.29: the sources table's landing pages, short citations and short licences move from a front-end lookup into the pipeline's provenance (`pipeline/presentation.py`, served by `/correlation/meta`); Scenario Comparison's country picker label goes on one line with the control, as on Overview and Historical Trends |
 
 ---
 
@@ -1943,7 +1944,7 @@ that actually owns `api/main.py`.
 | Area | Specification |
 |---|---|
 | Page | About is retitled **Methods & data** (route `/about` unchanged) in the rail, footer, page title and route announcement. Seven anchored sections: `#project`, `#sources`, `#baselines`, `#forecasting`, `#correlation`, `#scenarios`, `#limits`, with a sticky jump row like the other pages |
-| Sources table | One platform-wide table built from `GET /correlation/meta` (the "Derived" crosswalk row excluded). Columns: source, used for, coverage, vintage, licence, links. Landing pages and a short citation come from `lib/sources.ts` (`SOURCE_INFO`, keyed by the API's source id) because the pipeline's metadata has the data-file URLs but no landing pages; the raw `source_urls` stay as a secondary "Data file" link. Climate Watch is gone (not ingested). Moving `SOURCE_INFO` into pipeline metadata is recorded in `STATUS.md` |
+| Sources table | One platform-wide table built from `GET /correlation/meta` (the "Derived" crosswalk row excluded). Columns: source, used for, coverage, vintage, licence, links. Landing pages, a short citation and a short licence come from each source's provenance entry (`landing_links`, `short_citation`, `short_license`, written by `pipeline/presentation.py` and passed through by `/correlation/meta`); the raw `source_urls` stay as a secondary "Data file" link. Climate Watch is gone (not ingested) |
 | Moved here | The baselines-by-view table and the temperature-offset note, the 7-step derivation accordion, "Why emissions series differ", the two-totals note and the splice note, previously in Climate Correlation's methodology block |
 | Two cumulative totals | A note in Data sources: fossil and industry CO₂ counted from the start of the OWID record (country shares, Home, Overview) against total anthropogenic CO₂ including land use from the regression's start year (the Climate Correlation slope). Both years are read from the API, not typed |
 | Guardrails | Stated once, in `#limits`; the derivation's last step points there |
