@@ -190,9 +190,9 @@ describe('Dashboard shell actions', () => {
 });
 
 describe('Area 2 foundation', () => {
-  it('routes /climate-correlation to the correlation module inside the dashboard shell', () => {
+  it('routes /climate-correlation to the Climate Correlation page inside the dashboard shell', () => {
     renderAt('/climate-correlation');
-    expect(screen.getByRole('heading', { level: 1, name: /temperature & ghg correlation/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /^climate correlation$/i })).toBeInTheDocument();
     expect(document.title).toBe('Climate Correlation — Climate Analytics Platform');
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: /Climate Correlation/ })).toHaveAttribute('href', '/climate-correlation');
   });

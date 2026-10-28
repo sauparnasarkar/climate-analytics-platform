@@ -93,7 +93,7 @@ export default function ClimateCorrelationPage() {
     <div className="climate-module">
       <style>{`.climate-module [id] { scroll-margin-top: ${barHeight + jumpRowPx}px; }`}</style>
       <PageChrome
-        title="Temperature & GHG Correlation"
+        title="Climate Correlation"
         purpose="Emissions raise atmospheric CO₂, which traps heat and warms the planet. This reads that chain from observations: descriptive, with correlation shown as context, not as proof of cause."
       />
       <StickyAnchorRow innerRef={setStickyRow}>

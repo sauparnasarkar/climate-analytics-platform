@@ -55,7 +55,7 @@ describe('ChainBand', () => {
     const { container } = renderBand();
     expect(container.querySelectorAll('li[aria-hidden="true"]')).toHaveLength(3);
     container.querySelectorAll('svg').forEach((svg) => expect(svg).toHaveAttribute('aria-hidden', 'true'));
-    expect(screen.getByRole('link', { name: 'Open the Correlation module →' })).toHaveAttribute('href', '/climate-correlation');
+    expect(screen.getByRole('link', { name: 'Climate Correlation →' })).toHaveAttribute('href', '/climate-correlation');
     expect(screen.getByRole('link', { name: 'See on the Overview →' })).toHaveAttribute('href', '/overview');
   });
 

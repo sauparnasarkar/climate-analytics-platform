@@ -40,7 +40,7 @@ function WhyEmissionsMatter({ signal }: { signal: ClimateSignal }) {
         These are global figures. The sections below explore emissions by country; they do not assign warming to any country.
       </p>
       <p className="syn-text-lg" style={{ margin: '8px 0 0', color: 'var(--syn-color-text-muted)' }}>
-        <Link className="area2-link" to="/climate-correlation" style={{ fontWeight: 600 }}>Open the Temperature &amp; GHG Correlation module →</Link>
+        <Link className="area2-link" to="/climate-correlation" style={{ fontWeight: 600 }}>Climate Correlation →</Link>
       </p>
     </section>
   );

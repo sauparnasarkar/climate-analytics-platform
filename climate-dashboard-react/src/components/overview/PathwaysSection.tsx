@@ -44,7 +44,7 @@ export function PathwaysSection({ pathways }: { pathways: Pathways }) {
       <p className="syn-text-lg" style={{ margin: '8px 0 0', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
         <Link className="area2-link" to="/forecasts">Forecasts to {FORECAST_END_YEAR} →</Link>
         <Link className="area2-link" to="/scenarios">Scenario Comparison →</Link>
-        <Link className="area2-link" to="/climate-correlation">Implied temperature in the Correlation module →</Link>
+        <Link className="area2-link" to="/climate-correlation">Implied temperature in Climate Correlation →</Link>
       </p>
     </section>
   );
