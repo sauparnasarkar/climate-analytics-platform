@@ -117,7 +117,7 @@ evidence for the choice, are in [Scenarios](04-scenarios-and-temperature-mapping
 | Forecasts page, per-country chart | Training history (1990–2018), holdout actuals (2019–2023) and the ETS forecast with its 95% interval to 2043 |
 | Forecasts page, five-model comparison | MAE and RMSE for the models above, per country |
 | Forecasts page, ETS parameters | The fitted α, β\* and φ for every country |
-| About page | A one-line summary of the pipeline, models and forecast horizon |
+| Methods & data, "Emissions forecasting" | The countries, data, features, train/test split, models compared and forecast, in a short table |
 
 ## See also
 

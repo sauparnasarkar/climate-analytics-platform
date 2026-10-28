@@ -145,27 +145,42 @@ pandas edge cases, against small fixture CSVs written to a temp dir rather than 
 ## 5. Frontend (`climate-dashboard-react/`)
 
 React (`19.2.7`) + TypeScript + Vite (`8.1.1`), React Router (one page per route:
-Overview, Historical Trends, Country Profile, Forecasts, Scenario Comparison, Data
-Explorer, About — `App.tsx`'s `NAV_ITEMS`), a typed fetch client (`src/api/`) mirroring
+Overview, Climate Correlation, Historical Trends, Country Profile, Data Explorer, Forecasts,
+Scenario Comparison, and Methods & data at `/about` — `src/navigation.ts`'s `NAV_ITEMS`, in that order; the
+landing page at `/` and the agent at `/ask` sit outside it), a typed fetch client (`src/api/`) mirroring
 `api/schemas.py`, AG Grid for tabular data, Plotly (via `@syena/ds`'s `Chart`) for
 charts.
 
-### Area 2 pages (Landing, Overview climate layer, `/climate-correlation`)
+### Area 2 pages (Landing, Overview climate layer, `/climate-correlation`, Methods & data)
 
-Routes: `/` (Landing), `/overview`, `/climate-correlation` (see `SPEC.md` §5.26; decisions in
-`SPEC.md` §5.26). Patterns worth knowing before changing them:
+Routes: `/` (Landing), `/overview`, `/climate-correlation`, `/about` (Methods & data) (see `SPEC.md` §5.26 and, for the
+consolidation that gave each visual one owning page, §5.29–5.33). Patterns worth knowing before changing them:
+
+- **Each visual has one owning page; elsewhere it gets at most a line and a link.** Home: the story and the way in
+  (a compact chain row, the cumulative ranking race, the globe). Overview: who emits (the map, tiers, shares, By Country).
+  Climate Correlation: emissions and warming (the chain, the relationship, all-gas, gas composition). Historical Trends and
+  Country Profile: drill-down, with Top Movers and % Change on Historical (own `?year=`). Forecasts and Scenario Comparison:
+  projections, including the implied temperature by scenario. Methods & data: how every number is made and where the data
+  comes from. Every other page carries a two-line `MethodNote` with a "Method →" link to its section (`lib/methodology.ts`
+  holds the anchors).
 
 - **Every shown figure comes from `/api/correlation/*`.** Typed `lib/` builders turn responses into view models
-  (`climateSignal`, `headline`, `allGas`, `gasComposition`, `countryView`, `scenarioView`, `methodology`, `derivation`);
+  (`climateSignal`, `headline`, `allGas`, `gasComposition`, `scenarioView`, `methodology`, `derivation`, `movers`, `cumulative`);
   a missing value is omitted, never drawn as zero. Fixed copy is limited to baseline/source labels, the IPCC AR6
   range and the methodology table. `lib/climateCopy.ts` holds the guardrail wording (descriptive, not a climate
   model; the all-gas view is never called TCRE).
 - **Independent sections.** Each section renders from its own request state (`useAsync`; `useClimateSignal` runs
   four independent requests), so one failing endpoint leaves the others on screen.
 - **One page year.** `usePageYear` owns the Overview's year (synced to `?year=`), shared by the map, tier cards,
-  share bars and By Country/Top Movers views (`lib/yearViews.ts`, computed client-side to match the API);
-  `useYearAnimation` drives Play. On phones the control is a chip + bottom sheet (`PageYearMobile`), chosen with
-  `useMediaQuery` so only one control exists in the DOM.
+  share bars and By Country (`lib/yearViews.ts`, computed client-side to match the API); `useYearAnimation` drives Play.
+  There is no Year control in the header: the map's Play, decade stops and slider move the year, and the Share section's
+  Replay animates 1970 → that year. Historical Trends' Top Movers and % Change (`lib/movers.ts`) have their own Year control.
+- **Sources have a front-end lookup.** The Methods & data sources table is built from `/correlation/meta`; the landing pages
+  and short citations and licences come from `lib/sources.ts` (`SOURCE_INFO`, keyed by source id) until the pipeline carries
+  them (recorded in `STATUS.md`).
+- **The ranking race is cumulative.** Home's Top 10 ranks on everything emitted since the API's `cumulative_from`, built as the
+  Overview's Cumulative map is built (`lib/cumulative.ts`: one all-countries snapshot plus the running sum of the annual
+  values the page holds); if the snapshot is unavailable the race is left out, not shown on another basis.
 - **Sticky anchor rows + deep links.** `StickyAnchorRow`/`AnchorScroll` give both pages one scrolling line on phones;
   `useJumpToHashOnLoad` waits for the target and the measured row height before scrolling, so a hash lands correctly
   after async content loads.
@@ -191,6 +206,11 @@ tidewater (light) themes and the component catalog; for those, see its `FOUNDATI
 - **Single React instance.** Because the design system's components run inside this app's own bundle rather than as an
   installed package, `react`/`react-dom` are aliased to this app's `node_modules` copies explicitly — two copies would
   break hooks.
+- **The source strip's control is a link.** `DashboardLayout` passes `SourceStrip` `detailsLabel`, `detailsHref` and
+  `onDetailsClick`, so the control at the foot of every page is a Methods & data link that navigates within the app. The
+  design system's `Globe` hides the later of two overlapping labels, which is why the Home globe can name ten countries.
+- **A design-system change is its own PR, then a pin bump.** Change `syena-design-system` in its repo, merge it, then
+  bump `syena-design-system.pin` here. A PR that only bumps the pin needs no code review; one that also changes the app does.
 - **One theme, set at the shell.** `App.tsx` wraps every route in `SynThemeProvider`, which applies the night or the
   tidewater theme; individual pages don't opt in or out. The visitor's choice is kept in `localStorage` under
   `climate-analytics-theme` (`src/lib/theme.ts`), and Dark is the default.

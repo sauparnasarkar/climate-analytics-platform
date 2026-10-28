@@ -31,7 +31,7 @@ observed temperature anomaly against the observed cumulative CO₂ emitted since
 | Slope, total anthropogenic CO₂ | **0.485 °C per 1,000 GtCO₂** |
 | 95% interval (robust to autocorrelation) | 0.441 – 0.529 |
 | R² | 0.89 |
-| Cumulative CO₂ since 1850, to 2024 | about 2,750 GtCO₂ total; 1,849 GtCO₂ fossil and cement only |
+| Cumulative CO₂ to 2024 | about 2,750 GtCO₂ total anthropogenic since 1850 (including land use, the regression's basis); 1,849 GtCO₂ fossil and cement only, counted from 1750 where OWID's record starts (the total the Home ranking and Overview shares use) |
 | Same fit, fossil and cement only | 0.749 (0.705 – 0.793) |
 
 **Reading R² = 0.89.** Cumulative emissions account for most of the long-run variation in the
@@ -106,8 +106,8 @@ and shows the shorter windows so a reader can see the sensitivity.
 | Dashboard element | What it shows |
 |---|---|
 | Climate Correlation page | The relationship chart, the headline slope, and an IPCC AR6 comparison strip |
-| "How this number was derived" | A seven-step explanation: what is regressed on what, the uncertainty, sensitivity, stability, the IPCC comparison, data and licences, and what the number is *not* |
-| "Methodology & sources" | The sources table (coverage, vintage, licence), the baseline used by each view, the temperature offset and the two-totals note |
+| Methods & data, "Climate correlation" ("How this number was derived") | A seven-step explanation: what is regressed on what, the uncertainty, sensitivity, stability, the IPCC comparison, data and licences, and what the number is *not* |
+| Methods & data, "Data sources" and "Baselines by view" | The sources table (coverage, vintage, licence), the baseline used by each view, the temperature offset, the two-totals and two-cumulative-totals notes |
 
 ## See also
 

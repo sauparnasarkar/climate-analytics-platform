@@ -262,6 +262,8 @@ ghg-trend-analysis-forecasting/
 ├── requirements.txt           ← Python dependencies
 ├── SPEC.md                    ← Full project specification (weekly requirements)
 ├── ARCHITECTURE.md            ← How the system is actually built (current state)
+├── STATUS.md                  ← Follow-ups recorded so they are not lost (not a changelog)
+├── docs/training/             ← Two training series, technical (how it is built) and functional (what the data say); each .md has a generated .pdf
 ├── .gitignore
 └── README.md
 ```
