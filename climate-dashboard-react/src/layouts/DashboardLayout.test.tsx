@@ -16,6 +16,7 @@ const mount = (path = '/overview') => render(
         <Route path="/overview" element={<Where />} />
         <Route path="/" element={<Where />} />
         <Route path="/ask" element={<Where />} />
+        <Route path="/about" element={<Where />} />
       </Route>
     </Routes>
   </MemoryRouter>,
@@ -105,5 +106,23 @@ describe('DashboardLayout page description on a phone', () => {
     cleanup();
     mountPage({ title: 'About', purpose: PURPOSE, ownsPurpose: true });
     expect(screen.queryByText(PURPOSE)).toBeNull();
+  });
+});
+
+describe('DashboardLayout source strip', () => {
+  it('ends with a link to Methods & data (not a disclosure), and a plain click moves within the app', () => {
+    mount();
+    const strip = screen.getByRole('complementary', { name: 'Sources and methodology' });
+    const link = within(strip).getByRole('link', { name: 'Methods & data' });
+    expect(link).toHaveAttribute('href', '/about');
+    expect(within(strip).queryByRole('button', { name: 'Methodology' })).not.toBeInTheDocument();
+    fireEvent.click(link);
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/about$/);
+  });
+
+  it('keeps a modified click on the strip link for the browser (new tab)', () => {
+    mount();
+    fireEvent.click(within(screen.getByRole('complementary', { name: 'Sources and methodology' })).getByRole('link', { name: 'Methods & data' }), { ctrlKey: true });
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/overview$/);
   });
 });
