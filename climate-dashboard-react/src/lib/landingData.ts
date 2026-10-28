@@ -231,8 +231,12 @@ export function phoneGlobeMax({ viewportHeight, top, ceiling, below = PHONE_GLOB
   return Math.max(PHONE_GLOBE_MIN_PX, Math.min(ceiling, Math.round(viewportHeight * PHONE_GLOBE_MAX_SHARE), Math.round(width * PHONE_GLOBE_WIDTH_SHARE), fit));
 }
 
-/** How many countries the globe names while it is paused: few enough that the names never meet at the edge of the picture. */
-export const GLOBE_LABEL_COUNT = 5;
+/** How many countries the globe names on a desktop or tablet: the ten largest emitters of the year in view, ranked on the same annual values the globe colours by, so a label and a colour
+ * agree. Labels are listed largest first because the design system's globe keeps the earlier of two that would overlap and hides the later one until the view moves them apart
+ * (so, in East Asia, "China" stays and "South Korea" waits). */
+export const GLOBE_LABEL_COUNT = 10;
+/** On a phone the globe is about 210 px across, so only the five largest are named. */
+export const GLOBE_LABEL_COUNT_PHONE = 5;
 
 /** The largest emitters of one year, largest first, as the globe's labels: the name and the value. Aggregates and countries without a value are skipped. */
 export function topEmitterLabels(map: WorldMapTimeSeries, yearIdx: number, count: number): Array<{ id: string; text: string }> {

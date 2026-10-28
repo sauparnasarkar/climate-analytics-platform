@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MoverRow, WorldMapTimeSeries } from '../api/types';
 import { buildHeadlineSentence, headlineSegmentsToText } from './overviewHeadline';
-import { buildRaceModel, fmtInt, fmtPct, fmtSigned, GLOBE_LABEL_COUNT, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, raceFrame, raceShare, raceStory, sparklinePath, topEmitterLabels } from './landingData';
+import { buildRaceModel, fmtInt, fmtPct, fmtSigned, GLOBE_LABEL_COUNT, GLOBE_LABEL_COUNT_PHONE, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, raceFrame, raceShare, raceStory, sparklinePath, topEmitterLabels } from './landingData';
 
 const mover = (country: string, from: number | null, to: number | null): MoverRow => ({
   country,
@@ -181,8 +181,9 @@ describe('phoneGlobeMax', () => {
 });
 
 describe('topEmitterLabels', () => {
-  it('the landing globe names the top five emitters', () => {
-    expect(GLOBE_LABEL_COUNT).toBe(5);
+  it('the landing globe names the ten largest emitters, and a phone\'s smaller globe the five largest', () => {
+    expect(GLOBE_LABEL_COUNT).toBe(10);
+    expect(GLOBE_LABEL_COUNT_PHONE).toBe(5);
   });
 
   const map = { iso_codes: ['CHN', 'USA', 'IND', 'OWID_WRL', 'RUS', 'JPN'], countries: ['China', 'United States', 'India', 'World', 'Russia', 'Japan'], years: [2023, 2024], values: [[1, 1, 1, 1, 1, 1], [11900, 4900, 3200.4, 99999, 1700, null]], value_range: [0, 1] } as WorldMapTimeSeries;

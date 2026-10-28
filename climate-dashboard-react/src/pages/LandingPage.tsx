@@ -18,7 +18,7 @@ import { KPI_STRIP_STYLES, KpiStrip } from '../components/landing/KpiStrip';
 import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
-import { fmtInt, fmtPct, GLOBE_LABEL_COUNT, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, RACE_SIZE, sparklinePath, topEmitterLabels, type Story } from '../lib/landingData';
+import { fmtInt, fmtPct, GLOBE_LABEL_COUNT, GLOBE_LABEL_COUNT_PHONE, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, RACE_SIZE, sparklinePath, topEmitterLabels, type Story } from '../lib/landingData';
 import { cumulativeBaseFrom, cumulativeSeriesMt, worldTotalsFrom } from '../lib/cumulative';
 import { NAV_ITEMS } from '../navigation';
 import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
@@ -207,11 +207,11 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
   }, [isPhone]);
   const globeMax = isPhone ? phoneGlobeMax({ viewportHeight: stableViewportHeight, top: globeTop, ceiling: laptopMax, below: belowCanvas, width: sectionWidth, bottom: sectionTop > 0 ? sectionTop + HERO_PHONE_PX : undefined }) : laptopMax;
   const totals = useMemo(() => worldTotals(globe), [globe]);
-  // Same top-10 share as the ranking-race heading (one shared computation, so the two change together).
+  // The top-10 share of the latest year's emissions (the second banner's annual figure; the ranking race below is on cumulative CO₂ and has its own share).
   // Of the World total (international aviation and shipping included), like every other share on the site; none if that total is unavailable.
   const topShare = useMemo(() => latestTopShare(map, worldAnnualMt), [map, worldAnnualMt]);
   const yearTotal = totals[yearIdx];
-  const globeLabels = useMemo(() => topEmitterLabels(globe, yearIdx, GLOBE_LABEL_COUNT), [globe, yearIdx]);
+  const globeLabels = useMemo(() => topEmitterLabels(globe, yearIdx, isPhone ? GLOBE_LABEL_COUNT_PHONE : GLOBE_LABEL_COUNT), [globe, yearIdx, isPhone]);
   // The current year and world total. On wide screens it overlays the globe's top-left corner; on a phone the globe is
   // small and centred, so the overlay would sit on the dark disc (dark text on a dark ocean) -- there it is shown
   // above the globe instead (CSS below swaps which copy is displayed; the hidden one is display:none, so it is not
