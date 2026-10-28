@@ -1,5 +1,6 @@
 import { ChartCard, MultiSelect, Select, SegmentedControl, Button, InlineAlert, Spinner, useReducedMotion, Chart } from '@syena/ds';
 import { MethodNote } from '../components/MethodNote';
+import { MoversSection, PERCENT_CHANGE_ANCHOR, TOP_MOVERS_ANCHOR } from '../components/historical/MoversSection';
 import { METHODS_ANCHORS } from '../lib/methodology';
 import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from '@syena/ds';
@@ -53,6 +54,8 @@ function viewCopy(view: string, from: number | null): ViewCopy {
 // nav itself every time the gas selector changes.
 const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'emissions-over-time', label: 'Emissions Over Time' },
+  { id: TOP_MOVERS_ANCHOR, label: 'Top Movers' },
+  { id: PERCENT_CHANGE_ANCHOR, label: '% Change Since 1990' },
   { id: 'ghg-by-decade', label: 'GHG Share by Decade' },
 ];
 
@@ -82,6 +85,11 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
     () => (annual ? Promise.resolve(null) : from == null ? api.historicalCumulative(selectedCountries) : api.historicalCumulative(selectedCountries, from)),
     [selectedCountries.join(','), annual, from],
   );
+  // Top Movers and % Change are always CO₂ and always the annual series, whatever the chart above is showing (its gas and view switches do not apply to them).
+  const moversSeries = useAsync(
+    () => (selectedCountries.length ? api.historicalTimeseries(selectedCountries, 'co2') : Promise.resolve(null)),
+    [selectedCountries.join(',')],
+  );
   const composition = useAsync(
     () => api.historicalDecadeComposition(selectedCountries),
     [selectedCountries.join(',')],
@@ -103,7 +111,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
   const { rowReady, onRowReady } = useStickyRowReady();
   // The jump waits for the page's data and for the layout to stop growing: a jump measured on the short, still-loading page lands short of the section.
-  const dataIn = !timeseries.loading && !cumulative.loading && !composition.loading;
+  const dataIn = !timeseries.loading && !cumulative.loading && !moversSeries.loading && !composition.loading;
   const layoutSettled = useLayoutSettled(rowReady && dataIn);
   useJumpToHashOnLoad(rowReady && dataIn && layoutSettled, reduceMotion);
 
@@ -182,6 +190,8 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
           </p>
         </ChartCard>
       ) : null}
+
+      <MoversSection series={moversSeries.data?.series ?? null} loading={moversSeries.loading} error={moversSeries.error} countryCount={selectedCountries.length} />
 
       <div style={{ marginTop: 24 }}>
         <h2 id="ghg-by-decade" className="syn-title-sm">GHG Share by Gas Type per Decade</h2>

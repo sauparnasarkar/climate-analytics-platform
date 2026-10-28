@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ClimateKpiStrip } from '../components/overview/ClimateKpiStrip';
 import { RelationshipSection } from '../components/overview/RelationshipSection';
 import { useClimateSignal } from '../hooks/useClimateSignal';
@@ -9,13 +9,12 @@ import { computeAutoplayStops } from '../lib/yearStops';
 import { AtmosphericCo2Card, type ConcentrationContext } from '../components/overview/AtmosphericCo2Card';
 import { LeadingEmitters, type MapMode } from '../components/overview/LeadingEmitters';
 import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange, worldTotalsFrom, type WorldTotals } from '../lib/cumulative';
-import { KpiStat, ChartCard, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, SegmentedControl, Choropleth, Text, useReducedMotion, Chart, formatFigure } from '@syena/ds';
+import { ChartCard, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, SegmentedControl, Choropleth, Text, useReducedMotion, Chart, formatFigure } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
 import { ShareSection, SHARE_ANCHOR } from '../components/overview/ShareSection';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
-import { useCountUp } from '../hooks/useCountUp';
 import { PAGE_YEAR_STEP, usePageYear } from '../hooks/usePageYear';
 import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
 import { useElementHeight } from '../hooks/useElementHeight';
@@ -26,7 +25,7 @@ import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
 import { YearBadge } from '../components/overview/YearBadge';
 import { PathwaysSection } from '../components/overview/PathwaysSection';
 import { PATHWAYS_ANCHOR, buildPathways } from '../lib/pathways';
-import { countryValuesForYear, moversForYear } from '../lib/yearViews';
+import { countryValuesForYear } from '../lib/yearViews';
 import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
@@ -47,7 +46,6 @@ const JUMP_ITEMS: JumpLinkItem[] = [
   { id: TOP_EMITTERS_ANCHOR, label: 'Top emitters' },
   { id: SHARE_ANCHOR, label: 'Share' },
   { id: 'by-country', label: 'By Country' },
-  { id: 'percent-change', label: '% Change' },
 ];
 // The dashboard header is pinned at the top and 68 px tall (App header minHeight; styles.css offsets every anchor by the same 68). The
 // anchor row sticks just below it, so jump targets get that plus the row's own height as their scroll margin.
@@ -70,35 +68,6 @@ const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relat
 // The muted-text colour, shared by the many small captions and labels on this page (one place to change it).
 const WEAK_TEXT: CSSProperties = { color: 'var(--syn-color-text-muted)' };
 
-
-// Standard clip-based visually-hidden technique -- the design system has no existing utility
-// class for this, and it's only needed in this one place.
-const VISUALLY_HIDDEN: CSSProperties = {
-  position: 'absolute',
-  width: 1,
-  height: 1,
-  padding: 0,
-  margin: -1,
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
-};
-
-// A component (not a bare hook call) so each instance gets its own independent animation --
-// used anywhere a KPI number should count up rather than jump straight to its new value.
-// The animating text is aria-hidden (a screen reader shouldn't announce a meaningless
-// mid-flight number, or on a 1.5s animation, potentially read a stale one) with the final
-// value exposed via an adjacent visually-hidden span instead (SPEC.md §5.10).
-function CountUpText({ value, format, durationMs }: { value: number; format: (n: number) => string; durationMs?: number }) {
-  const animated = useCountUp(value, durationMs);
-  return (
-    <>
-      <span aria-hidden="true">{format(animated)}</span>
-      <span style={VISUALLY_HIDDEN}>{format(value)}</span>
-    </>
-  );
-}
 
 interface TierRow {
   tier: string;
@@ -340,7 +309,8 @@ function AnimatedWorldMap({
       <ChartCard source={OWID}
         id={TOP_EMITTERS_ANCHOR}
         className="overview-map-card"
-        title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `CO₂ Emissions by Country (${currentYear})`}
+        // The annual map is "Where emissions are": the By Country bar chart below keeps "CO₂ Emissions by Country (year)", so no two charts share a title.
+        title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `Where emissions are, ${currentYear}`}
         supportText={isCumulative ? `Running total, MtCO₂ emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'} (the cards beside the map show GtCO₂)` : 'Annual MtCO₂'}
         actions={
           <SegmentedControl
@@ -454,15 +424,6 @@ function AnimatedWorldMap({
 // Split out so the overview fetch only ever starts once the expanded country list (and its
 // featured-default seed) are already known — avoiding a wasted initial fetch before
 // GET /api/countries resolves.
-// Years up to the 1990 baseline have nothing to compare against: the sections that measure change greyed out, with the reason (design update).
-function BaselinePrompt() {
-  return (
-    <div role="status" style={{ opacity: 0.85, border: '1px dashed var(--syn-color-border-default)', borderRadius: 8, padding: '14px 18px', background: 'var(--syn-color-surface-base)' }}>
-      <span className="syn-text-lg">The baseline is 1990, so there is nothing to compare yet. Choose 2000 or later in the page year.</span>
-    </div>
-  );
-}
-
 function OverviewContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
   const [selected, setSelected] = useSelectedCountries(featured, expanded);
@@ -531,28 +492,12 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   if (error || worldMapError) return <InlineAlert variant="error">{error ?? worldMapError}</InlineAlert>;
   if (!data || !worldMapSeries || !climate.settled) return loading || worldMapLoading || !climate.settled ? <Spinner label="Loading…" /> : null;
 
-  // By Country, Top Movers and % Change follow the page year: computed here from the series the map holds, for the
-  // selected countries, rather than the API's latest-year /overview figures (the two agree at the latest year).
+  // By Country follows the page year: computed here from the series the map holds, for the selected countries, rather than the API's latest-year
+  // /overview figures (the two agree at the latest year). Top Movers and % Change moved to Historical Trends.
   const year = pageYear.currentYear;
   const barRows = countryValuesForYear(worldMapSeries, selected, year);
   const barSeries = barRows.map((c) => c.country);
   const barValues = barRows.map((c) => c.value);
-  // null for years up to the 1990 baseline: Top Movers and % Change then grey out with a prompt
-  const movers = moversForYear(worldMapSeries, selected, year);
-  const NA_MOVER = { country: 'N/A', co2Base: 0, co2Year: 0, absoluteChange: 0, pctChange: 0 };
-  // The comparison period as stated in titles: 1990 → the page year, or just "since 1990" while the year is not after the baseline (a reversed range
-  // like "1990 → 1980" would read as a real comparison). The % Change title keeps the design's "1990–{year}" form for years after the baseline.
-  const moversPeriod = movers ? `1990 → ${year}` : 'since 1990';
-  const changeTitle = movers ? `CO₂ % Change by Country, 1990–${year}` : 'CO₂ % Change by Country, since 1990';
-  const fastestGrowth = movers?.[0] ?? NA_MOVER;
-  const largestReduction = movers?.[movers.length - 1] ?? NA_MOVER;
-
-  const moverCountries = (movers ?? []).map((m) => m.country);
-  const moverPct = (movers ?? []).map((m) => m.pctChange);
-  // Symmetric around zero so 0% change always lands on the reversed scale's true midpoint
-  // (mid-tone) stop -- required once an explicit colorScale is passed, since Chart's own
-  // `cmid: 0` zero-centering only applies to its own default scale (see the series prop below).
-  // The `1` floor guards the degenerate all-zero case (a real Plotly colorRange can't span [0, 0]).
 
   return (
     <div className="overview-page">
@@ -628,99 +573,39 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 
       <ShareSection countries={selectedIso} year={pageYear.currentYear} pagePlaying={pageYear.isPlaying} />
 
-      {/* By Country and Top Movers side by side, both driven by the selection. Heading lives outside
-          the selected.length guard (matching HistoricalTrendsPage's own pattern) -- previously this
-          whole block was one InlineAlert-or-fragment ternary with no persistent element to anchor
-          to when deselected to 0. */}
-      <style>{'@media (max-width: 1100px) { .overview-country-grid { grid-template-columns: 1fr !important; } }'}</style>
-      <div className="overview-country-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
-        <div id="by-country" style={{ minWidth: 0 }}>
-          <h2 className="syn-title-sm" style={{ margin: '8px 0 12px' }}>By Country<YearBadge year={year} /></h2>
-          {selected.length === 0 ? (
-            <InlineAlert variant="warning">Select at least one country.</InlineAlert>
-          ) : barRows.length === 0 ? (
-            <InlineAlert variant="warning">No CO₂ data for the selected countries in {year}.</InlineAlert>
-          ) : (
-            <ChartCard source={OWID} title={`CO₂ Emissions by Country (${year})`} headingLevel={3}>
-              <Chart
-                height={320}
-                xTitle="Country"
-                yTitle="CO₂ (MtCO₂)"
-                showLegend={false}
-                ariaLabel={`Bar chart of total CO₂ emissions in ${year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
-                // Explicit brand color -- a single-series bar chart would otherwise default to
-                // the categorical palette's index-0 token, which SPEC.md §5.12
-                // deliberately made near-white for multi-line chart hierarchies. That reads as a
-                // washed-out, colorless bar rather than a real color, so this chart gets the
-                // app's own brand blue instead.
-                series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar' }]}
-              />
-            </ChartCard>
-          )}
-        </div>
-
-        {selected.length > 0 && (
-          <section aria-labelledby="movers-heading" style={{ minWidth: 0 }}>
-            <h2 id="movers-heading" className="syn-title-sm" style={{ margin: '8px 0 4px' }}>Top Movers {moversPeriod} ({selected.length} Selected Countries)<YearBadge year={year} /></h2>
-            <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '0 0 12px' }}>
-              Fastest growth and largest reduction in CO₂ emissions, {movers ? `1990 → ${year}` : 'measured from the 1990 baseline'}, among the {selected.length} selected countries.
-            </p>
-            {!movers ? (
-              <BaselinePrompt />
-            ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <KpiStat
-                card
-                label={`Fastest Growth — ${fastestGrowth.country}`}
-                value={<CountUpText value={fastestGrowth.pctChange ?? 0} format={(n) => `${formatFigure(n, { signed: true, decimals: 1 })}%`} />}
-                delta={`${formatFigure(Math.round(fastestGrowth.absoluteChange ?? 0), { signed: true, decimals: 0 })} MtCO₂`}
-                deltaDirection="up"
-                tone="negative"
-              />
-              <KpiStat
-                card
-                label={`Largest Reduction — ${largestReduction.country}`}
-                value={<CountUpText value={largestReduction.pctChange ?? 0} format={(n) => `${formatFigure(n, { signed: true, decimals: 1 })}%`} />}
-                delta={`${formatFigure(Math.round(largestReduction.absoluteChange ?? 0), { signed: true, decimals: 0 })} MtCO₂`}
-                deltaDirection="down"
-                tone="positive"
-              />
-            </div>
-            )}
-          </section>
-        )}
-      </div>
-
-      {/* Always rendered (even with 0 selected) so #pct-change stays a real jump target (SPEC.md §5.19). */}
-      {/* #percent-change is the design's name; the old #pct-change id stays on the inner element so bookmarked links still land. */}
-      <div id="percent-change">
-      <div id="pct-change" style={{ marginTop: SECTION_GAP }}>
-        <h2 className="syn-title-sm" style={{ margin: '0 0 12px' }}>% Change Since 1990<YearBadge year={year} /></h2>
+      {/* By Country, driven by the selection and the page year. Heading lives outside the selected.length guard (matching HistoricalTrendsPage's own pattern)
+          so there is always an element to anchor to when deselected to 0. Top Movers and % Change since 1990 moved to Historical Trends. */}
+      <div id="by-country" style={{ minWidth: 0 }}>
+        <h2 className="syn-title-sm" style={{ margin: '8px 0 12px' }}>By Country<YearBadge year={year} /></h2>
         {selected.length === 0 ? (
           <InlineAlert variant="warning">Select at least one country.</InlineAlert>
-        ) : !movers ? (
-          <ChartCard source={OWID} title={changeTitle} headingLevel={3}>
-            <BaselinePrompt />
-          </ChartCard>
+        ) : barRows.length === 0 ? (
+          <InlineAlert variant="warning">No CO₂ data for the selected countries in {year}.</InlineAlert>
         ) : (
-          <ChartCard source={OWID} title={`CO₂ % Change by Country, 1990–${year}`} headingLevel={3}>
+          <ChartCard source={OWID} title={`CO₂ Emissions by Country (${year})`} headingLevel={3}>
             <Chart
               height={320}
               xTitle="Country"
-              yTitle={`% Change in CO₂ (1990→${year})`}
-              ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${year} for ${moverCountries.length} countries, coloured by whether emissions fell (decrease) or rose (increase)`}
-              series={[{
-                name: '% Change',
-                x: moverCountries,
-                y: moverPct,
-                kind: 'bar',
-                signed: 'change',
-                signLabels: ['Decrease', 'Increase'],
-              }]}
+              yTitle="CO₂ (MtCO₂)"
+              showLegend={false}
+              ariaLabel={`Bar chart of total CO₂ emissions in ${year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
+              // Explicit brand color -- a single-series bar chart would otherwise default to
+              // the categorical palette's index-0 token, which SPEC.md §5.12
+              // deliberately made near-white for multi-line chart hierarchies. That reads as a
+              // washed-out, colorless bar rather than a real color, so this chart gets the
+              // app's own brand blue instead.
+              series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar' }]}
             />
           </ChartCard>
         )}
-      </div>
+        {/* #percent-change is the design's name for the section that moved; the old #pct-change id stays on the inner element, so bookmarked links still land here, beside the link on. */}
+        <div id="percent-change">
+          <p id="pct-change" className="syn-text-lg" style={{ margin: '12px 0 0' }}>
+            <Link className="area2-link" to={`/historical${selected.length ? `?${new URLSearchParams(selected.map((c) => ['countries', c])).toString()}` : ''}#top-movers`} style={{ fontWeight: 600 }}>
+              Top movers and % change since 1990 → Historical Trends
+            </Link>
+          </p>
+        </div>
       </div>
 
       <MethodNote anchor={METHODS_ANCHORS.baselines}>

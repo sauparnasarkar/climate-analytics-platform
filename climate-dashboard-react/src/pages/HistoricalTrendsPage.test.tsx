@@ -117,8 +117,8 @@ describe('HistoricalTrendsPage', () => {
 
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((l) => l.textContent)).toEqual(['Emissions Over Time', 'GHG Share by Decade']);
-    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#emissions-over-time', '#ghg-by-decade']);
+    expect(links.map((l) => l.textContent)).toEqual(['Emissions Over Time', 'Top Movers', '% Change Since 1990', 'GHG Share by Decade']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#emissions-over-time', '#top-movers', '#percent-change', '#ghg-by-decade']);
     // Both targets exist unconditionally (headings sit outside the selection guard), regardless
     // of the default selection or loading state.
     expect(document.getElementById('emissions-over-time')).not.toBeNull();
@@ -139,9 +139,9 @@ describe('HistoricalTrendsPage', () => {
     // one piece of user-facing behavior this page itself is responsible for wiring up.
     await user.click(screen.getByRole('combobox', { name: /^Select countries/ }));
     await user.click(screen.getByRole('button', { name: 'Clear' }));
-    // Both the line chart and the decade-composition chart show the same warning at 0
+    // The line chart, Top Movers, % Change and the decade-composition chart each show the same warning at 0
     // selected — the composition chart doesn't fall back to an all-40-countries aggregate.
-    expect(await screen.findAllByText('Select at least one country.')).toHaveLength(2);
+    expect(await screen.findAllByText('Select at least one country.')).toHaveLength(4);
   });
 
   it('blocks selecting an 11th country since the default selection already sits at the 10-selection cap', async () => {
@@ -155,7 +155,8 @@ describe('HistoricalTrendsPage', () => {
 
     // All 10 featured countries are preselected by default, already at maxSelected=10.
     await user.click(screen.getByRole('combobox', { name: /^Select countries/ }));
-    expect(await screen.findByRole('status')).toHaveTextContent('10 selected, limit reached');
+    // (Other regions on the page announce their own loading state with the same role, so find the picker's by its text.)
+    await vi.waitFor(() => expect(screen.getAllByRole('status').some((s) => /10 selected, limit reached/.test(s.textContent ?? ''))).toBe(true));
 
     const vietnamOption = screen.getByRole('option', { name: 'Vietnam' });
     expect(vietnamOption).toHaveAttribute('aria-disabled', 'true');
@@ -238,7 +239,8 @@ describe('HistoricalTrendsPage', () => {
       render(<MemoryRouter initialEntries={['/historical?view=cumulative']}><HistoricalTrendsPage /></MemoryRouter>);
       expect(await screen.findByText('Cumulative CO₂ Emissions by Country')).toBeInTheDocument();
       expect(vi.mocked(api.historicalCumulative)).toHaveBeenCalledWith(FEATURED);
-      expect(vi.mocked(api.historicalTimeseries)).not.toHaveBeenCalled();
+      // The chart asks only for the cumulative series; Top Movers and % Change always read the annual CO₂ series, whatever the chart shows.
+      expect(vi.mocked(api.historicalTimeseries).mock.calls).toEqual([[FEATURED, 'co2']]);
       expect(screen.getByRole('radio', { name: 'Cumulative' })).toBeChecked();
       expect(screen.getByText(/counted from each country.s first record, shown from 1970/)).toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'Open in Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
@@ -369,5 +371,31 @@ describe('HistoricalTrendsPage', () => {
     } finally {
       window.history.replaceState(null, '', '/');
     }
+  });
+
+  it('shows Top Movers and % Change since 1990 from the annual CO₂ series (they moved here from the Overview), and agrees with the chart\'s own data', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue({
+      gas: 'co2', gas_label: 'CO₂',
+      series: [
+        { name: 'India', years: [1990, 2024], values: [500, 2500] },
+        { name: 'China', years: [1990, 2024], values: [2000, 10000] },
+        { name: 'United Kingdom', years: [1990, 2024], values: [600, 300] },
+      ],
+    });
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
+
+    const movers = (await screen.findByRole('heading', { level: 2, name: 'Top Movers, 1990 → 2024' })).parentElement!;
+    const up = within(movers).getByRole('heading', { level: 3, name: 'Largest increases' }).parentElement!;
+    expect(within(up).getAllByRole('listitem').map((li) => li.textContent?.replace(/\s+/g, ' '))).toEqual([
+      expect.stringContaining('India'), expect.stringContaining('China'),
+    ]);
+    expect(up).toHaveTextContent('+400.0%'); // India: (2500 − 500) / 500
+    const down = within(movers).getByRole('heading', { level: 3, name: 'Largest decreases' }).parentElement!;
+    expect(down).toHaveTextContent('United Kingdom');
+    expect(down).toHaveTextContent('−50.0%');
+    expect(screen.getByRole('heading', { level: 2, name: '% Change Since 1990' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'CO₂ % Change by Country, 1990–2024' })).toBeInTheDocument();
   });
 });
