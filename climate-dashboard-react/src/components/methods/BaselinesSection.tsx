@@ -16,9 +16,9 @@ const BASELINES: Array<[view: string, baseline: string, why: string]> = [
 export function BaselinesSection({ meta }: { meta: CorrelationMetaResponse | null }) {
   const offset = buildTemperatureOffset(meta);
   return (
-    <div role="region" aria-labelledby="baselines-caption" tabIndex={0} style={{ ...card, overflowX: 'auto' }}>
+    <div role="region" aria-label="Which baseline each view uses" tabIndex={0} style={{ ...card, overflowX: 'auto' }}>
       <table style={{ ...table, minWidth: 640 }}>
-        <caption id="baselines-caption" className="syn-caption" style={{ textAlign: 'left', paddingBottom: 6 }}>Baselines by view</caption>
+        <caption className="syn-caption" style={{ textAlign: 'left', paddingBottom: 6 }}>Baselines by view</caption>
         <thead>
           <tr className="syn-text-lg" style={weak}>
             {['View', 'Baseline', 'Why'].map((h) => <th key={h} scope="col" className="syn-text-lg" style={th}>{h}</th>)}

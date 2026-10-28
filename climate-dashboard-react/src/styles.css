@@ -28,3 +28,5 @@
 [data-syn-theme="tidewater"] { --area2-warning: #6E4800; --area2-link: #3F55B8; }
 [data-syn-theme="night"] { --area2-warning: #F5CC80; --area2-link: #9DBBFF; }
 .area2-link, .area2-link:visited { color: var(--area2-link, inherit); }
+/* A link inside a chart panel, which stays dark in both themes: the page's link colour (dark blue in the light theme) would not read there, so it takes the panel's own text colour. */
+.area2-link--on-panel, .area2-link--on-panel:visited { color: var(--syn-data-text, #c1deeb); text-decoration: underline; }

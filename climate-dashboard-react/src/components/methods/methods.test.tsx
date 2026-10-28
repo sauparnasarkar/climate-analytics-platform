@@ -83,6 +83,13 @@ describe('BaselinesSection', () => {
     expect(screen.getByText(/computed from the Berkeley Earth record itself \(51 years\).*-0\.306 °C/)).toBeInTheDocument();
   });
 
+  it('names its scrolling region differently from the section around it, so a screen reader does not list two landmarks called the same', () => {
+    render(<BaselinesSection meta={META} />);
+    const region = screen.getByRole('region', { name: 'Which baseline each view uses' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(within(region).getByRole('table', { name: 'Baselines by view' })).toBeInTheDocument(); // the table keeps its caption
+  });
+
   it('needs no data for the app\'s own rules, and omits the offset without it', () => {
     render(<BaselinesSection meta={null} />);
     expect(screen.getByRole('table', { name: 'Baselines by view' })).toBeInTheDocument();
