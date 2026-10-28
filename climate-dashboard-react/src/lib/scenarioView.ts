@@ -2,7 +2,8 @@ import type { CorrelationEmissionsTemperatureResponse, CorrelationScenarioTemper
 import type { YearValue } from './climateSignal';
 import { buildPathways, type PathwayName } from './pathways';
 
-export const SCENARIOS_ANCHOR = 'scenarios';
+/** The section's anchor on Scenario Comparison (it moved there from Climate Correlation). */
+export const SCENARIOS_ANCHOR = 'implied-temperature';
 
 export interface PathwayLine {
   name: PathwayName;

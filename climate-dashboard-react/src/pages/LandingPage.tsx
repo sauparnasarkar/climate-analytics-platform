@@ -503,8 +503,6 @@ export default function LandingPage() {
               emissions={{
                 year: overview.data!.all_countries.latest_year,
                 total: overview.data!.all_countries.latest_co2_total,
-                // Annual world totals over the globe's whole range, from the same series the globe plays.
-                series: worldTotals(globe!).map((value, i) => ({ year: globe!.years[i], value })),
               }}
             />
           )}

@@ -212,10 +212,16 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
             />
           </ChartCard>
         )}
+        {selectedCountries.length > 0 && !composition.loading && !composition.error && (
+          <p className="syn-caption" style={{ margin: '8px 0 0', color: 'var(--syn-color-text-muted)' }}>
+            Per-decade mix for the countries you select, from OWID. Climate Correlation shows the global mix from PRIMAP-hist since 1970; the two differ in scope and method.{' '}
+            <Link to="/climate-correlation#gas-composition">Global view →</Link>
+          </p>
+        )}
+      </div>
       <MethodNote anchor={METHODS_ANCHORS.baselines}>
         Emissions are Our World in Data (Global Carbon Project) series; indexed views use 1990 = 100, and the gas mix here is OWID per decade. Baselines, and why this differs from the PRIMAP-hist gas view, are on Methods &amp; data.
       </MethodNote>
-      </div>
     </div>
   );
 }

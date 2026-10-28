@@ -155,7 +155,7 @@ def test_one_expanded_country_links_to_historical_trends_and_its_profile_cumulat
     out = routes(series_result(("China",)), "Is China's share rising?")
     assert out[0] == ("Open in Historical Trends", "/historical?view=share&countries=China")
     assert out[1] == ("Open China in Country Profile", "/country-profile?country=China#cumulative")
-    assert len(out) == 3 and out[2][1] == "/climate-correlation#country-view"
+    assert len(out) == 3 and out[2][1] == "/overview#share"
 
 
 def test_the_historical_link_opens_the_view_the_answer_drew():
@@ -169,11 +169,11 @@ def test_only_countries_the_page_can_show_are_carried():
     out = routes(result, "share")
     assert out[0][1] == "/historical?view=share&countries=China" and "Zedland" not in json.dumps(out)
     none = routes(series_result(("Zedland",), expanded=False), "share")
-    assert none == [("Open in Climate Correlation", "/climate-correlation#country-view"), ("Open in Overview", "/overview#top-emitters")]  # nothing the page can show: the fixed links
+    assert none == [("Open shares in Overview", "/overview#share"), ("Open in Overview", "/overview#top-emitters")]  # nothing the page can show: the fixed links
 
 
 def test_a_ranking_and_a_primap_share_keep_the_fixed_links():
-    fixed = [("Open in Climate Correlation", "/climate-correlation#country-view"), ("Open in Overview", "/overview#top-emitters")]
+    fixed = [("Open shares in Overview", "/overview#share"), ("Open in Overview", "/overview#top-emitters")]
     assert routes(ranking_result()) == fixed
     assert routes(series_result(source="primap_hist", rest=False)) == fixed  # the dashboard's views are OWID's
 
@@ -297,7 +297,7 @@ def test_a_since_answer_links_to_the_pages_counting_from_that_year_so_they_show_
 
 
 def test_a_since_period_that_ends_before_the_latest_year_keeps_the_fixed_links_because_a_page_cannot_end_there():
-    fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
+    fixed = ["/overview#share", "/overview#top-emitters"]
     bounded = since_series()
     bounded["summary"]["since"].update(end_year=2010, latest_year=2024, period="1990–2010")
     assert [r for _, r in routes(bounded, "since 1990 until 2010")] == fixed  # the page would run to 2024 and show other totals
@@ -310,7 +310,7 @@ def test_a_since_period_that_ends_before_the_latest_year_keeps_the_fixed_links_b
 
 
 def test_a_since_year_before_the_pages_window_keeps_the_fixed_links_instead_of_a_link_that_opens_other_numbers():
-    fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
+    fixed = ["/overview#share", "/overview#top-emitters"]
     old = since_series()
     old["summary"]["since"].update(year=1950, period="1950–2024")
     assert [r for _, r in routes(old, "since 1950")] == fixed  # the tool accepts 1851+, the pages' choice starts in 1970
@@ -320,7 +320,7 @@ def test_a_since_year_before_the_pages_window_keeps_the_fixed_links_instead_of_a
 
 
 def test_a_since_ranking_and_a_primap_since_keep_the_fixed_links():
-    fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
+    fixed = ["/overview#share", "/overview#top-emitters"]
     assert [r for _, r in routes(since_ranking(), "which countries emitted the most since 1970")] == fixed
     assert [r for _, r in routes(since_series(source="primap_hist", rest=False), "since 1990")] == fixed  # the dashboard's views are OWID's
 

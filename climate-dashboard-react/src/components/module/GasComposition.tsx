@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSectionIds } from './useSectionIds';
 import { ChartCard, Slider, useReducedMotion, Chart } from '@syena/ds';
 import { fmtInt } from '../../lib/landingData';
@@ -87,6 +88,12 @@ export function GasComposition({ composition, embedded }: { composition: Composi
             {basis} ({units}).{excludedIncompleteYears.length > 0 ? ` Incomplete trailing year${excludedIncompleteYears.length > 1 ? 's' : ''} left out: ${excludedIncompleteYears.join(', ')}.` : ''}
           </span>
         </div>
+        {!embedded && (
+          <p className="syn-caption" style={{ margin: '10px 0 0', color: 'var(--syn-color-text-muted)' }}>
+            This is the global mix from PRIMAP-hist, since {first}. Historical Trends shows a per-decade mix for the countries you select, from OWID; the two differ in scope and method.{' '}
+            <Link className="area2-link" to="/historical#ghg-by-decade" style={{ fontWeight: 600 }}>Country view by decade →</Link>
+          </p>
+        )}
         {caveats.length > 0 && (
           <details style={{ marginTop: 8 }}>
             <summary className="syn-caption" style={{ cursor: 'pointer' }}>What this covers, and what it leaves out</summary>

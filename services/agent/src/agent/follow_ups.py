@@ -34,9 +34,13 @@ COUNTING_FROM_MIN_YEAR = 1970
 _OVERVIEW_SIGNAL = FollowUpLink(label="Open in Overview", route="/overview#climate-signal")
 _OVERVIEW_RELATIONSHIP = FollowUpLink(label="Open in Overview", route="/overview#relationship")
 _OVERVIEW_EMITTERS = FollowUpLink(label="Open in Overview", route="/overview#top-emitters")
+# Overview owns the all-country cumulative share (its `#share` section); Climate Correlation no longer has a country view.
+_OVERVIEW_SHARE = FollowUpLink(label="Open shares in Overview", route="/overview#share")
 _HISTORICAL = FollowUpLink(label="Open in Historical Trends", route="/historical")
 _FORECASTS = FollowUpLink(label="Open in Forecasts", route="/forecasts")
 _SCENARIOS = FollowUpLink(label="Open in Scenario Comparison", route="/scenarios")
+# The implied-temperature-by-scenario section moved from Climate Correlation to Scenario Comparison (its `SCENARIOS_ANCHOR`; pinned by tests).
+_SCENARIOS_IMPLIED = FollowUpLink(label="Open in Scenario Comparison", route="/scenarios#implied-temperature")
 
 
 def _correlation(anchor: str) -> FollowUpLink:
@@ -105,7 +109,7 @@ def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink
     selection with no Expanded country keeps the two fixed links."""
     r = _result(record)
     summary = r.get("summary") or {}
-    fixed = [_correlation("country-view"), _OVERVIEW_EMITTERS]
+    fixed = [_OVERVIEW_SHARE, _OVERVIEW_EMITTERS]
     if summary.get("mode") != "series" or r.get("source") != "owid_co2":
         return fixed
     flagged = [c["name"] for c in summary.get("countries") or [] if isinstance(c, dict) and c.get("name") and c.get("in_expanded_scope") is True][:MAX_LINK_COUNTRIES]
@@ -148,7 +152,7 @@ _LINKS_BY_TOOL: dict[str, Callable[[ToolCallRecord], list[FollowUpLink]]] = {
     "get_emissions_temperature_relationship": _relationship,
     "get_ghg_composition": _fixed(_correlation("gas-composition"), _OVERVIEW_SIGNAL),
     "get_country_cumulative_share": _share,
-    "get_scenario_temperature": _fixed(_correlation("scenarios"), _SCENARIOS),
+    "get_scenario_temperature": _fixed(_SCENARIOS_IMPLIED, _correlation("global-relationship")),
     # Emissions-only tools (owner, 2026-10-08: every data answer gets a way into its page)
     "get_historical_emissions": _historical,
     "get_gas_composition_by_decade": _fixed(_HISTORICAL),

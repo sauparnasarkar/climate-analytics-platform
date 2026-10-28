@@ -22,7 +22,7 @@ export function SourcesSection({ meta, metaFailed, splice, cumulativeFrom, anthr
       {!meta && !metaFailed && <p className="syn-text-lg" style={{ margin: 0 }}>Loading…</p>}
       {sources.length > 0 && (
         <div role="region" aria-labelledby="sources-caption" tabIndex={0} style={{ ...card, overflowX: 'auto' }}>
-          <table style={{ ...table, minWidth: 820 }}>
+          <table style={{ ...table, minWidth: 960 }}>
             <caption id="sources-caption" className="syn-caption" style={{ textAlign: 'left', paddingBottom: 6 }}>
               Every source the platform uses. Coverage, vintage and licence come from the pipeline&apos;s metadata.
             </caption>
@@ -41,8 +41,18 @@ export function SourcesSection({ meta, metaFailed, splice, cumulativeFrom, anthr
                   <td style={td}>{s.usedFor ?? ''}</td>
                   <td style={{ ...td, fontVariantNumeric: 'tabular-nums' }}>{s.coverage ?? ''}</td>
                   <td style={td}>{s.vintage ?? ''}</td>
-                  <td style={td}>{s.licences.map((l) => <p key={l} style={{ margin: '0 0 4px' }}>{l}</p>)}</td>
-                  <td style={td}>
+                  <td style={{ ...td, width: 190 }}>
+                    {s.licenceShort ? (
+                      <>
+                        <p style={{ margin: 0 }}>{s.licenceShort}</p>
+                        <details style={{ marginTop: 4 }}>
+                          <summary style={{ cursor: 'pointer', ...weak }}>Full terms</summary>
+                          {s.licences.map((l) => <p key={l} style={{ margin: '4px 0 0' }}>{l}</p>)}
+                        </details>
+                      </>
+                    ) : s.licences.map((l) => <p key={l} style={{ margin: '0 0 4px' }}>{l}</p>)}
+                  </td>
+                  <td style={{ ...td, width: 280, whiteSpace: 'nowrap' }}>
                     {s.links.map((l) => <p key={l.url} style={{ margin: '0 0 4px' }}><Link href={l.url} target="_blank" rel="noopener noreferrer">{l.label}</Link></p>)}
                     {s.dataUrls.map((u, i) => (
                       <p key={u} className="syn-caption" style={{ margin: '0 0 4px' }}>

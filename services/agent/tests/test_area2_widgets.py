@@ -109,9 +109,9 @@ def _routes(records):
 
 
 def test_area2_tools_link_to_their_confirmed_anchors():
-    assert _routes([_rec("get_scenario_temperature", {})]) == ["/climate-correlation#scenarios", "/scenarios"]
+    assert _routes([_rec("get_scenario_temperature", {})]) == ["/scenarios#implied-temperature", "/climate-correlation#global-relationship"]
     assert _routes([_rec("get_ghg_composition", {})]) == ["/climate-correlation#gas-composition", "/overview#climate-signal"]
-    assert _routes([_rec("get_country_cumulative_share", {})]) == ["/climate-correlation#country-view", "/overview#top-emitters"]
+    assert _routes([_rec("get_country_cumulative_share", {})]) == ["/overview#share", "/overview#top-emitters"]
     assert _routes([_rec("get_temperature_anomaly", {})]) == ["/overview#climate-signal", "/climate-correlation#global-relationship"]
 
 

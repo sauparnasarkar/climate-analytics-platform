@@ -25,20 +25,23 @@ export interface SourceInfo {
   links: SourceLink[];
   /** A short citation, for the table; the full licence wording stays the API's. */
   citation: string;
+  /** The licence in a few words, for the table; the API's full wording stays one click away (and is what a re-user must read). */
+  licence: string;
 }
 
 const NOAA_GML: SourceLink = { label: 'NOAA GML: Trends in CO₂', url: 'https://gml.noaa.gov/ccgg/trends/' };
 const OWID_REPO: SourceLink = { label: 'OWID CO₂ data (GitHub)', url: 'https://github.com/owid/co2-data' };
 
 export const SOURCE_INFO: Record<string, SourceInfo> = {
-  owid_country_co2: { links: [OWID_REPO], citation: 'Our World in Data, CO₂ and Greenhouse Gas Emissions; Global Carbon Budget' },
-  owid_world_co2_annual: { links: [OWID_REPO], citation: 'Our World in Data, CO₂ and Greenhouse Gas Emissions; Global Carbon Budget' },
+  owid_country_co2: { links: [OWID_REPO], citation: 'Our World in Data, CO₂ and Greenhouse Gas Emissions; Global Carbon Budget', licence: 'CC BY 4.0 (OWID compilation)' },
+  owid_world_co2_annual: { links: [OWID_REPO], citation: 'Our World in Data, CO₂ and Greenhouse Gas Emissions; Global Carbon Budget', licence: 'CC BY 4.0 (OWID compilation)' },
   co2_concentration_annual: {
     links: [NOAA_GML, { label: 'NCEI: Law Dome 2000-year record', url: 'https://www.ncei.noaa.gov/access/paleo-search/study/9959' }],
     citation: 'NOAA GML Mauna Loa; Etheridge et al. 2010 and MacFarling Meure et al. 2006 (Law Dome)',
+    licence: 'Public domain (NOAA); cite Law Dome',
   },
-  co2_concentration_monthly_mlo: { links: [NOAA_GML], citation: 'NOAA GML Mauna Loa' },
-  primap_country_annual: { links: [{ label: 'PRIMAP-hist v2.8 (Zenodo)', url: 'https://zenodo.org/records/22876287' }], citation: 'Gütschow & Pflüger, PRIMAP-hist v2.8' },
-  primap_global_composition_annual: { links: [{ label: 'PRIMAP-hist v2.8 (Zenodo)', url: 'https://zenodo.org/records/22876287' }], citation: 'Gütschow & Pflüger, PRIMAP-hist v2.8' },
-  temperature_anomaly_annual: { links: [{ label: 'Berkeley Earth data', url: 'https://berkeleyearth.org/data/' }], citation: 'Rohde & Hausfather 2020, ESSD 12, 3469–3479' },
+  co2_concentration_monthly_mlo: { links: [NOAA_GML], citation: 'NOAA GML Mauna Loa', licence: 'Public domain; cite NOAA GML' },
+  primap_country_annual: { links: [{ label: 'PRIMAP-hist v2.8 (Zenodo)', url: 'https://zenodo.org/records/22876287' }], citation: 'Gütschow & Pflüger, PRIMAP-hist v2.8', licence: 'CC BY-NC-SA 4.0 · non-commercial' },
+  primap_global_composition_annual: { links: [{ label: 'PRIMAP-hist v2.8 (Zenodo)', url: 'https://zenodo.org/records/22876287' }], citation: 'Gütschow & Pflüger, PRIMAP-hist v2.8', licence: 'CC BY-NC-SA 4.0 · non-commercial' },
+  temperature_anomaly_annual: { links: [{ label: 'Berkeley Earth data', url: 'https://berkeleyearth.org/data/' }], citation: 'Rohde & Hausfather 2020, ESSD 12, 3469–3479', licence: 'CC BY-NC 4.0 · non-commercial' },
 };

@@ -1,27 +1,28 @@
 import { Link } from 'react-router-dom';
-import { FORCING_CONCEPT_ONLY } from '../../lib/climateCopy';
-import { fmtAnomaly, type ClimateSignal, type YearValue } from '../../lib/climateSignal';
+import { fmtAnomaly, type ClimateSignal } from '../../lib/climateSignal';
 import { fmtInt } from '../../lib/landingData';
-import { Sparkline } from './Sparkline';
 
-// The four-step band (Area 2, requirements §2.1): emissions → concentration → radiative forcing → temperature
-// anomaly, between the hero and the rest of the page. It shows GLOBAL, ACCUMULATED totals and says so: it never implies
-// that one country's emissions in one year set that year's temperature. Forcing is explained, not measured: no number,
-// no chart (the platform holds no forcing dataset). Every figure comes from the API.
+// The four-step row (Area 2, requirements §2.1): emissions → concentration → radiative forcing → temperature anomaly, between the
+// hero and the rest of the page. One compact row of the four values with a link to Climate Correlation, which owns the full chain
+// (sparklines, captions, splice and vintage notes). It shows GLOBAL, ACCUMULATED totals and says so: it never implies that one country's
+// emissions in one year set that year's temperature. Forcing is described, not measured: no number, no chart (the platform holds no
+// forcing dataset). Every figure comes from the API.
 
 export const CHAIN_BAND_STYLES = `
-.chain-band__steps { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, .85fr) 20px minmax(0, 1fr); gap: 0; list-style: none; margin: 0; padding: 0; align-items: stretch; }
-.chain-band__arrow { align-self: center; text-align: center; opacity: .6; }
-.chain-band__card { display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 12px; background: var(--syn-color-surface-base); border: 1px solid var(--syn-color-border-subtle); min-width: 0; }
-.chain-band__card--concept { background: transparent; border-style: dashed; }
+.chain-band__steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; border: 1px solid var(--syn-color-border-subtle); border-radius: 8px; overflow: hidden; background: var(--syn-color-surface-base); }
+.chain-band__step { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; min-width: 0; }
+.chain-band__step + .chain-band__step { border-left: 1px solid var(--syn-color-border-subtle); }
 .chain-band__label { font-family: var(--syn-family-ui); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-.chain-band__spark--emissions { color: #8A5A00; } .chain-band__spark--concentration { color: #0A6E8C; } .chain-band__spark--temperature { color: #B3261E; }
-[data-syn-theme="night"] .chain-band__spark--emissions { color: #e5b955; } [data-syn-theme="night"] .chain-band__spark--concentration { color: #5ecbf5; } [data-syn-theme="night"] .chain-band__spark--temperature { color: #f2637e; }
 .chain-band__label--emissions { color: #8A5A00; } .chain-band__label--concentration { color: #0A6E8C; } .chain-band__label--forcing { color: var(--syn-color-text-muted); } .chain-band__label--temperature { color: #B3261E; }
 [data-syn-theme="night"] .chain-band__label--emissions { color: #e5b955; } [data-syn-theme="night"] .chain-band__label--concentration { color: #5ecbf5; } [data-syn-theme="night"] .chain-band__label--temperature { color: #f2637e; }
 @media (max-width: 1100px) {
-  .chain-band__steps { grid-template-columns: 1fr; gap: 12px; }
-  .chain-band__arrow { display: none; }
+  .chain-band__steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chain-band__step:nth-child(odd) { border-left: 0; }
+  .chain-band__step:nth-child(n + 3) { border-top: 1px solid var(--syn-color-border-subtle); }
+}
+@media (max-width: 560px) {
+  .chain-band__steps { grid-template-columns: 1fr; }
+  .chain-band__step + .chain-band__step { border-left: 0; border-top: 1px solid var(--syn-color-border-subtle); }
 }
 `;
 
@@ -29,65 +30,47 @@ export interface ChainBandEmissions {
   /** Latest year and the world total for it, MtCO₂ */
   year: number;
   total: number;
-  /** Annual world totals for the sparkline */
-  series: YearValue[];
 }
 
 function StepValue({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 'clamp(1.5rem, 2.4vw, 2rem)', fontWeight: 600, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{children}</div>;
+  return <div style={{ fontSize: 'clamp(1.4rem, 2.2vw, 1.75rem)', fontWeight: 600, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{children}</div>;
 }
 
 const caption = { margin: 0, color: 'var(--syn-color-text-muted)' } as const;
 
 export function ChainBand({ signal, emissions }: { signal: ClimateSignal; emissions: ChainBandEmissions }) {
-  const { concentration, temperature, ppm1850, spliceYear, vintageCaveat } = signal;
+  const { concentration, temperature, ppm1850 } = signal;
   const upPct = ppm1850 ? Math.round((concentration.value / ppm1850 - 1) * 100) : null;
-  const first = emissions.series[0]?.year;
   return (
-    <section aria-labelledby="chain-heading" style={{ padding: 'var(--landing-pad-y) var(--landing-pad-x)', background: 'var(--syn-color-surface-raised)', display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <section aria-labelledby="chain-heading" style={{ padding: 'var(--landing-pad-y) var(--landing-pad-x)', background: 'var(--syn-color-surface-raised)', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <style>{CHAIN_BAND_STYLES}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px 24px' }}>
-        <div>
-          <h2 id="chain-heading" className="landing-h2" style={{ margin: 0 }}>The chain reaction, step by step</h2>
-          <p className="syn-text-lg" style={{ margin: '8px 0 0', color: 'var(--syn-color-text-muted)' }}>
-            Global totals, built up over time. One country’s emissions in one year do not set that year’s temperature.
-          </p>
-        </div>
-        <Link to="/climate-correlation" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Climate Correlation →</Link>
+        <h2 id="chain-heading" className="landing-h2" style={{ margin: 0 }}>The chain reaction</h2>
+        <Link to="/climate-correlation" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>How this works → Climate Correlation</Link>
       </div>
       <ol className="chain-band__steps">
-        <li className="chain-band__card">
+        <li className="chain-band__step">
           <div className="chain-band__label chain-band__label--emissions">01 · Emissions</div>
           <StepValue>{fmtInt(emissions.total)} <span className="syn-text-lg">MtCO₂</span></StepValue>
-          <p className="syn-text-lg" style={caption}>Released worldwide in {emissions.year}. Each year adds to the total already in the air.</p>
-          <div className="chain-band__spark--emissions"><Sparkline values={emissions.series} /></div>
-          {first != null && <p className="syn-caption" style={caption}>Annual world totals, {first}–{emissions.series[emissions.series.length - 1].year}</p>}
-          <Link to="/overview" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>See on the Overview →</Link>
+          <p className="syn-caption" style={caption}>{emissions.year}, worldwide</p>
         </li>
-        <li className="chain-band__arrow" aria-hidden="true">→</li>
-        <li className="chain-band__card">
+        <li className="chain-band__step">
           <div className="chain-band__label chain-band__label--concentration">02 · Concentration</div>
           <StepValue>{concentration.value.toFixed(1)} <span className="syn-text-lg">ppm</span></StepValue>
-          <p className="syn-text-lg" style={caption}>CO₂ in the air, {concentration.year}.{upPct != null ? ` Up ${upPct}% on 1850.` : ''}</p>
-          <div className="chain-band__spark--concentration"><Sparkline values={signal.series.concentration} markerYear={spliceYear} /></div>
-          {spliceYear != null && <p className="syn-caption" style={caption}>Ice core to {spliceYear - 1} · Mauna Loa from {spliceYear}</p>}
+          <p className="syn-caption" style={caption}>{concentration.year}{upPct != null ? `, up ${upPct}% on 1850` : ''}</p>
         </li>
-        <li className="chain-band__arrow" aria-hidden="true">→</li>
-        <li className="chain-band__card chain-band__card--concept">
-          <div className="chain-band__label chain-band__label--forcing">03 · Radiative forcing · concept only</div>
-          <StepValue>Explained, not measured</StepValue>
-          <p className="syn-text-lg" style={caption}>{FORCING_CONCEPT_ONLY}</p>
+        <li className="chain-band__step">
+          <div className="chain-band__label chain-band__label--forcing">03 · Radiative forcing</div>
+          <StepValue>Traps more heat</StepValue>
+          <p className="syn-caption" style={caption}>Described, not calculated</p>
         </li>
-        <li className="chain-band__arrow" aria-hidden="true">→</li>
-        <li className="chain-band__card">
+        <li className="chain-band__step">
           <div className="chain-band__label chain-band__label--temperature">04 · Temperature anomaly</div>
           <StepValue>{fmtAnomaly(temperature.value)}</StepValue>
-          <p className="syn-text-lg" style={caption}>{temperature.year}, above the 1850–1900 average.</p>
-          <div className="chain-band__spark--temperature"><Sparkline values={signal.series.temperature} /></div>
-          {/* The caveat names its source itself; without one, name it here. */}
-          <p className="syn-caption" style={caption}>{vintageCaveat ?? 'Berkeley Earth'}</p>
+          <p className="syn-caption" style={caption}>{temperature.year}, above 1850–1900</p>
         </li>
       </ol>
+      <p className="syn-caption" style={caption}>Global totals built up over time. One country’s emissions in one year do not set that year’s temperature.</p>
     </section>
   );
 }

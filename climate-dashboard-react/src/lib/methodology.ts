@@ -28,6 +28,8 @@ export interface SourceRow {
   /** Landing pages (front-end lookup by source id) and the short citation */
   links: SourceLink[];
   citation: string | null;
+  /** The licence in a few words (front-end lookup); null when the source has none, and the table then shows the API's full wording */
+  licenceShort: string | null;
   /** The raw data files the pipeline reads (the API's `source_urls`), a secondary link */
   dataUrls: string[];
 }
@@ -88,6 +90,7 @@ export function buildSources(meta: CorrelationMetaResponse | null | undefined): 
       licences: [...new Set(entries.map((e) => str(e.license)).filter((l): l is string => l !== null))],
       links: info?.links ?? [],
       citation: info?.citation ?? null,
+      licenceShort: info?.licence ?? null,
       dataUrls,
     };
   });

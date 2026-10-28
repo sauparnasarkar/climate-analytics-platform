@@ -33,6 +33,16 @@ describe('SourcesSection', () => {
     expect(within(table).getByRole('row', { name: /Berkeley Earth/ })).toHaveTextContent('Cite: Rohde & Hausfather 2020');
   });
 
+  it('shows each licence in a few words, with the API\'s full wording one click away', () => {
+    render(<SourcesSection {...props} />);
+    const berkeley = screen.getByRole('row', { name: /Berkeley Earth/ });
+    expect(within(berkeley).getByText('CC BY-NC 4.0 · non-commercial')).toBeInTheDocument();
+    const terms = within(berkeley).getByText('Full terms').closest('details')!;
+    expect(terms).not.toHaveAttribute('open');
+    expect(terms).toHaveTextContent('commercial use needs a licence from Berkeley Earth');
+    expect(within(screen.getByRole('row', { name: /PRIMAP-hist/ })).getByText('CC BY-NC-SA 4.0 · non-commercial')).toBeInTheDocument();
+  });
+
   it('keeps the raw data files as a secondary link, from the API\'s source_urls', () => {
     const meta = { ...META, sources: META.sources.map((s) => (s.id === 'temperature_anomaly_annual' ? { ...s, source_urls: ['https://example.org/global.txt'] } : s)) } as typeof META;
     render(<SourcesSection {...props} meta={meta} />);
