@@ -197,6 +197,13 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(scrollSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('a #recent-all-gas deep link does not wait for the composition request, which sits below it', async () => {
+    window.history.replaceState(null, '', '/climate-correlation#recent-all-gas');
+    vi.mocked(api.correlationGhgComposition).mockReturnValue(new Promise(() => {}));
+    mount('#recent-all-gas');
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('recent-all-gas'));
+  });
+
   it('offsets jump targets by the measured height of the sticky row', async () => {
     // The shell's pinned bar (68px) sits outside the canvas; the page's own pinned row (90px) inside it.
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
