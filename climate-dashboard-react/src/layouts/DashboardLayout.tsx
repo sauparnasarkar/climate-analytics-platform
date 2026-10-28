@@ -13,6 +13,8 @@ import { PageChromeContext, type PageChromeState } from './PageChrome';
 
 const PRODUCT_MARK = { src: '/app-icon.svg', name: PRODUCT_NAME };
 const ALL_ITEMS: AppNavItem[] = [HOME_ITEM, ...NAV_ITEMS];
+/** The Methods & data page: where the source strip's link leads. */
+const METHODS_ITEM = NAV_ITEMS.find((item) => item.id === 'about')!;
 
 const toNavItem = ({ id, label, icon, path, badge }: AppNavItem): NavItem => ({ id, label, icon, href: path, badge });
 
@@ -87,7 +89,8 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
             {hasFilters ? <div ref={setSlot} style={{ display: 'contents' }} /> : null}
           </AnalysisBar>
         }
-        strip={<SourceStrip summary="Sources: Our World in Data, Berkeley Earth, NOAA, PRIMAP-hist" compactSummary="Sources" />}
+        // The strip's control leads to Methods & data, where the sources and methods are written out in full, so it is a link there (not the empty-panel disclosure it was).
+        strip={<SourceStrip summary="Sources: Our World in Data, Berkeley Earth, NOAA, PRIMAP-hist" compactSummary="Sources" detailsLabel={METHODS_ITEM.label} detailsHref={METHODS_ITEM.path} onDetailsClick={(event) => goTo(METHODS_ITEM.path, event)} />}
         footer={<Footer copyright={FOOTER_COPYRIGHT} links={[]} />}
       >
         <PagePurpose purpose={chrome?.ownsPurpose ? undefined : chrome?.purpose} />
