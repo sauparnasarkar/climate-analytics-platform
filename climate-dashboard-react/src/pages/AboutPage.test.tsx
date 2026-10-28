@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -9,7 +9,8 @@ import AboutPage from './AboutPage';
 vi.mock('../api/client', () => ({
   api: { listCountries: vi.fn(), correlationMeta: vi.fn(), correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn() },
 }));
-vi.mock('@syena/ds', async (orig) => ({ ...(await orig<typeof import('@syena/ds')>()), scrollToJumpTarget: vi.fn() }));
+const scrollSpy = vi.hoisted(() => vi.fn());
+vi.mock('@syena/ds', async (orig) => ({ ...(await orig<typeof import('@syena/ds')>()), scrollToJumpTarget: (id: string) => scrollSpy(id) }));
 
 const COUNTRIES: CountriesResponse = {
   featured: ['China', 'United States', 'India'],
@@ -28,9 +29,10 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  window.history.replaceState(null, '', '/');
 });
 
-const mount = () => render(<MemoryRouter initialEntries={['/about']}><AboutPage /></MemoryRouter>);
+const mount = (hash = '') => render(<MemoryRouter initialEntries={[`/about${hash}`]}><AboutPage /></MemoryRouter>);
 
 describe('AboutPage — Methods & data', () => {
   it('has the seven anchored sections, in order, each reachable from the jump row', async () => {
@@ -53,6 +55,18 @@ describe('AboutPage — Methods & data', () => {
   it('explains the two cumulative totals with their start years read from the API', async () => {
     mount();
     expect(await screen.findByText(/fossil and industry CO₂ since 1750.*since 1850/)).toBeInTheDocument();
+  });
+
+  it('a #baselines deep link waits for the sources section to finish growing (the splice card follows the concentration request), then jumps once', async () => {
+    window.history.replaceState(null, '', '/about#baselines');
+    let answer!: (r: typeof CONCENTRATION) => void;
+    vi.mocked(api.correlationConcentration).mockReturnValue(new Promise((r) => { answer = r; }));
+    mount('#baselines');
+    await screen.findByRole('table', { name: /Every source the platform uses/ });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(scrollSpy).not.toHaveBeenCalled();
+    await act(async () => answer(CONCENTRATION));
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('baselines'));
   });
 
   it('no longer says the platform is filtered to sovereign nations from 1990', async () => {

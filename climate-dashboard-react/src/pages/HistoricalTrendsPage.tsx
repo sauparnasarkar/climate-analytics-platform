@@ -16,7 +16,7 @@ import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 import { cumulativeAreaSeries, shareLineSeries } from '../lib/historicalCumulative';
 import { PageChrome } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
-import { OWID, PRIMAP } from '../lib/sources';
+import { OWID } from '../lib/sources';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
 const GAS_KEYS = Object.keys(GAS_COLUMNS);
@@ -192,7 +192,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         ) : composition.error ? (
           <InlineAlert variant="error">{composition.error}</InlineAlert>
         ) : (
-          <ChartCard source={PRIMAP} title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`} headingLevel={3}>
+          <ChartCard source={OWID} title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`} headingLevel={3}>
             <Chart
               height={320}
               barmode="stack"

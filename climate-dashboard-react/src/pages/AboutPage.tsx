@@ -81,11 +81,17 @@ export default function AboutPage() {
   const stickyHeight = useElementHeight(stickyRow);
   const barHeight = useStickyBarHeight();
   const jumpRowPx = stickyHeight ? Math.ceil(stickyHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
-  // A deep link from another page waits for the sticky row's height and for the sections that load above its target to settle.
+  // A deep link from another page waits for the sticky row's height and for everything above its target to settle. The sources section grows when /meta
+  // answers (the table) and again when the concentration request answers (the splice card) and the headline does (the cumulative-totals card), so every
+  // target below it waits for all of them; the sections after forecasting also wait for the countries cell.
   const { hash } = useLocation();
-  const sourcesAbove = hash === `#${METHODS_ANCHORS.project}` || hash === '' ? true : !metaQuery.loading;
-  const correlationSettled = hash === `#${METHODS_ANCHORS.correlation}` || hash === `#${METHODS_ANCHORS.scenarios}` || hash === `#${METHODS_ANCHORS.limits}` ? climate.done : true;
-  useJumpToHashOnLoad(sourcesAbove && correlationSettled && stickyHeight !== null, reduceMotion);
+  const sourcesSettled = !metaQuery.loading && climate.done;
+  const targetSettled =
+    hash === '' || hash === `#${METHODS_ANCHORS.project}` ? true
+    : hash === `#${METHODS_ANCHORS.sources}` ? !metaQuery.loading
+    : hash === `#${METHODS_ANCHORS.baselines}` || hash === `#${METHODS_ANCHORS.forecasting}` ? sourcesSettled
+    : sourcesSettled && !countries.loading;
+  useJumpToHashOnLoad(targetSettled && stickyHeight !== null, reduceMotion);
   const activeId = useScrollSpy(JUMP_ITEMS.map((i) => i.id), barHeight + jumpRowPx);
 
   return (

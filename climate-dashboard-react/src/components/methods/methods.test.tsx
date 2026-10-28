@@ -27,9 +27,9 @@ describe('SourcesSection', () => {
     const table = screen.getByRole('table', { name: /Every source the platform uses/ });
     expect(within(table).getByRole('link', { name: /^OWID CO₂ data \(GitHub\)/ })).toHaveAttribute('href', 'https://github.com/owid/co2-data');
     expect(within(table).getAllByRole('link', { name: /^NOAA GML: Trends in CO₂/ })[0]).toHaveAttribute('href', 'https://gml.noaa.gov/ccgg/trends/');
-    expect(within(table).getByRole('link', { name: /^NCEI: Law Dome 2000\-year record/ })).toHaveAttribute('href', 'https://www.ncei.noaa.gov/access/paleo-search/study/9959');
+    expect(within(table).getByRole('link', { name: /^NCEI: Law Dome 2000-year record/ })).toHaveAttribute('href', 'https://www.ncei.noaa.gov/access/paleo-search/study/9959');
     expect(within(table).getByRole('link', { name: /^Berkeley Earth data/ })).toHaveAttribute('href', 'https://berkeleyearth.org/data/');
-    expect(within(table).getByRole('link', { name: /^PRIMAP\-hist v2\.8 \(Zenodo\)/ })).toHaveAttribute('href', 'https://zenodo.org/records/22876287');
+    expect(within(table).getByRole('link', { name: /^PRIMAP-hist v2\.8 \(Zenodo\)/ })).toHaveAttribute('href', 'https://zenodo.org/records/22876287');
     expect(within(table).getByRole('row', { name: /Berkeley Earth/ })).toHaveTextContent('Cite: Rohde & Hausfather 2020');
   });
 
