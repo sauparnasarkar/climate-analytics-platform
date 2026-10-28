@@ -88,12 +88,6 @@ export function GasComposition({ composition, embedded }: { composition: Composi
             {basis} ({units}).{excludedIncompleteYears.length > 0 ? ` Incomplete trailing year${excludedIncompleteYears.length > 1 ? 's' : ''} left out: ${excludedIncompleteYears.join(', ')}.` : ''}
           </span>
         </div>
-        {!embedded && (
-          <p className="syn-caption" style={{ margin: '10px 0 0', color: 'var(--syn-color-text-muted)' }}>
-            This is the global mix from PRIMAP-hist, since {first}. Historical Trends shows a per-decade mix for the countries you select, from OWID; the two differ in scope and method.{' '}
-            <Link className="area2-link" to="/historical#ghg-by-decade" style={{ fontWeight: 600 }}>Country view by decade →</Link>
-          </p>
-        )}
         {caveats.length > 0 && (
           <details style={{ marginTop: 8 }}>
             <summary className="syn-caption" style={{ cursor: 'pointer' }}>What this covers, and what it leaves out</summary>
@@ -103,6 +97,13 @@ export function GasComposition({ composition, embedded }: { composition: Composi
           </details>
         )}
       </ChartCard>
+      {/* On the page surface, not inside the card: the card's panel stays dark in both themes, and the link colour is chosen for the page. */}
+      {!embedded && (
+        <p className="syn-caption" style={{ margin: '10px 0 0', color: 'var(--syn-color-text-muted)', maxWidth: '68ch' }}>
+          This is the global mix from PRIMAP-hist, since {first}. Historical Trends shows a per-decade mix for the countries you select, from OWID; the two differ in scope and method.{' '}
+          <Link className="area2-link" to="/historical#ghg-by-decade" style={{ fontWeight: 600 }}>Country view by decade →</Link>
+        </p>
+      )}
     </section>
   );
 }

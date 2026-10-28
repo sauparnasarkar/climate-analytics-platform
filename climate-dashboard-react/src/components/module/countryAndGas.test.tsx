@@ -99,4 +99,12 @@ describe('GasComposition', () => {
     render(<MemoryRouter><GasComposition composition={buildComposition(COMPOSITION)!} embedded /></MemoryRouter>);
     expect(screen.queryByRole('link', { name: 'Country view by decade →' })).not.toBeInTheDocument();
   });
+
+  it('puts that line on the page surface, after the chart card, since the card\'s panel stays dark and the link colour is for the page', () => {
+    render(<MemoryRouter><GasComposition composition={buildComposition(COMPOSITION)!} /></MemoryRouter>);
+    const link = screen.getByRole('link', { name: 'Country view by decade →' });
+    const inCard = screen.getByText('What this covers, and what it leaves out'); // the last thing inside the card
+    expect(inCard.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(link.closest('details')).toBeNull();
+  });
 });
