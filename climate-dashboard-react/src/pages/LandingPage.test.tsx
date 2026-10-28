@@ -73,11 +73,27 @@ const MAP: WorldMapTimeSeries = {
   value_range: [1, 300],
 };
 const WORLD = MAP.values.map((row) => row.reduce<number>((s, v) => s + (v ?? 0), 0)); // 250, 272, 427
+// The ranking race is on CUMULATIVE CO₂: each country's cumulative at 1989 (the one all-countries snapshot, with the year the count starts from) plus the running sum of the
+// annual values the map holds. Snapshot Mt by country, then the running totals per year (Mt) and the World's, 25% above the countries'.
+const CUMULATIVE_BASE: Record<string, number> = { AAA: 1000, BBB: 500, CCC: 100, DDD: 400 };
+const CUMULATIVE = (() => {
+  const running = MAP.iso_codes.map((iso) => CUMULATIVE_BASE[iso]);
+  return MAP.values.map((row) => row.map((v, i) => (running[i] += v ?? 0)));
+})(); // [year][country] Mt: 2022 → 1100, 550, 110, 490; 2024 → 1300, 970, 134, 545
+const WORLD_CUMULATIVE = CUMULATIVE.map((row) => row.reduce((s, v) => s + v, 0)); // 2250, 2522, 2949
+const snapshotResponse = () => ({
+  mode: 'ranking', limit: null, year: 1989, coverage: [1750, 2024], cumulative_from: 1750, source: 'owid_co2',
+  rows: MAP.iso_codes.map((country, i) => ({ rank: i + 1, country, name: MAP.countries[i], cumulative_mt: CUMULATIVE_BASE[country], share_pct: 0, annual_mt: 0, annual_share_pct: 0 })),
+}) as unknown as CorrelationCountryShareResponse;
+
 // The "N% of the world's CO₂" shares are of the WORLD total, which holds more than the countries (international aviation and shipping): here 25% more.
 const WORLD_OVER_COUNTRIES = 1.25;
 const worldShareResponse = (years: number[], over = WORLD_OVER_COUNTRIES) => ({
-  remainder_series: years.map((year, i) => ({ year, world_cumulative_mt: 1, world_annual_mt: WORLD[i] * over, cumulative_mt: 0, share_pct: 0, annual_mt: 0, annual_share_pct: 0, international_transport_cumulative_mt: null, international_transport_annual_mt: null })),
+  remainder_series: years.map((year, i) => ({ year, world_cumulative_mt: WORLD_CUMULATIVE[i] * over, world_annual_mt: WORLD[i] * over, cumulative_mt: 0, share_pct: 0, annual_mt: 0, annual_share_pct: 0, international_transport_cumulative_mt: null, international_transport_annual_mt: null })),
 }) as unknown as CorrelationCountryShareResponse;
+
+/** The page's two share requests: the all-countries snapshot (the race's base) and the World totals series. */
+const shareMock = (years: number[], over = WORLD_OVER_COUNTRIES) => async (o?: { allCountries?: boolean }) => (o?.allCountries ? snapshotResponse() : worldShareResponse(years, over));
 
 function overview(over: Partial<OverviewResponse> = {}, expanded = 12): OverviewResponse {
   return {
@@ -96,14 +112,14 @@ const ANIMATION = { currentYear: 2023, isPlaying: true, play: vi.fn(), pause: vi
 function mount(o: OverviewResponse = overview(), m: WorldMapTimeSeries = MAP, anim: typeof ANIMATION = ANIMATION) {
   vi.mocked(api.overview).mockResolvedValue(o);
   vi.mocked(api.worldMapSeries).mockResolvedValue(m);
-  vi.mocked(api.correlationCountryShare).mockResolvedValue(worldShareResponse(m.years));
+  vi.mocked(api.correlationCountryShare).mockImplementation(shareMock(m.years));
   vi.mocked(useYearAnimation).mockReturnValue(anim);
   return render(<Themed><MemoryRouter><LandingPage /></MemoryRouter></Themed>);
 }
 
 beforeEach(() => {
   // the page also asks for the World totals; tests that care set their own, the rest get a plain 25%-above-the-countries World
-  vi.mocked(api.correlationCountryShare).mockResolvedValue(worldShareResponse(MAP.years));
+  vi.mocked(api.correlationCountryShare).mockImplementation(shareMock(MAP.years));
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -131,7 +147,7 @@ describe('LandingPage', () => {
     await screen.findByTestId('globe');
     expect(document.querySelector('.landing-hero__text .syn-caption')).toHaveTextContent('Our World in Data CO₂ · 2022–2024 · 4 countries'); // the country count is hidden by CSS on a phone, still in the page
     // +70.8% since 2022 -> "more than two-thirds"; the four fixture countries are 80% of the World total (international transport is the rest), so the top-10 share is 80% (same figure as the race heading's)
-    expect(screen.getByText('Global CO₂ emissions have grown by more than two-thirds since 2022, and the 10 largest emitters now account for 80% of the total.')).toBeInTheDocument();
+    expect(screen.getByText('Global CO₂ emissions have grown by more than two-thirds since 2022, and the 10 largest emitters produced 80% of 2024’s emissions.')).toBeInTheDocument();
     expect(screen.getByText('427')).toBeInTheDocument(); // latest_co2_total
     expect(screen.getByText('MtCO₂ in 2024, all countries')).toBeInTheDocument();
     expect(screen.getByText('+70.8%')).toBeInTheDocument(); // (427-250)/250
@@ -236,33 +252,44 @@ describe('LandingPage', () => {
     expect(screen.queryByRole('heading', { name: /stories/i })).not.toBeInTheDocument();
   });
 
-  it('shows the real final-year top ranking and its share of the world total', async () => {
+  it('shows the real final-year cumulative ranking and its share of the world total', async () => {
     mount();
-    const race = (await screen.findByRole('heading', { name: /countries, \d+% of the world’s co₂/i })).closest('section')!;
-    // Final year (no autoplay without IntersectionObserver): 300+100+15+12 = 427 of a World total of 427 × 1.25 -> 80%.
-    expect(within(race).getByRole('heading', { name: '10 countries, 80% of the world’s CO₂' })).toBeInTheDocument();
-    const list = within(race).getByRole('list', { name: /largest emitters in 2024/i });
+    const race = (await screen.findByRole('heading', { name: /countries, \d+% of all co₂ emitted/i })).closest('section')!;
+    // Final year (no autoplay without IntersectionObserver): the four countries' cumulative 1300 + 970 + 545 + 134 = 2949 Mt of a World total of 2949 × 1.25 -> 80%, counted from the snapshot's year.
+    expect(within(race).getByRole('heading', { name: '10 countries, 80% of all CO₂ emitted since 1750' })).toBeInTheDocument();
+    const list = within(race).getByRole('list', { name: /largest cumulative emitters in 2024/i });
     expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Beta: 300 (56.2%)', 'Alpha: 100 (18.7%)', 'Delta: 15 (2.8%)', 'Gamma: 12 (2.2%)', // each country's share of the World total (533.75): 300/533.75 = 56.2%
+      'Alpha: 1.3 GtCO₂ (35.3%)', 'Beta: 1.0 GtCO₂ (26.3%)', 'Delta: 0.5 GtCO₂ (14.8%)', 'Gamma: 0.1 GtCO₂ (3.6%)', // each country's share of the World total (3686.25 Mt): 1300 / 3686.25 = 35.3%
     ]);
-    expect(within(race).getByText(/bar length on a fixed 0–300 scale/)).toBeInTheDocument();
+    expect(within(race).getByText(/bar length on a fixed 0–1\.3 scale/)).toBeInTheDocument();
+    expect(within(race).getByRole('link', { name: 'Cumulative share on the Overview →' })).toHaveAttribute('href', '/overview#share');
   });
 
   it('claims no share of the world, in the hero or the race, when the World totals are unavailable (never one against the sum of the countries)', async () => {
     mount();
-    vi.mocked(api.correlationCountryShare).mockRejectedValue(new ApiError(503, 'unavailable'));
+    // the snapshot still answers (the race can be ranked), the World totals do not
+    vi.mocked(api.correlationCountryShare).mockImplementation(async (o?: { allCountries?: boolean }) => { if (o?.allCountries) return snapshotResponse(); throw new ApiError(503, 'unavailable'); });
     cleanup();
     render(<Themed><MemoryRouter><LandingPage /></MemoryRouter></Themed>);
     expect(await screen.findByRole('heading', { name: '10 countries' })).toBeInTheDocument();
-    expect(screen.queryByText(/account for \d+% of the total/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/of the world’s CO₂/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/produced \d+% of/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/of all CO₂ emitted/)).not.toBeInTheDocument();
+  });
+
+  it('leaves the race out, rather than rank it on another basis, when the cumulative snapshot is unavailable', async () => {
+    mount();
+    vi.mocked(api.correlationCountryShare).mockImplementation(async (o?: { allCountries?: boolean }) => { if (o?.allCountries) throw new ApiError(503, 'unavailable'); return worldShareResponse(MAP.years); });
+    cleanup();
+    render(<Themed><MemoryRouter><LandingPage /></MemoryRouter></Themed>);
+    expect(await screen.findByRole('heading', { name: 'Everything you need to read the trend' })).toBeInTheDocument(); // the sections after the race still stand
+    expect(screen.queryByRole('heading', { name: /countries, \d+% of all co₂ emitted/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /largest cumulative emitters/i })).not.toBeInTheDocument();
   });
 
   it('follows the fixture for counts in feature/CTA copy rather than literals', async () => {
     mount(overview({}, 7));
     expect(await screen.findByText(/for all 7 Expanded countries/)).toBeInTheDocument();
     expect(screen.getByText(/any of the 7 Expanded countries/)).toBeInTheDocument();
-    expect(screen.getByText(/Compare any 10 of 7 countries/)).toBeInTheDocument();
     expect(screen.getByText(/cumulative 2025–2040 totals/)).toBeInTheDocument();
   });
 
@@ -428,7 +455,7 @@ describe('LandingPage — climate-signal carousel', () => {
       expect(follows(cards, heroCtas)).toBe(true);
       expect(cards).toHaveTextContent('+70.8%');
       expect(cards).toHaveTextContent('80%');
-      expect(cards).toHaveTextContent('From the top 10 emitters, 2024');
+      expect(cards).toHaveTextContent('Top 10’s share of 2024 emissions');
       // The year readout is handed to the Globe as its caption (it renders it under the canvas, before its legend and controls), not placed as a sibling around it.
       expect(screen.getByTestId('globe')).toContainElement(document.querySelector('.landing-globe-caption') as HTMLElement);
       expect(document.querySelectorAll('.landing-hero__ctas')).toHaveLength(1); // rendered once, not duplicated

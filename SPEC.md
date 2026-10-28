@@ -1962,6 +1962,16 @@ that actually owns `api/main.py`.
 | Overview header | The header Year select and Play are removed (`PageYearControl` deleted). The year is still one value: the map's Play, decade stops and slider move it, and the Share section's Replay animates 1970 → that year. The picker's label now sits on one line with the dropdown and Reset to default |
 | Overview anchor row | "Top emitters" reads **All Countries** (the id stays `#top-emitters`, which the agent and bookmarks use); the "Pathways" link is gone, as that section is one line now (its `#pathways` id stays) |
 
+### 5.32 Home: the ranking race is cumulative (Proposed: item 5 of the page consolidation)
+
+| Area | Specification |
+|---|---|
+| Basis | The Top 10 ranking on Home ranks and sizes its bars by **cumulative CO₂**, everything emitted since the record began (`cumulative_from` from the API, 1750 today; never typed) up to each year, instead of each year's output. Year range unchanged (1990 → latest) |
+| Data | No new endpoint. The same construction as the Overview's Cumulative map (`lib/cumulative.ts`): the one all-countries `/correlation/country-share` snapshot at 1989 (also the source of `cumulative_from`) plus the running sum of the annual values the page already holds (`cumulativeSeriesMt`). Shares divide by the World's cumulative total per year from the same remainder series the annual shares use. If the snapshot is unavailable the race is left out, not ranked on another basis |
+| Heading and copy | "10 countries, N% of all CO₂ emitted since 1750" (N follows the frame while it plays); a sentence read from the ranking itself (who leads and whether throughout, who climbs or is up from where, who enters the top 10, who slips back or drops out: `raceStory`); "Fossil fuels and industry, GtCO₂ emitted since 1750 to {year}. World total: N GtCO₂." |
+| Rows | Rank, name, bar on a fixed 0–max scale, cumulative GtCO₂ and share of the world's cumulative total. The link on is "Cumulative share on the Overview →" (`/overview#share`) |
+| Hero banner 2 | The annual figure stays and is explicit, so the two top-10 numbers cannot be confused: "…the 10 largest emitters produced N% of {year}'s emissions" (and the card "Top 10's share of {year} emissions") against the race's "N% of all CO₂ emitted since 1750" |
+
 ---
 
 ## 6. Post-Ship Corrections to the Curriculum Notebooks

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorldMapTimeSeries } from '../api/types';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
-import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange, worldTotalsFrom } from './cumulative';
+import { buildCumulative, cumulativeBaseFrom, cumulativeSeriesMt, fmtGt, leaders, positiveRange, worldTotalsFrom } from './cumulative';
 
 const S: WorldMapTimeSeries = {
   iso_codes: ['AAA', 'BBB', 'CCC'], countries: ['Alpha', 'Beta', 'Gamma'], years: [1970, 1971, 1972],
@@ -22,6 +22,21 @@ describe('buildCumulative', () => {
     const m = buildCumulative(S, {});
     for (let i = 0; i < 3; i++) for (let y = 1; y < 3; y++) expect(m[y][i] ?? 0).toBeGreaterThanOrEqual(m[y - 1][i] ?? 0);
     expect(JSON.stringify(S)).toBe(before);
+  });
+});
+
+describe('cumulativeSeriesMt', () => {
+  it('is the same running totals as a map series in Mt (what a World total in Mt divides), with nothing-yet as null', () => {
+    const r = cumulativeSeriesMt(S, { byIso: { AAA: 1000, BBB: 500 }, from: 1750 })!;
+    expect(r.years).toEqual([1970, 1971, 1972]);
+    expect(r.countries).toEqual(S.countries);
+    expect(r.values[0]).toEqual([1010, 505, null]); // CCC: nothing emitted yet, so "no data" rather than a zero
+    expect(r.values[2]).toEqual([1060, 510, 2]);
+    expect(r.value_range).toEqual([2, 1060]);
+  });
+
+  it('is null when there is no snapshot to build on', () => {
+    expect(cumulativeSeriesMt(S, null)).toBeNull();
   });
 });
 

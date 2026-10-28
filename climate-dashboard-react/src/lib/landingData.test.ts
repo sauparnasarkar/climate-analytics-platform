@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MoverRow, WorldMapTimeSeries } from '../api/types';
 import { buildHeadlineSentence, headlineSegmentsToText } from './overviewHeadline';
-import { buildRaceModel, fmtInt, fmtPct, fmtSigned, GLOBE_LABEL_COUNT, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, raceFrame, raceShare, sparklinePath, topEmitterLabels } from './landingData';
+import { buildRaceModel, fmtInt, fmtPct, fmtSigned, GLOBE_LABEL_COUNT, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, raceFrame, raceShare, raceStory, sparklinePath, topEmitterLabels } from './landingData';
 
 const mover = (country: string, from: number | null, to: number | null): MoverRow => ({
   country,
@@ -192,5 +192,30 @@ describe('topEmitterLabels', () => {
   it('skips aggregates, countries without a value, and asks for no more than it has', () => {
     expect(topEmitterLabels(map, 1, 10).map((l) => l.id)).toEqual(['CHN', 'USA', 'IND', 'RUS']);
     expect(topEmitterLabels(map, 5, 3)).toEqual([]);
+  });
+});
+
+describe('raceStory', () => {
+  const series = (rows: Record<string, number[]>, years: number[]): WorldMapTimeSeries => ({
+    iso_codes: Object.keys(rows).map((n) => n.slice(0, 3).toUpperCase()), countries: Object.keys(rows), years,
+    values: years.map((_, i) => Object.values(rows).map((v) => v[i])), value_range: [0, 1],
+  });
+  // twelve countries so some can enter and leave the top ten: A..J are the ten leaders in 1990; K and L join later
+  const names = 'ABCDEFGHIJKL'.split('').map((c) => `C${c}`);
+  const years = [1990, 2024];
+  const first = Object.fromEntries(names.map((n, i) => [n, [100 - i * 5, 0]]));
+
+  it('says who leads throughout, who climbs furthest, who enters the top ten and who slips back, all read from the data', () => {
+    const rows: Record<string, number[]> = {};
+    names.forEach((n) => { rows[n] = [first[n][0], 0]; });
+    // 2024 order: CA leads, then CF (was 6th) climbs to 2nd, CK enters, CJ (was 10th) slips out
+    const end: Record<string, number> = { CA: 200, CF: 190, CK: 180, CB: 170, CC: 160, CD: 150, CE: 140, CG: 130, CH: 120, CI: 110, CJ: 5, CL: 1 };
+    names.forEach((n) => { rows[n][1] = end[n]; });
+    const story = raceStory(buildRaceModel(series(rows, years)))!;
+    expect(story).toBe('CA leads throughout; CF climbs from 6th in 1990 to 2nd, CK enters the top 10, and CJ drops out of the top 10.');
+  });
+
+  it('is null with fewer than two years', () => {
+    expect(raceStory(buildRaceModel(series({ A: [1] }, [2000])))).toBeNull();
   });
 });
