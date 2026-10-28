@@ -19,6 +19,8 @@ export interface ClimateSignalData {
   settled: boolean;
   /** True only once the request has actually finished (answer or failure) -- not on the timeout. A deep link to a section that only exists with the data waits for this. */
   done: boolean;
+  /** True once the headline pair and the concentration -- the two requests that feed the splice note and the derivation -- have each finished, whatever the temperature requests are doing. A page whose layout depends only on those two waits for this, so a hung temperature request cannot hold a deep link. */
+  notesDone: boolean;
 }
 
 /** The climate-context data the pages show beside the emissions figures (Area 2): the headline pair, the latest temperature and concentration, and the
@@ -51,5 +53,5 @@ export function useClimateSignal(waitMs = 3000): ClimateSignalData {
     const id = setTimeout(() => setTimedOut(true), waitMs);
     return () => clearTimeout(id);
   }, [loading, waitMs]);
-  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, splice, headline: pair.data ?? null, settled: !loading || timedOut, done: !loading };
+  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, splice, headline: pair.data ?? null, settled: !loading || timedOut, done: !loading, notesDone: !pair.loading && !concentration.loading };
 }

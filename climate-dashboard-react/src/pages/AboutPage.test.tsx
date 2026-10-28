@@ -69,6 +69,13 @@ describe('AboutPage — Methods & data', () => {
     await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('baselines'));
   });
 
+  it('a #baselines deep link does not wait for the temperature requests, which do not change the sources section', async () => {
+    window.history.replaceState(null, '', '/about#baselines');
+    vi.mocked(api.correlationTemperature).mockReturnValue(new Promise(() => {}));
+    mount('#baselines');
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('baselines'));
+  });
+
   it('no longer says the platform is filtered to sovereign nations from 1990', async () => {
     mount();
     await screen.findByRole('heading', { level: 2, name: 'Data sources' });

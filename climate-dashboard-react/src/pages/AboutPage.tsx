@@ -83,9 +83,9 @@ export default function AboutPage() {
   const jumpRowPx = stickyHeight ? Math.ceil(stickyHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
   // A deep link from another page waits for the sticky row's height and for everything above its target to settle. The sources section grows when /meta
   // answers (the table) and again when the concentration request answers (the splice card) and the headline does (the cumulative-totals card), so every
-  // target below it waits for all of them; the sections after forecasting also wait for the countries cell.
+  // target below it waits for those three (not the temperature requests, which change nothing here); the sections after forecasting also wait for the countries cell.
   const { hash } = useLocation();
-  const sourcesSettled = !metaQuery.loading && climate.done;
+  const sourcesSettled = !metaQuery.loading && climate.notesDone;
   const targetSettled =
     hash === '' || hash === `#${METHODS_ANCHORS.project}` ? true
     : hash === `#${METHODS_ANCHORS.sources}` ? !metaQuery.loading
