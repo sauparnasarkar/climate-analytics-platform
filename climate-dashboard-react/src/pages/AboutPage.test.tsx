@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { CountriesResponse } from '../api/types';
 import { CONCENTRATION, HEADLINE_PAIR, META, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
+import { READING_MEASURE } from '../lib/readingMeasure';
 import AboutPage from './AboutPage';
 
 vi.mock('../api/client', () => ({
@@ -132,5 +133,12 @@ describe('AboutPage — Methods & data', () => {
     const deck = new RegExp([['ppt', 'x'], ['office', 'apps']].map((p) => p.join('')).join('|'), 'i');
     expect(container.textContent).not.toMatch(framing);
     expect(container.innerHTML).not.toMatch(deck);
+  });
+
+  it('keeps body text to one reading width, the same as the derivation\'s step text, however wide the page', async () => {
+    mount();
+    const intro = (await screen.findByText(/The data pipeline and machine-learning models began as a 7-week data science project/)) as HTMLElement;
+    expect(intro.style.maxWidth).toBe(READING_MEASURE);
+    expect(READING_MEASURE).toBe('100ch');
   });
 });

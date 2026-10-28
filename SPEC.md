@@ -1949,6 +1949,7 @@ that actually owns `api/main.py`.
 | Guardrails | Stated once, in `#limits`; the derivation's last step points there |
 | Method notes | `MethodNote` (two lines plus "Method →") at the foot of Overview, Historical Trends, Country Profile, Forecasts, Scenario Comparison, Data Explorer and Climate Correlation, each linking to its section. Climate Correlation's methodology block, sources table and derivation are removed; its "Methodology" jump link goes with them |
 | Stale facts | "Filtered to sovereign nations from 1990 onwards" no longer describes the platform (climate series 1850+, globe 1970+, PRIMAP-hist 1970+, ML window 1990–2018); the forecasting table now says the ML window only |
+| Reading width | Body text on Methods & data, and the derivation's step text, stops at 100 characters (`lib/readingMeasure.ts`, about 800 px); tables and cards keep the full content width |
 
 ### 5.30 One owner for each visual (Shipped: item 3 of the page consolidation)
 

@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Accordion } from '@syena/ds';
 import { METHODS_ANCHORS } from '../../lib/methodology';
+import { READING_MEASURE } from '../../lib/readingMeasure';
 import { DERIVATION_ANCHOR, type Derivation } from '../../lib/derivation';
 
 const th = { textAlign: 'right', fontWeight: 600, padding: '4px 10px' } as const;
 const td = { textAlign: 'right', padding: '4px 10px', borderTop: '1px solid var(--syn-color-border-subtle)', fontVariantNumeric: 'tabular-nums' } as const;
 const first = { textAlign: 'left' } as const;
-const body = { fontSize: 14, lineHeight: 1.6, maxWidth: 900, padding: '4px 0 8px' } as const;
+const body = { fontSize: 14, lineHeight: 1.6, maxWidth: READING_MEASURE, padding: '4px 0 8px' } as const;
 
 const f3 = (v: number) => v.toFixed(3);
 
