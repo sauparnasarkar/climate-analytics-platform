@@ -63,6 +63,7 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 function ScenarioComparisonContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?countries=…, like Historical Trends and Overview) so a link opens with a chosen selection.
   const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
+  const pickerLabel = `Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`;
   const isMobile = useIsMobile();
   const [treemapScenario, setTreemapScenario] = useState<string>('BAU');
   // Touch-friendly surface for the treemap's hover info (SPEC.md §5.10): a tap never produces
@@ -245,9 +246,11 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
             needs to interact with, not just its heading, so the dropdown is guaranteed to be
             the first thing on screen after following the link rather than requiring a further
             manual scroll to reach it. */}
-        <div id="country-comparison" className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
+        <div id="country-comparison" className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          {/* The label sits on one line with the picker, as on the Overview and Historical Trends: visible text here, the same words as the picker's accessible name. */}
+          <span aria-hidden="true" className="syn-text-lg" style={{ color: 'var(--syn-color-text-muted)', whiteSpace: 'nowrap' }}>{pickerLabel}</span>
           <MultiSelect
-            label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
+            ariaLabel={pickerLabel}
             options={expanded.map((c) => ({ value: c, label: c }))}
             value={selectedCountries}
             onChange={setSelectedCountries}
