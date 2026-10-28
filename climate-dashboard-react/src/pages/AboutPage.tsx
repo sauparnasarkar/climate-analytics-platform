@@ -16,6 +16,7 @@ import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 import { PageChrome } from '../layouts/PageChrome';
 import { FOOTER_COPYRIGHT } from '../navigation';
+import { READING_MEASURE } from '../lib/readingMeasure';
 import { FORCING_CONCEPT_ONLY, NOT_A_CLIMATE_MODEL, NO_COUNTRY_ATTRIBUTION, SCENARIO_LABEL } from '../lib/climateCopy';
 import { buildDerivation } from '../lib/derivation';
 import { METHODS_ANCHORS, owidCumulativeFrom } from '../lib/methodology';
@@ -45,8 +46,8 @@ function Section({ id, n, title, children }: { id: string; n: number; title: str
   );
 }
 
-// Body text stops at about 70 characters a line, however wide the page; tables and cards keep the full width they need.
-const prose = { margin: 0, maxWidth: '70ch' } as const;
+// Body text stops at a comfortable line length however wide the page; tables and cards keep the full width they need.
+const prose = { margin: 0, maxWidth: READING_MEASURE } as const;
 
 /**
  * Methods & data (route /about): how every number on the platform is made, and where the data comes from. The one place the method is written; the other
