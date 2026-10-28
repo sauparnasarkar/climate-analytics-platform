@@ -4,15 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorldMapTimeSeries } from '../../api/types';
 import { RankRace } from './RankRace';
 
+// Cumulative CO₂ in Mt (the Overview's Cumulative map builds the same numbers), shown in Gt.
 const MAP: WorldMapTimeSeries = {
   iso_codes: ['AAA', 'BBB', 'CCC'],
   countries: ['Alpha', 'Beta', 'Gamma'],
   years: [2000, 2001, 2002],
   // Beta overtakes Alpha in 2002.
-  values: [[100, 50, 10], [100, 90, 10], [100, 300, 10]],
-  value_range: [1, 300],
+  values: [[100000, 50000, 10000], [100000, 90000, 10000], [100000, 300000, 10000]],
+  value_range: [10000, 300000],
 };
-const WORLD = [160, 200, 410];
+const WORLD = [160000, 200000, 410000];
 
 let reduced = false;
 let mqlListeners: Array<(e: { matches: boolean }) => void> = [];
@@ -37,16 +38,16 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const mount = () => render(<MemoryRouter><RankRace series={MAP} worldTotals={WORLD} expandedCount={40} /></MemoryRouter>);
-const rankingWithShares = () => within(screen.getByRole('list', { name: /largest emitters in/i })).getAllByRole('listitem').map((li) => li.textContent);
+const mount = () => render(<MemoryRouter><RankRace series={MAP} worldTotals={WORLD} cumulativeFrom={1750} /></MemoryRouter>);
+const rankingWithShares = () => within(screen.getByRole('list', { name: /largest cumulative emitters in/i })).getAllByRole('listitem').map((li) => li.textContent);
 // order and value only: the existing race tests are about the ranking, not the shares (those have their own tests below)
-const ranking = () => rankingWithShares().map((t) => t!.replace(/ \(.*\)$/, ''));
+const ranking = () => rankingWithShares().map((t) => t!.replace(/ GtCO₂( \(.*\))?$/, ''));
 
 describe('RankRace', () => {
   it('starts on the final year, in real rank order, with the share of the world total', () => {
     mount();
     expect(ranking()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']);
-    expect(screen.getByRole('heading', { name: '10 countries, 100% of the world’s CO₂' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '10 countries, 100% of all CO₂ emitted since 1750' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Replay 2000 → 2002' })).toBeInTheDocument();
   });
 
@@ -131,7 +132,7 @@ describe('RankRace', () => {
     it("gives each country's share of that year's World total, one decimal, in the list and beside the bar", () => {
       mount();
       // 2002: World 410 (the three countries are 410 here), so Beta 300 -> 73.2%, Alpha 100 -> 24.4%, Gamma 10 -> 2.4%
-      expect(rankingWithShares()).toEqual(['Beta: 300 (73.2%)', 'Alpha: 100 (24.4%)', 'Gamma: 10 (2.4%)']);
+      expect(rankingWithShares()).toEqual(['Beta: 300 GtCO₂ (73.2%)', 'Alpha: 100 GtCO₂ (24.4%)', 'Gamma: 10 GtCO₂ (2.4%)']);
       const chart = screen.getByRole('group', { name: /ranking race, 2002/i });
       expect(within(chart).getByText('73.2%')).toBeInTheDocument();
       expect(within(chart).getByText('24.4%')).toBeInTheDocument();
@@ -139,19 +140,42 @@ describe('RankRace', () => {
     });
 
     it('is of the World total, which can exceed the countries shown: the bars then sum to less than the heading', () => {
-      render(<MemoryRouter><RankRace series={MAP} worldTotals={[160, 200, 512.5]} expandedCount={40} /></MemoryRouter>);
+      render(<MemoryRouter><RankRace series={MAP} worldTotals={[160000, 200000, 512500]} cumulativeFrom={1750} /></MemoryRouter>);
       // the same three countries against a World of 512.5 (410 plus international transport and the rest): 300/512.5 = 58.5%
-      expect(rankingWithShares()[0]).toBe('Beta: 300 (58.5%)');
-      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('10 countries, 80% of the world’s CO₂');
+      expect(rankingWithShares()[0]).toBe('Beta: 300 GtCO₂ (58.5%)');
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('10 countries, 80% of all CO₂ emitted since 1750');
     });
 
     it('shows no share, on the bars or in the heading, when the World total is unavailable', () => {
-      render(<MemoryRouter><RankRace series={MAP} worldTotals={[]} expandedCount={40} /></MemoryRouter>);
-      expect(rankingWithShares()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']);
+      render(<MemoryRouter><RankRace series={MAP} worldTotals={[]} cumulativeFrom={1750} /></MemoryRouter>);
+      expect(rankingWithShares()).toEqual(['Beta: 300 GtCO₂', 'Alpha: 100 GtCO₂', 'Gamma: 10 GtCO₂']);
       expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/^10 countries$/);
+      expect(screen.queryByText(/World total:/)).not.toBeInTheDocument();
       expect(screen.queryByText(/share of the world total/)).not.toBeInTheDocument();
-      render(<MemoryRouter><RankRace series={MAP} worldTotals={[NaN, NaN, NaN]} expandedCount={40} /></MemoryRouter>);
+      render(<MemoryRouter><RankRace series={MAP} worldTotals={[NaN, NaN, NaN]} cumulativeFrom={1750} /></MemoryRouter>);
       expect(screen.queryAllByText(/%/)).toHaveLength(0);
+    });
+  });
+
+  describe('the cumulative basis', () => {
+    it('says what is counted and from when (the API\'s year), the world total in Gt, and links to the Overview\'s cumulative share', () => {
+      mount();
+      expect(screen.getByText(/Fossil fuels and industry, GtCO₂ emitted since 1750 to 2002\. World total: 410 GtCO₂\./)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Cumulative share on the Overview →' })).toHaveAttribute('href', '/overview#share');
+      expect(screen.getByText(/Cumulative GtCO₂, and each country’s share of the world total/)).toBeInTheDocument();
+      expect(screen.getByText(/bar length on a fixed 0–300 scale/)).toBeInTheDocument();
+    });
+
+    it('does not name a start year the API did not give', () => {
+      render(<MemoryRouter><RankRace series={MAP} worldTotals={WORLD} cumulativeFrom={null} /></MemoryRouter>);
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('10 countries, 100% of all CO₂ emitted since records began');
+      expect(screen.queryByText(/since 1750/)).not.toBeInTheDocument();
+    });
+
+    it('tells the story of the race from the data: who leads, who overtakes', () => {
+      mount();
+      // Alpha leads in 2000 and 2001 and Beta in 2002, so nobody leads throughout; Beta was 2nd in 2000 and Alpha slips to 2nd.
+      expect(screen.getByText(/Warming follows the total emitted, not one year’s output\. Beta leads in 2002, up from 2nd in 2000; Alpha slips back\./)).toBeInTheDocument();
     });
   });
 });

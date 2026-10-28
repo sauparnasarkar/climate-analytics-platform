@@ -19,6 +19,15 @@ export function buildCumulative(series: WorldMapTimeSeries, baseMtByIso: Record<
   });
 }
 
+/** The same cumulative series as a map series in Mt (what the per-year views divide a World total in Mt by), or null when the snapshot it builds on is unavailable:
+ * Home's ranking race ranks and sizes its bars by it, the way the Overview's Cumulative map does. A country with nothing yet emitted reads as 0 there, as in the race model. */
+export function cumulativeSeriesMt(series: WorldMapTimeSeries, base: CumulativeBase | null): WorldMapTimeSeries | null {
+  if (!base) return null;
+  const values = buildCumulative(series, base.byIso).map((row) => row.map((gt) => (gt === null ? null : gt * 1000)));
+  const [lo, hi] = positiveRange(values);
+  return { ...series, values, value_range: [lo, hi] };
+}
+
 /** The smallest positive and the largest value anywhere in a matrix: the fixed range of a log-scaled colour axis (zero has no log). */
 export function positiveRange(matrix: ReadonlyArray<ReadonlyArray<number | null>>): [number, number] {
   let min = Infinity;

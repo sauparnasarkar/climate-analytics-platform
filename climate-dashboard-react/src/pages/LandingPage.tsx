@@ -19,7 +19,7 @@ import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
 import { fmtInt, fmtPct, GLOBE_LABEL_COUNT, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, RACE_SIZE, sparklinePath, topEmitterLabels, type Story } from '../lib/landingData';
-import { worldTotalsFrom } from '../lib/cumulative';
+import { cumulativeBaseFrom, cumulativeSeriesMt, worldTotalsFrom } from '../lib/cumulative';
 import { NAV_ITEMS } from '../navigation';
 import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 
@@ -266,7 +266,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
         </h1>
         <p className="syn-text-lg" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--syn-color-text-muted)' }}>
           Global CO₂ emissions have {growthPhrase(all.pct_change_since_1990)} since {baselineYear}
-          {topShare != null ? `, and the ${RACE_SIZE} largest emitters now account for ${topShare}% of the total.` : '.'}
+          {topShare != null ? `, and the ${RACE_SIZE} largest emitters produced ${topShare}% of ${all.latest_year}’s emissions.` : '.'}
         </p>
         {/* The figures, then the buttons: the same order as Banner 1 (the climate signal). */}
         {!isPhone && (
@@ -308,7 +308,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
       {isPhone && (
         <div className="landing-hero__cards">
           <div><div className="landing-hero__card-value" style={{ color: all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>{fmtPct(all.pct_change_since_1990)}</div><div className="syn-caption">{`Global CO₂ since ${baselineYear}`}</div></div>
-          {topShare != null && <div><div className="landing-hero__card-value">{topShare}%</div><div className="syn-caption">{`From the top ${RACE_SIZE} emitters, ${all.latest_year}`}</div></div>}
+          {topShare != null && <div><div className="landing-hero__card-value">{topShare}%</div><div className="syn-caption">{`Top ${RACE_SIZE}’s share of ${all.latest_year} emissions`}</div></div>}
         </div>
       )}
       {isPhone && ctas}
@@ -454,10 +454,15 @@ export default function LandingPage() {
   // The World total per year (Mt) the "N% of the world's CO₂" shares divide by: from the remainder the share endpoint publishes beside any series (one country keeps it small).
   // Aligned to the map's years; a year without a total is NaN, so its share is left out rather than shown against the sum of the countries.
   const worldQuery = useAsync(() => api.correlationCountryShare({ countries: ['USA'], startYear: BASELINE_YEAR }), []);
-  const worldAnnualMt = useMemo(() => {
-    const totals = worldTotalsFrom(worldQuery.data);
-    return map ? map.years.map((y) => totals?.annualMt.get(y) ?? NaN) : [];
-  }, [worldQuery.data, map]);
+  const worldTotals = useMemo(() => worldTotalsFrom(worldQuery.data), [worldQuery.data]);
+  const worldAnnualMt = useMemo(() => (map ? map.years.map((y) => worldTotals?.annualMt.get(y) ?? NaN) : []), [worldTotals, map]);
+  const worldCumulativeMt = useMemo(() => (map ? map.years.map((y) => worldTotals?.cumulativeMt.get(y) ?? NaN) : []), [worldTotals, map]);
+  // The ranking race is ranked on CUMULATIVE CO₂, built the way the Overview's Cumulative map builds it: each country's cumulative at the year before the series (one
+  // all-countries snapshot, which also says the year the count starts from) plus the running sum of the annual values the map already holds. No new endpoint. If the
+  // snapshot is unavailable the race is left out rather than shown on another basis.
+  const cumulativeQuery = useAsync(() => api.correlationCountryShare({ year: BASELINE_YEAR - 1, allCountries: true }), []);
+  const cumulativeBase = useMemo(() => cumulativeBaseFrom(cumulativeQuery.data, BASELINE_YEAR - 1), [cumulativeQuery.data]);
+  const cumulativeMap = useMemo(() => (map ? cumulativeSeriesMt(map, cumulativeBase) : null), [map, cumulativeBase]);
   // The climate-signal banner (Area 2) is additive: if any of its three series is missing or fails to load, the page is
   // the existing hero on its own -- never a banner with zeros or gaps. Waited for (settled either way) before the hero
   // mounts, so the hero never remounts -- and the globe never restarts -- when the carousel appears.
@@ -477,7 +482,7 @@ export default function LandingPage() {
     return () => clearTimeout(id);
   }, [coreReady, climate.loading]);
   const error = overview.error ?? globeQuery.error;
-  const ready = coreReady && (!climate.loading || climateGaveUp);
+  const ready = coreReady && !cumulativeQuery.loading && (!climate.loading || climateGaveUp);
   // Once given up on, a late answer is ignored for good: adding the carousel then would remount the hero and restart the globe.
   const signal = climateGaveUp ? null : climate.data;
 
@@ -507,7 +512,7 @@ export default function LandingPage() {
             />
           )}
           <Stories overview={overview.data!} map={map!} />
-          <RankRace series={map!} worldTotals={worldAnnualMt} expandedCount={overview.data!.expanded_countries.countries_count} />
+          {cumulativeMap && <RankRace series={cumulativeMap} worldTotals={worldCumulativeMt} cumulativeFrom={cumulativeBase?.from ?? null} />}
           <Features overview={overview.data!} map={map!} />
           <BuiltOn />
           <ClosingCta expandedCount={overview.data!.expanded_countries.countries_count} />

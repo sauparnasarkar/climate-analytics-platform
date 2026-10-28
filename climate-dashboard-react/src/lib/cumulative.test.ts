@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorldMapTimeSeries } from '../api/types';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
-import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange, worldTotalsFrom } from './cumulative';
+import { buildCumulative, cumulativeBaseFrom, cumulativeSeriesMt, fmtGt, leaders, positiveRange, worldTotalsFrom } from './cumulative';
 
 const S: WorldMapTimeSeries = {
   iso_codes: ['AAA', 'BBB', 'CCC'], countries: ['Alpha', 'Beta', 'Gamma'], years: [1970, 1971, 1972],
@@ -22,6 +22,27 @@ describe('buildCumulative', () => {
     const m = buildCumulative(S, {});
     for (let i = 0; i < 3; i++) for (let y = 1; y < 3; y++) expect(m[y][i] ?? 0).toBeGreaterThanOrEqual(m[y - 1][i] ?? 0);
     expect(JSON.stringify(S)).toBe(before);
+  });
+});
+
+describe('cumulativeSeriesMt', () => {
+  it('is the same running totals as a map series in Mt (what a World total in Mt divides), with nothing-yet as null', () => {
+    const r = cumulativeSeriesMt(S, { byIso: { AAA: 1000, BBB: 500 }, from: 1750 })!;
+    expect(r.years).toEqual([1970, 1971, 1972]);
+    expect(r.countries).toEqual(S.countries);
+    // (Mt → Gt → Mt is not exact in floating point, so compare closely)
+    expect(r.values[0][0]).toBeCloseTo(1010, 9);
+    expect(r.values[0][1]).toBeCloseTo(505, 9);
+    expect(r.values[0][2]).toBeNull(); // CCC: nothing emitted yet, so "no data" rather than a zero
+    expect(r.values[2][0]).toBeCloseTo(1060, 9);
+    expect(r.values[2][1]).toBeCloseTo(510, 9);
+    expect(r.values[2][2]).toBeCloseTo(2, 9);
+    expect(r.value_range[0]).toBeCloseTo(1, 9); // the smallest positive value: CCC in 1971
+    expect(r.value_range[1]).toBeCloseTo(1060, 9);
+  });
+
+  it('is null when there is no snapshot to build on', () => {
+    expect(cumulativeSeriesMt(S, null)).toBeNull();
   });
 });
 

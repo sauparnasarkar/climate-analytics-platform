@@ -148,12 +148,54 @@ export function raceShare(topTotal: number, worldTotal: number | undefined): num
   return worldTotal && worldTotal > 0 ? Math.round((topTotal / worldTotal) * 100) : null;
 }
 
-/** The top RACE_SIZE's share of the world total in the series' final year -- the same computation the ranking-race heading
- * ("10 countries, N% of the world's CO₂") shows for its last frame, so the banner and the heading change together. Null if unusable. */
+/** The top RACE_SIZE's share of the world total in the series' final year, on the ANNUAL basis the hero's second banner states ("N% of 2024 emissions"). The ranking race
+ * below it is ranked on cumulative CO₂ (its heading says "since 1750"), so the two top-ten shares differ on purpose. Null if unusable. */
 export function latestTopShare(map: WorldMapTimeSeries, worldTotals: ReadonlyArray<number>): number | null {
   const last = map.years.length - 1;
   if (last < 0) return null;
   return raceShare(raceFrame(buildRaceModel(map), last).topTotal, worldTotals[last]);
+}
+
+const ordinal = (n: number): string => {
+  const mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
+  return `${n}${suffix}`;
+};
+const joinNames = (names: string[]) => (names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`);
+
+/** What the race shows, said in a sentence from the model itself: who leads (and whether throughout), who climbed furthest, who enters the top RACE_SIZE and who slips
+ * back, first year against last. Null when nothing is worth saying. Every name and rank is read from the data, never typed. */
+export function raceStory(model: RaceModel): string | null {
+  if (model.years.length < 2) return null;
+  const first = raceFrame(model, 0);
+  const last = raceFrame(model, model.years.length - 1);
+  const rankFirst = new Map(first.rows.map((r) => [r.country, r]));
+  const leaderOf = (frame: RaceFrame) => frame.rows.find((r) => r.rank === 0)?.country;
+  const leader = leaderOf(last);
+  if (!leader) return null;
+  const throughout = model.years.every((_, i) => leaderOf(raceFrame(model, i)) === leader);
+  const leaderBefore = rankFirst.get(leader)!;
+  // A leader that was not first at the start says where it came from, so it is not told twice as a climber.
+  const lead = throughout ? `${leader} leads throughout` : `${leader} leads in ${last.year}${leaderBefore.rank > 0 ? `, up from ${ordinal(leaderBefore.rank + 1)} in ${first.year}` : ''}`;
+  const parts: string[] = [];
+
+  const inLast = last.rows.filter((r) => r.inTop).sort((a, b) => a.rank - b.rank);
+  const climbers = inLast.flatMap((r) => {
+    const before = rankFirst.get(r.country)!;
+    return r.country !== leader && before.inTop && before.rank - r.rank > 0 ? [{ country: r.country, from: before.rank, to: r.rank, by: before.rank - r.rank }] : [];
+  }).sort((a, b) => b.by - a.by);
+  if (climbers[0]) parts.push(`${climbers[0].country} climbs from ${ordinal(climbers[0].from + 1)} in ${first.year} to ${ordinal(climbers[0].to + 1)}`);
+
+  const entrants = inLast.filter((r) => !rankFirst.get(r.country)!.inTop && r.country !== leader).map((r) => r.country);
+  if (entrants.length > 0) parts.push(`${joinNames(entrants.slice(0, 2))} ${entrants.slice(0, 2).length > 1 ? 'enter' : 'enters'} the top ${RACE_SIZE}`);
+
+  const slipper = first.rows.filter((r) => r.inTop).flatMap((r) => {
+    const after = last.rows.find((x) => x.country === r.country)!;
+    return after.rank > r.rank ? [{ country: r.country, by: after.rank - r.rank, out: !after.inTop }] : [];
+  }).sort((a, b) => Number(b.out) - Number(a.out) || b.by - a.by)[0]; // leaving the top ten is the bigger story, then the biggest fall
+  if (slipper) parts.push(slipper.out ? `${slipper.country} drops out of the top ${RACE_SIZE}` : `${slipper.country} slips back`);
+
+  return `${lead}${parts.length > 0 ? `; ${joinNames(parts)}` : ''}.`;
 }
 
 /** Wording for a percent change since the baseline year, after "have": direction-aware, with a plain-language fraction where it is exact enough.
