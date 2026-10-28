@@ -439,7 +439,7 @@ function ClosingCta({ expandedCount }: { expandedCount: number }) {
       </p>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
         <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>Open the Overview</Link>
-        <Link to="/about" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>About the methodology</Link>
+        <Link to="/about" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Methods &amp; data</Link>
       </div>
     </section>
   );

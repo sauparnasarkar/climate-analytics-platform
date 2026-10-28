@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { MethodNote } from '../components/MethodNote';
+import { METHODS_ANCHORS } from '../lib/methodology';
 import { ChartCard, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon, useIsMobile, useReducedMotion, type DataTableColumn, Chart, Treemap } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
@@ -291,6 +293,9 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
           <DataTable caption="Cumulative emissions by country under each scenario, 2025–2040" columns={cumulativeColumns} rows={cumulativeRows} />
         ) : null}
       </div>
+      <MethodNote anchor={METHODS_ANCHORS.scenarios}>
+        Business as usual is a second ETS fit on all observed years; Moderate and Aggressive cut emissions by 2% and 5% a year from 2025. Illustrative pathways, not projections. How the implied temperature is derived is on Methods &amp; data.
+      </MethodNote>
     </div>
   );
 }

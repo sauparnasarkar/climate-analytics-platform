@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { MethodNote } from '../components/MethodNote';
+import { METHODS_ANCHORS } from '../lib/methodology';
 import { Button, MultiSelect, RangeSlider, DataTable, InlineAlert, Spinner, useReducedMotion, type DataTableColumn } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
@@ -176,6 +178,9 @@ export default function DataExplorerPage() {
       {meta.loading ? <Spinner label="Loading…" /> : meta.error ? <InlineAlert variant="error">{meta.error}</InlineAlert> : meta.data ? (
         <DataExplorerContent meta={meta.data} />
       ) : null}
+      <MethodNote anchor={METHODS_ANCHORS.sources}>
+        Every column is from the Our World in Data CO₂ dataset (Global Carbon Project) or derived from it, for sovereign countries from 1990. Coverage, vintage and licence are on Methods &amp; data.
+      </MethodNote>
     </div>
   );
 }

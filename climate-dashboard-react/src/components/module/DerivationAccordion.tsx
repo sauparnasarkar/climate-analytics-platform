@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Accordion } from '@syena/ds';
-import { NO_COUNTRY_ATTRIBUTION, NOT_A_CLIMATE_MODEL } from '../../lib/climateCopy';
+import { METHODS_ANCHORS } from '../../lib/methodology';
 import { DERIVATION_ANCHOR, type Derivation } from '../../lib/derivation';
 
 const th = { textAlign: 'right', fontWeight: 600, padding: '4px 10px' } as const;
@@ -173,15 +173,14 @@ export function DerivationAccordion({ derivation }: { derivation: Derivation }) 
     });
   }
 
+  // The guardrails are written once, in the page's own "What this platform does not do" section; this step points there.
   steps.push({
     title: 'What this is not',
     content: (
-      <ul style={{ ...body, margin: 0, paddingLeft: 20 }}>
-        <li>{NOT_A_CLIMATE_MODEL}</li>
-        <li>A correlation between the CO₂ emitted so far and the temperature record: context, not proof of cause.</li>
-        <li>An analog to the IPCC&apos;s TCRE, not a restatement of it: it also absorbs warming from other gases and aerosols that varies with CO₂, and rests on uncertain land-use estimates.</li>
-        <li>{NO_COUNTRY_ATTRIBUTION}</li>
-      </ul>
+      <p style={{ ...body, margin: 0 }}>
+        An analog to the IPCC&apos;s TCRE, not a restatement of it: it also absorbs warming from other gases and aerosols that varies with CO₂, and rests on uncertain land-use estimates.
+        The rest is under <a href={`#${METHODS_ANCHORS.limits}`}>What this platform does not do</a>.
+      </p>
     ),
   });
 

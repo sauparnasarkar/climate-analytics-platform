@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { Themed } from '../test/Themed';
 import { api } from '../api/client';
 import type {
@@ -97,7 +98,7 @@ afterEach(() => {
 describe('ForecastsPage', () => {
   it('fires all 5 endpoint calls and renders the chart, summary table, and all 3 accordion sections', async () => {
     mockAllResolved();
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
 
     expect(await screen.findByText('ETS(A,Ad,N) Forecast — China')).toBeInTheDocument();
     expect(screen.getByText('Forecast Summary — 1 Country')).toBeInTheDocument();
@@ -114,7 +115,7 @@ describe('ForecastsPage', () => {
 
   it('draws the history and the holdout as plain lines and the ETS forecast as a projection with its 95% band, on one categorical slot', async () => {
     mockAllResolved();
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
     await screen.findByText('ETS(A,Ad,N) Forecast — China');
 
     const forecastChart = screen.getAllByTestId('chart')[0];
@@ -136,7 +137,7 @@ describe('ForecastsPage', () => {
     vi.mocked(api.modelComparison).mockResolvedValue(MODEL_COMPARISON);
     vi.mocked(api.etsParameters).mockRejectedValue(new Error('Failed to load data.'));
     vi.mocked(api.featureImportance).mockRejectedValue(new Error('Failed to load data.'));
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
 
     expect(await screen.findByText('Five-Model Comparison Table (MAE / RMSE)')).toBeInTheDocument();
     expect(screen.queryByText('ETS(A,Ad,N) Fitted Parameters — 1 Country')).not.toBeInTheDocument();
@@ -150,7 +151,7 @@ describe('ForecastsPage', () => {
     vi.mocked(api.modelComparison).mockResolvedValue(MODEL_COMPARISON);
     vi.mocked(api.etsParameters).mockResolvedValue(ETS_PARAMS);
     vi.mocked(api.featureImportance).mockResolvedValue(FEATURE_IMPORTANCE);
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(await screen.findByText('Forecast Summary — 1 Country')).toBeInTheDocument();
@@ -158,7 +159,7 @@ describe('ForecastsPage', () => {
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(vi.mocked(api.forecast)).not.toHaveBeenCalled();
@@ -166,7 +167,7 @@ describe('ForecastsPage', () => {
 
   it('renders a Jump To nav with all 5 sections once every endpoint has resolved', async () => {
     mockAllResolved();
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
     await screen.findByText('ETS(A,Ad,N) Forecast — China');
     await screen.findByText('Five-Model Comparison Table (MAE / RMSE)');
 
@@ -188,7 +189,7 @@ describe('ForecastsPage', () => {
     vi.mocked(api.modelComparison).mockResolvedValue(MODEL_COMPARISON);
     vi.mocked(api.etsParameters).mockRejectedValue(new Error('Failed to load data.'));
     vi.mocked(api.featureImportance).mockRejectedValue(new Error('Failed to load data.'));
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
     await screen.findByText('Five-Model Comparison Table (MAE / RMSE)');
 
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
@@ -202,7 +203,7 @@ describe('ForecastsPage', () => {
     mockAllResolved();
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
     await screen.findByText('Five-Model Comparison Table (MAE / RMSE)');
 
     // Collapsed by default -- Accordion.tsx only mounts a panel's content once open.
@@ -225,7 +226,7 @@ describe('ForecastsPage', () => {
     Element.prototype.scrollIntoView = vi.fn();
     window.location.hash = '#model-comparison-accordion-panel';
     mockAllResolved();
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
 
     const panelButton = await screen.findByRole('button', { name: 'Five-Model Comparison Table (MAE / RMSE)' });
     await waitFor(() => expect(panelButton).toHaveAttribute('aria-expanded', 'true')); // opened by the page once all three data sets are in
@@ -236,7 +237,7 @@ describe('ForecastsPage', () => {
     Element.prototype.scrollIntoView = vi.fn();
     window.location.hash = '#ets-params-accordion-panel';
     mockAllResolved();
-    render(<Themed><ForecastsPage /></Themed>);
+    render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
 
     const header = await screen.findByRole('button', { name: /^ETS\(A,Ad,N\) Fitted Parameters/ });
     await waitFor(() => expect(header).toHaveAttribute('aria-expanded', 'true'));

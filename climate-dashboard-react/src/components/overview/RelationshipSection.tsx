@@ -109,7 +109,7 @@ export function RelationshipSection({ signal, emissionsSeries }: { signal: Clima
             <summary className="syn-caption" style={{ cursor: 'pointer' }}>Sources &amp; method</summary>
             <SourceNote sources={['OWID + Global Carbon Project (emissions)', 'Berkeley Earth (temperature)', 'NOAA GML + Law Dome (CO₂ concentration)']}>
               {NOT_A_CLIMATE_MODEL} {signal.vintageCaveat ?? ''}{' '}
-              <Link className="area2-link" to="/climate-correlation#methodology" style={{ fontWeight: 600 }}>Full methodology →</Link>
+              <Link className="area2-link" to="/about#correlation" style={{ fontWeight: 600 }}>Full methodology →</Link>
             </SourceNote>
           </details>
         </ChartCard>

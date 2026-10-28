@@ -1,4 +1,6 @@
 import { ChartCard, MultiSelect, Select, SegmentedControl, Button, InlineAlert, Spinner, useReducedMotion, Chart } from '@syena/ds';
+import { MethodNote } from '../components/MethodNote';
+import { METHODS_ANCHORS } from '../lib/methodology';
 import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
@@ -14,7 +16,7 @@ import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 import { cumulativeAreaSeries, shareLineSeries } from '../lib/historicalCumulative';
 import { PageChrome } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
-import { OWID, PRIMAP } from '../lib/sources';
+import { OWID } from '../lib/sources';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
 const GAS_KEYS = Object.keys(GAS_COLUMNS);
@@ -190,7 +192,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         ) : composition.error ? (
           <InlineAlert variant="error">{composition.error}</InlineAlert>
         ) : (
-          <ChartCard source={PRIMAP} title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`} headingLevel={3}>
+          <ChartCard source={OWID} title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`} headingLevel={3}>
             <Chart
               height={320}
               barmode="stack"
@@ -210,6 +212,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
             />
           </ChartCard>
         )}
+      <MethodNote anchor={METHODS_ANCHORS.baselines}>
+        Emissions are Our World in Data (Global Carbon Project) series; indexed views use 1990 = 100, and the gas mix here is OWID per decade. Baselines, and why this differs from the PRIMAP-hist gas view, are on Methods &amp; data.
+      </MethodNote>
       </div>
     </div>
   );

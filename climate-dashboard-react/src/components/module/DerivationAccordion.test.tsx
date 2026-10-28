@@ -81,14 +81,14 @@ describe('DerivationAccordion', () => {
     expect(body.getByText(/Friedlingstein, P\. et al\./)).toBeInTheDocument();
   });
 
-  it('step 7 is the fixed "what this is not" list: not a climate model, not proof of cause, not TCRE, no country attribution', () => {
+  it('step 7 notes the TCRE caveat and points to the page\'s guardrails section, which states the rest once', () => {
     mount();
     fireEvent.click(step(7));
     const text = panel(7).textContent!;
-    expect(text).toMatch(/not a climate model/i);
-    expect(text).toMatch(/context, not proof of cause/);
     expect(text).toMatch(/not a restatement of it/);
-    expect(text).toMatch(/no warming is attributed to a country/);
+    expect(within(panel(7)).getByRole('link', { name: 'What this platform does not do' })).toHaveAttribute('href', '#limits');
+    expect(text).not.toMatch(/not a climate model/i);
+    expect(text).not.toMatch(/no warming is attributed to a country/);
   });
 
   it('never shows the fit-quality note (: its wording waits for the owner), even with every step open in turn', () => {

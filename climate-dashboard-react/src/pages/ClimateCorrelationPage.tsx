@@ -6,11 +6,10 @@ import { api } from '../api/client';
 import { CausalChain } from '../components/module/CausalChain';
 import { CountryView } from '../components/module/CountryView';
 import { GasComposition } from '../components/module/GasComposition';
-import { DerivationAccordion } from '../components/module/DerivationAccordion';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 import { PageChrome } from '../layouts/PageChrome';
 import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
-import { MethodologySection } from '../components/module/MethodologySection';
+import { MethodNote } from '../components/MethodNote';
 import { ScenarioSection } from '../components/module/ScenarioSection';
 import { AllGasRelationship } from '../components/module/AllGasRelationship';
 import { HeadlineRelationship } from '../components/module/HeadlineRelationship';
@@ -25,9 +24,8 @@ import { COUNTRY_VIEW_ANCHOR } from '../lib/countryView';
 import { ALL_GAS_ANCHOR } from '../lib/allGas';
 import { GAS_COMPOSITION_ANCHOR } from '../lib/gasComposition';
 import { buildComposition } from '../lib/gasComposition';
-import { buildDerivation } from '../lib/derivation';
 import { buildHeadline } from '../lib/headline';
-import { METHODOLOGY_ANCHOR } from '../lib/methodology';
+import { METHODS_ANCHORS } from '../lib/methodology';
 import { SCENARIOS_ANCHOR, buildScenarioView } from '../lib/scenarioView';
 import { latestWorldTotal } from '../lib/mapSeries';
 import { CLIMATE_SERIES_START_YEAR } from '../constants';
@@ -37,7 +35,6 @@ const JUMP_ROW_GAP_PX = 10;
 
 const CHAIN_JUMP: JumpLinkItem = { id: CAUSAL_CHAIN_ANCHOR, label: 'Causal chain' };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: GLOBAL_RELATIONSHIP_ANCHOR, label: 'Global relationship' };
-const METHODOLOGY_JUMP: JumpLinkItem = { id: METHODOLOGY_ANCHOR, label: 'Methodology' };
 const SCENARIOS_JUMP: JumpLinkItem = { id: SCENARIOS_ANCHOR, label: 'Scenarios' };
 const COUNTRY_JUMP: JumpLinkItem = { id: COUNTRY_VIEW_ANCHOR, label: 'Country view' };
 
@@ -51,7 +48,6 @@ export default function ClimateCorrelationPage() {
   const fossil = useAsync(async () => api.correlationEmissionsTemperature({ variant: 'fossil' }), []);
   const allGasQuery = useAsync(async () => api.correlationEmissionsTemperature({ source: 'primap_ghg' }), []);
   const compositionQuery = useAsync(async () => api.correlationGhgComposition({ startYear: ALL_GAS_START_YEAR }), []);
-  const metaQuery = useAsync(async () => api.correlationMeta(), []);
   const scenarioQuery = useAsync(async () => api.correlationScenarioTemperature(), []);
   const world = useAsync(async () => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const reduceMotion = useReducedMotion();
@@ -70,22 +66,20 @@ export default function ClimateCorrelationPage() {
     () => buildScenarioView(scenarioQuery.data, fossil.data, climate.temperatureSeries, climate.mean5ySeries),
     [scenarioQuery.data, fossil.data, climate.temperatureSeries, climate.mean5ySeries],
   );
-  const derivation = useMemo(() => buildDerivation(climate.headline), [climate.headline]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
   // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for everything ABOVE its target to settle:
   // a section that loads late grows above the target and pushes it down, so jumping earlier lands short (the Country view link from the Ask page landed on the top).
-  // The chain and relationship wait for the climate signal; all-gas and composition also wait for it, as they sit below; the country view, scenarios and methodology wait for all three above plus their own request.
+  // The chain and relationship wait for the climate signal; all-gas and composition also wait for it, as they sit below; the country view and scenarios wait for all three above plus their own request.
   const { hash } = useLocation();
   const aboveSettled = climate.done && !allGasQuery.loading && !compositionQuery.loading;
   const targetReady =
     hash === `#${ALL_GAS_ANCHOR}` || hash === `#${GAS_COMPOSITION_ANCHOR}` ? climate.done && !allGasQuery.loading && !compositionQuery.loading
     : hash === `#${COUNTRY_VIEW_ANCHOR}` ? aboveSettled
     : hash === `#${SCENARIOS_ANCHOR}` ? aboveSettled && !scenarioQuery.loading
-    : hash === `#${METHODOLOGY_ANCHOR}` ? aboveSettled && !scenarioQuery.loading && !metaQuery.loading
     : climate.done;
   useJumpToHashOnLoad(targetReady && stickyHeight !== null, reduceMotion);
-  const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), COUNTRY_JUMP, ...(scenarios ? [SCENARIOS_JUMP] : []), METHODOLOGY_JUMP];
+  const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), COUNTRY_JUMP, ...(scenarios ? [SCENARIOS_JUMP] : [])];
 
   const activeJumpId = useScrollSpy(jumpItems.map((i) => i.id), barHeight + jumpRowPx);
 
@@ -119,9 +113,10 @@ export default function ClimateCorrelationPage() {
       {composition && <GasComposition composition={composition} />}
       <CountryView temperature={climate.temperatureSeries} mean5y={climate.mean5ySeries.length ? climate.mean5ySeries : null} />
       {scenarios && <ScenarioSection view={scenarios} />}
-      <MethodologySection meta={metaQuery.data} metaFailed={metaQuery.error !== null} splice={climate.splice}>
-        {derivation && <DerivationAccordion derivation={derivation} />}
-      </MethodologySection>
+      <MethodNote anchor={METHODS_ANCHORS.correlation}>
+        The slope regresses the Berkeley Earth temperature anomaly on cumulative total anthropogenic CO₂ (OWID / Global Carbon Project) with Newey–West intervals; it is an analogue of the IPCC&apos;s TCRE, not a climate model.
+        Sources, baselines and the seven-step derivation are on Methods &amp; data.
+      </MethodNote>
     </div>
   );
 }

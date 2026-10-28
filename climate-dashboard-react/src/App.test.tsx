@@ -42,13 +42,13 @@ describe('App routing', () => {
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/overview');
     expect(screen.queryByText('Overview page stub')).not.toBeInTheDocument();
     expect(document.title).toBe('Climate Analytics Platform');
-    // Data Explorer and About sit in the footer, not the top nav, so the nav fits one line (Area 2 design).
+    // Data Explorer and Methods & data sit in the footer, not the top nav, so the nav fits one line (Area 2 design).
     expect(within(nav).queryByRole('link', { name: 'Data Explorer' })).not.toBeInTheDocument();
-    expect(within(nav).queryByRole('link', { name: 'About' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'Methods & data' })).not.toBeInTheDocument();
     const footer = screen.getByRole('contentinfo');
     expect(within(footer).getByText('Climate Analytics Platform · Sauparna Sarkar')).toBeInTheDocument();
     expect(within(footer).getByRole('link', { name: 'Data Explorer' })).toHaveAttribute('href', '/data-explorer');
-    expect(within(footer).getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
+    expect(within(footer).getByRole('link', { name: 'Methods & data' })).toHaveAttribute('href', '/about');
   });
 
   it('moved the Overview from "/" to "/overview", inside the dashboard shell', () => {
@@ -109,7 +109,7 @@ describe('Landing layout on a phone', () => {
     fireEvent.click(menu);
     expect(menu).toHaveAttribute('aria-expanded', 'true');
     const nav = screen.getByRole('navigation', { name: 'Primary' });
-    for (const label of ['Overview', 'Historical Trends', 'Country Profile', 'Data Explorer', 'Forecasts', 'Scenario Comparison', 'About']) {
+    for (const label of ['Overview', 'Historical Trends', 'Country Profile', 'Data Explorer', 'Forecasts', 'Scenario Comparison', 'Methods & data']) {
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument();
     }
     expect(within(nav).getByRole('link', { name: 'Ask the Agent' })).toHaveAttribute('href', '/ask');
@@ -128,7 +128,7 @@ describe('Landing layout on a phone', () => {
     expect(menu).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.click(menu);
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'About' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Methods & data' }));
     // Navigated to a dashboard page, which is a different layout entirely (its phone header has its own
     // "Menu" button, but the landing dropdown is gone).
     expect(screen.getByText('About page stub')).toBeInTheDocument();
@@ -167,7 +167,7 @@ describe('Dashboard shell actions', () => {
     expect(within(drawer).getByRole('button', { name: 'Ask the Agent' })).toBeInTheDocument();
     expect(within(drawer).getAllByRole('radio', { name: 'Dark' })).toHaveLength(1); // exactly one toggle live, in the drawer
     expect(within(drawer).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
-    expect(within(drawer).getByRole('link', { name: 'About' })).toHaveAttribute('aria-current', 'page');
+    expect(within(drawer).getByRole('link', { name: 'Methods & data' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('phone: choosing a page in the drawer closes it and navigates', () => {

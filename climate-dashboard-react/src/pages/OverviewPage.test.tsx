@@ -701,7 +701,7 @@ describe('OverviewPage — climate signal', () => {
     expect(within(section).getByText('Sources & method')).toBeInTheDocument();
     expect(within(section).getByText(/not a climate model/i)).toBeInTheDocument();
     expect(within(section).getByText(/vintage 2025-01-10/)).toBeInTheDocument();
-    expect(within(section).getByRole('link', { name: 'Full methodology →' })).toHaveAttribute('href', '/climate-correlation#methodology');
+    expect(within(section).getByRole('link', { name: 'Full methodology →' })).toHaveAttribute('href', '/about#correlation');
   });
 
   it('leaves the climate cards, the relationship section and its jump link out when the climate data fails, never showing zeros', async () => {

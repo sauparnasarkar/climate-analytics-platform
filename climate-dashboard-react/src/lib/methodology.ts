@@ -1,6 +1,20 @@
 import type { CorrelationMetaResponse } from '../api/correlationTypes';
+import { SOURCE_INFO, type SourceLink } from './sources';
 
-export const METHODOLOGY_ANCHOR = 'methodology';
+/** The Methods & data page's section anchors (one constant each, so a "Method →" link and its target cannot drift). */
+export const METHODS_ANCHORS = {
+  project: 'project',
+  sources: 'sources',
+  baselines: 'baselines',
+  forecasting: 'forecasting',
+  correlation: 'correlation',
+  scenarios: 'scenarios',
+  limits: 'limits',
+} as const;
+export type MethodsAnchor = (typeof METHODS_ANCHORS)[keyof typeof METHODS_ANCHORS];
+
+export const METHODS_PATH = '/about';
+export const methodsHref = (anchor: MethodsAnchor) => `${METHODS_PATH}#${anchor}`;
 
 export interface SourceRow {
   name: string;
@@ -11,6 +25,11 @@ export interface SourceRow {
   vintage: string | null;
   /** The licence wording as the API states it (more than one when a source's datasets differ) */
   licences: string[];
+  /** Landing pages (front-end lookup by source id) and the short citation */
+  links: SourceLink[];
+  citation: string | null;
+  /** The raw data files the pipeline reads (the API's `source_urls`), a secondary link */
+  dataUrls: string[];
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -59,12 +78,17 @@ export function buildSources(meta: CorrelationMetaResponse | null | undefined): 
     // The newest by the underlying date -- not by the label text, whose prefix (published / file of / retrieved) would decide the order -- keeping that entry's label.
     const vintages = entries.map(vintageOf).filter((v): v is Vintage => v !== null).sort((a, b) => a.date.localeCompare(b.date));
     const id = str(entries[0].id) ?? '';
+    const info = entries.map((e) => SOURCE_INFO[str(e.id) ?? '']).find((i) => i !== undefined);
+    const dataUrls = [...new Set(entries.flatMap((e) => (Array.isArray(e.source_urls) ? e.source_urls : [])).filter((u): u is string => typeof u === 'string' && /^https:\/\//.test(u)))];
     return {
       name,
       usedFor: USED_FOR.find(([matches]) => matches(id))?.[1] ?? null,
       coverage: spans.length ? `${Math.min(...spans.map((s) => s[0]))}–${Math.max(...spans.map((s) => s[1]))}` : null,
       vintage: vintages.length ? vintages[vintages.length - 1].label : null,
       licences: [...new Set(entries.map((e) => str(e.license)).filter((l): l is string => l !== null))],
+      links: info?.links ?? [],
+      citation: info?.citation ?? null,
+      dataUrls,
     };
   });
 }
@@ -84,4 +108,13 @@ export function buildTemperatureOffset(meta: CorrelationMetaResponse | null | un
   const years = num(o?.years);
   if (valueC === null || years === null || range.length !== 2 || range[0] === null || range[1] === null) return null;
   return { valueC, years, from: range[0], to: range[1] };
+}
+
+/** The first year of the OWID record (its datasets' earliest coverage start): where the fossil-and-industry cumulative counts from. Null when the API states none. */
+export function owidCumulativeFrom(meta: CorrelationMetaResponse | null | undefined): number | null {
+  const starts = (meta?.sources ?? []).flatMap((raw) => {
+    const e = rec(raw);
+    return str(e?.id)?.startsWith('owid') && Array.isArray(e?.coverage) ? [num(e!.coverage[0])] : [];
+  }).filter((n): n is number => n !== null);
+  return starts.length ? Math.min(...starts) : null;
 }

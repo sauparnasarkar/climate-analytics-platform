@@ -52,7 +52,7 @@ export function CausalChain({ signal, emissions }: { signal: ClimateSignal; emis
         <li style={cell}>
           <span style={label}>4 · {temperatureName}</span>
           <strong className="syn-title-md" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtAnomaly(temperature.value)} <span className="syn-text-lg">in {temperature.year}</span></strong>
-          <p className="syn-caption" style={weak}>Global surface temperature above the 1850–1900 mean.</p>
+          <p className="syn-caption" style={weak}>Global surface temperature anomaly.</p>
           <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
         </li>
       </ol>

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { MethodNote } from '../components/MethodNote';
+import { METHODS_ANCHORS } from '../lib/methodology';
 import { ChartCard, Select, DataTable, Accordion, InlineAlert, Spinner, useReducedMotion, type DataTableColumn, Chart } from '@syena/ds';
 import type { AccordionItem } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
@@ -213,6 +215,9 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
           />
         </div>
       )}
+      <MethodNote anchor={METHODS_ANCHORS.forecasting}>
+        Forecasts are Holt&apos;s damped-trend ETS(A,Ad,N) fitted on 1990–2018 and checked on 2019–2023, with 95% intervals; the comparison and fitted parameters on this page are the results. The features, split and model list are on Methods &amp; data.
+      </MethodNote>
     </div>
   );
 }
