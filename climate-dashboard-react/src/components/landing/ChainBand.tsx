@@ -41,8 +41,9 @@ const caption = { margin: 0, color: 'var(--syn-color-text-muted)' } as const;
 export function ChainBand({ signal, emissions }: { signal: ClimateSignal; emissions: ChainBandEmissions }) {
   const { concentration, temperature, ppm1850 } = signal;
   const upPct = ppm1850 ? Math.round((concentration.value / ppm1850 - 1) * 100) : null;
+  // No bottom padding: the next section brings its own, so the two never stack into a double gap.
   return (
-    <section aria-labelledby="chain-heading" style={{ padding: 'var(--landing-pad-y) var(--landing-pad-x)', background: 'var(--syn-color-surface-raised)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <section aria-labelledby="chain-heading" style={{ padding: 'var(--landing-pad-y) var(--landing-pad-x) 0', background: 'var(--syn-color-surface-raised)', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <style>{CHAIN_BAND_STYLES}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px 24px' }}>
         <h2 id="chain-heading" className="landing-h2" style={{ margin: 0 }}>The chain reaction</h2>
