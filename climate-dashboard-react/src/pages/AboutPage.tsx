@@ -45,7 +45,8 @@ function Section({ id, n, title, children }: { id: string; n: number; title: str
   );
 }
 
-const prose = { margin: 0, maxWidth: 820 } as const;
+// Body text stops at about 70 characters a line, however wide the page; tables and cards keep the full width they need.
+const prose = { margin: 0, maxWidth: '70ch' } as const;
 
 /**
  * Methods & data (route /about): how every number on the platform is made, and where the data comes from. The one place the method is written; the other
