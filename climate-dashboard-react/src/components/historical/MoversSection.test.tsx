@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { TimeseriesSeries } from '../../api/types';
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../../constants';
@@ -19,7 +19,7 @@ const SERIES: TimeseriesSeries[] = [
   { name: 'Germany', years: [1990, 2024], values: [1000, 570] },
   { name: 'United Kingdom', years: [1990, 2024], values: [600, 300] },
 ];
-const mount = (p: Partial<React.ComponentProps<typeof MoversSection>> = {}) => render(<MoversSection series={SERIES} loading={false} error={null} countryCount={6} {...p} />);
+const mount = (p: Partial<React.ComponentProps<typeof MoversSection>> = {}) => render(<MoversSection series={SERIES} loading={false} error={null} countryCount={6} year={null} onYearChange={() => {}} {...p} />);
 
 describe('MoversSection', () => {
   it('lists the three largest increases and the decreases, an increase in the bad colour and a decrease in the good one', () => {
@@ -61,4 +61,19 @@ describe('MoversSection', () => {
       unmount();
     }
   });
+
+  it('offers a Year control over the years after 1990 (latest first), shows the chosen year in both sections, and reports a change', () => {
+    const years: SeriesYears = [{ name: 'India', years: [1990, 2000, 2024], values: [500, 1000, 2500] }, { name: 'UK', years: [1990, 2000, 2024], values: [600, 500, 300] }];
+    const onYearChange = vi.fn();
+    mount({ series: years, countryCount: 2, year: 2000, onYearChange });
+    expect(screen.getByRole('heading', { level: 2, name: 'Top Movers, 1990 → 2000' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'CO₂ % Change by Country, 1990–2000' })).toBeInTheDocument();
+    const group = screen.getByRole('group', { name: 'Year' });
+    expect(within(group).getByRole('combobox', { name: 'Year' })).toHaveTextContent('2000');
+    fireEvent.click(within(group).getByRole('combobox', { name: 'Year' }));
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['2024', '2000']);
+    fireEvent.click(screen.getByRole('option', { name: '2024' }));
+    expect(onYearChange).toHaveBeenCalledWith(2024);
+  });
 });
+type SeriesYears = TimeseriesSeries[];

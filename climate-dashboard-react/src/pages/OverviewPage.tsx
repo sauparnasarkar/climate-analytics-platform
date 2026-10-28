@@ -19,7 +19,6 @@ import { PAGE_YEAR_STEP, usePageYear } from '../hooks/usePageYear';
 import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { PageChrome } from '../layouts/PageChrome';
-import { PageYearControl } from '../components/overview/PageYearControl';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
 import { YearBadge } from '../components/overview/YearBadge';
@@ -43,7 +42,8 @@ import { METHODS_ANCHORS } from '../lib/methodology';
 // id="map", so bookmarked and shared #map links still land at the same place.
 const TOP_EMITTERS_ANCHOR = 'top-emitters';
 const JUMP_ITEMS: JumpLinkItem[] = [
-  { id: TOP_EMITTERS_ANCHOR, label: 'Top emitters' },
+  // The map section's link reads "All Countries" (the section covers every country and the tier cards beside it); its id stays #top-emitters for the agent's and bookmarked links.
+  { id: TOP_EMITTERS_ANCHOR, label: 'All Countries' },
   { id: SHARE_ANCHOR, label: 'Share' },
   { id: 'by-country', label: 'By Country' },
 ];
@@ -57,7 +57,6 @@ const JUMP_ROW_GAP_PX = 10;
 // Area 2's two leading sections come first; "Relationship" only exists while the climate data does.
 const CLIMATE_SIGNAL_JUMP: JumpLinkItem = { id: CLIMATE_SIGNAL_ANCHOR, label: 'Climate signal' };
 // "Pathways" closes the page and only exists while the scenario output does.
-const PATHWAYS_JUMP: JumpLinkItem = { id: PATHWAYS_ANCHOR, label: 'Pathways' };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relationship' };
 
 // The page year (usePageYear) steps by decade (1970, 1980 … 2020, then the latest year; requirements §2.6) and dwells ~1.75 s at each stop with
@@ -309,8 +308,8 @@ function AnimatedWorldMap({
       <ChartCard source={OWID}
         id={TOP_EMITTERS_ANCHOR}
         className="overview-map-card"
-        // The annual map is "Where emissions are": the By Country bar chart below keeps "CO₂ Emissions by Country (year)", so no two charts share a title.
-        title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `Where emissions are, ${currentYear}`}
+        // The annual map is "Where emissions come from": the By Country bar chart below keeps "CO₂ Emissions by Country (year)", so no two charts share a title.
+        title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `Where emissions come from, ${currentYear}`}
         supportText={isCumulative ? `Running total, MtCO₂ emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'} (the cards beside the map show GtCO₂)` : 'Annual MtCO₂'}
         actions={
           <SegmentedControl
@@ -424,6 +423,14 @@ function AnimatedWorldMap({
 // Split out so the overview fetch only ever starts once the expanded country list (and its
 // featured-default seed) are already known — avoiding a wasted initial fetch before
 // GET /api/countries resolves.
+/** The link on to Historical Trends' Top Movers: the selection, and the page year unless it is the latest (Historical's default), so the same comparison opens there. */
+function moversHref(selected: string[], year: number, latest: number): string {
+  const params = new URLSearchParams(selected.map((c): [string, string] => ['countries', c]));
+  if (year !== latest && year > BASELINE_YEAR) params.set('year', String(year));
+  const qs = params.toString();
+  return `/historical${qs ? `?${qs}` : ''}#top-movers`;
+}
+
 function OverviewContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
   const [selected, setSelected] = useSelectedCountries(featured, expanded);
@@ -446,7 +453,6 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const stickyRowHeight = useElementHeight(stickyRow);
   const barHeight = useStickyBarHeight();
   const jumpRowPx = stickyRowHeight ? Math.ceil(stickyRowHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
-  const yearStops = useMemo(() => (worldMapSeries ? computeAutoplayStops(worldMapSeries.years[0], worldMapSeries.years[worldMapSeries.years.length - 1], PAGE_YEAR_STEP) : []), [worldMapSeries]);
   const climate = useClimateSignal();
   // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
   // If it fails the map simply offers Absolute only.
@@ -458,7 +464,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // The closing Pathways block; if the scenario output is unavailable the section (and its anchor) is simply omitted.
   const scenarioQuery = useAsync(async () => api.correlationScenarioTemperature(), []);
   const pathways = useMemo(() => buildPathways(scenarioQuery.data), [scenarioQuery.data]);
-  const jumpItems = [CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS, ...(pathways ? [PATHWAYS_JUMP] : [])];
+  const jumpItems = [CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS];
   // The underlined link follows the section on screen, not only the last click.
   const activeJumpId = useScrollSpy(jumpItems.map((i) => i.id), barHeight + jumpRowPx);
   const cumulativeBase = useMemo(() => cumulativeBaseFrom(cumulativeQuery.data, CLIMATE_SERIES_START_YEAR - 1), [cumulativeQuery.data]);
@@ -499,6 +505,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const barSeries = barRows.map((c) => c.country);
   const barValues = barRows.map((c) => c.value);
 
+  const pickerLabel = `Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`;
+
   return (
     <div className="overview-page">
       {/* Overrides styles.css's global 68 px anchor offset for this page: the header AND the sticky anchor row both sit above a jump target. */}
@@ -509,15 +517,16 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         summary={`${selected.length} of ${MAX_SELECTED_COUNTRIES} countries · ${pageYear.currentYear}`}
         filters={
           <>
+            {/* The label sits on the same line as the picker and Reset (there is no Year control beside them any more): visible text here, the same words as the picker's accessible name. */}
+            <span aria-hidden="true" className="syn-text-lg" style={{ color: 'var(--syn-color-text-muted)', whiteSpace: 'nowrap' }}>{pickerLabel}</span>
             <MultiSelect
-              label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
+              ariaLabel={pickerLabel}
               options={expanded.map((c) => ({ value: c, label: c }))}
               value={selected}
               onChange={setSelected}
               maxSelected={MAX_SELECTED_COUNTRIES}
             />
             <Button variant="ghost" onClick={() => setSelected(featured)}>Reset to default</Button>
-            <PageYearControl stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />
           </>
         }
       />
@@ -601,7 +610,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         {/* #percent-change is the design's name for the section that moved; the old #pct-change id stays on the inner element, so bookmarked links still land here, beside the link on. */}
         <div id="percent-change">
           <p id="pct-change" className="syn-text-lg" style={{ margin: '12px 0 0' }}>
-            <Link className="area2-link" to={`/historical${selected.length ? `?${new URLSearchParams(selected.map((c) => ['countries', c])).toString()}` : ''}#top-movers`} style={{ fontWeight: 600 }}>
+            <Link className="area2-link" to={moversHref(selected, year, worldMapSeries.years[worldMapSeries.years.length - 1])} style={{ fontWeight: 600 }}>
               Top movers and % change since 1990 → Historical Trends
             </Link>
           </p>

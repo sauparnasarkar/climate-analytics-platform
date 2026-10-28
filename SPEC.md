@@ -1951,14 +1951,16 @@ that actually owns `api/main.py`.
 | Climate Correlation jump links | Causal chain, Global relationship, All-gas 1970 on, Gas composition, Method (the closing note) |
 | Agent links | `get_scenario_temperature` links to `/scenarios#implied-temperature` and `/climate-correlation#global-relationship`; the cumulative-share tool's fixed links are `/overview#share` and `/overview#top-emitters` (services/agent SPEC.md §15) |
 
-### 5.31 Overview middle: distinct titles, and Top Movers / % Change on Historical Trends (Proposed: item 4 of the page consolidation)
+### 5.31 Overview middle: distinct titles, one year control, and Top Movers / % Change on Historical Trends (Proposed: item 4 of the page consolidation)
 
 | Area | Specification |
 |---|---|
-| Titles | Two charts shared "CO₂ Emissions by Country (year)". The annual map is now **"Where emissions are, {year}"**; the By Country bar chart keeps "CO₂ Emissions by Country ({year})". The cumulative map's title is unchanged |
+| Titles | Two charts shared "CO₂ Emissions by Country (year)". The annual map is now **"Where emissions come from, {year}"**; the By Country bar chart keeps "CO₂ Emissions by Country ({year})". The cumulative map's title is unchanged |
 | Top Movers, % Change | Both overlapped Historical Trends and Home's "Three stories". They move to Historical Trends (`MoversSection`, `#top-movers` and `#percent-change`, between Emissions Over Time and GHG Share by Decade): the three largest increases and decreases in CO₂, and a signed % change bar for every selected country, from 1990 to the latest year, read from the page's own annual series (`lib/movers.ts`, always CO₂, whatever the chart's gas or view) |
 | Overview | By Country stays (it follows the page year) and now spans the width; under it, one line "Top movers and % change since 1990 → Historical Trends" carrying the selection (`?countries=`). The jump link "% Change" is gone; the old `#percent-change` / `#pct-change` ids stay beside the line so bookmarks land |
-| Trade-off | The Overview's versions followed the animated page year (1990 → any year from 1991); Historical's are fixed at the latest year. A year-by-year view of movers is no longer available |
+| Year | Historical's Top Movers and % Change have a **Year** control (`?year=`, default the latest; a year the data lacks reads as the latest) that sets both sections, so the Overview's year-by-year view is kept. The Overview's link on carries `?year=` when the page year is not the latest |
+| Overview header | The header Year select and Play are removed (`PageYearControl` deleted). The year is still one value: the map's Play, decade stops and slider move it, and the Share section's Replay animates 1970 → that year. The picker's label now sits on one line with the dropdown and Reset to default |
+| Overview anchor row | "Top emitters" reads **All Countries** (the id stays `#top-emitters`, which the agent and bookmarks use); the "Pathways" link is gone, as that section is one line now (its `#pathways` id stays) |
 
 ---
 

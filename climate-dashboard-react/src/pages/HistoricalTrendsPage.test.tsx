@@ -398,4 +398,19 @@ describe('HistoricalTrendsPage', () => {
     expect(screen.getByRole('heading', { level: 2, name: '% Change Since 1990' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 3, name: 'CO₂ % Change by Country, 1990–2024' })).toBeInTheDocument();
   });
+
+  it('opens Top Movers and % Change on the year in ?year=, and falls back to the latest for one the data does not have', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue({
+      gas: 'co2', gas_label: 'CO₂',
+      series: [{ name: 'India', years: [1990, 2000, 2024], values: [500, 1000, 2500] }, { name: 'China', years: [1990, 2000, 2024], values: [2000, 3000, 9000] }],
+    });
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    const { unmount } = render(<MemoryRouter initialEntries={['/historical?year=2000']}><HistoricalTrendsPage /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 2, name: 'Top Movers, 1990 → 2000' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'CO₂ % Change by Country, 1990–2000' })).toBeInTheDocument();
+    unmount();
+    render(<MemoryRouter initialEntries={['/historical?year=2010']}><HistoricalTrendsPage /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 2, name: 'Top Movers, 1990 → 2024' })).toBeInTheDocument();
+  });
 });

@@ -227,9 +227,9 @@ describe('OverviewPage', () => {
     expect(screen.getByText('10 of 10 max · from the 11 Expanded countries · drives the Selected tier and every chart below')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /^Select countries \(up to 10\/11\)/ })).toBeInTheDocument();
     // The map and the Selected-tier bar chart no longer share a title: the map is "Where emissions are", the bar chart keeps "CO₂ Emissions by Country".
-    expect(screen.getByText('Where emissions are, 2024')).toBeInTheDocument();
+    expect(screen.getByText('Where emissions come from, 2024')).toBeInTheDocument();
     expect(screen.getAllByText('CO₂ Emissions by Country (2024)')).toHaveLength(1);
-    expect(screen.getByText('All Countries')).toBeInTheDocument();
+    expect(screen.getAllByText('All Countries')).toHaveLength(2); // the tier card and the jump link to its section
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     expect(screen.getByText('Selected')).toBeInTheDocument();
     // Each tier row carries its own inline 'CO₂ (2024)' metric label (SPEC.md §5.18.2's
@@ -422,7 +422,7 @@ describe('OverviewPage', () => {
     expect(await screen.findAllByText('Select at least one country.')).toHaveLength(1);
     expect(screen.queryByText('Selected')).not.toBeInTheDocument();
     // All Countries/Expanded stay rendered regardless of the (now empty) selection.
-    expect(screen.getByText('All Countries')).toBeInTheDocument();
+    expect(screen.getAllByText('All Countries')).toHaveLength(2); // the tier card and the jump link to its section
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     // headline_movers (SPEC.md §5.18.5) is a fixed top-10-emitters set from the server,
     // completely independent of `selected` -- unlike the old top_movers-backed headline, it
@@ -444,7 +444,7 @@ describe('OverviewPage', () => {
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
     const links = within(nav).getAllByRole('link');
     // "Climate signal" always leads (the emissions KPIs stand on their own); "Relationship" only joins when the climate data is there.
-    expect(links.map((l) => l.textContent)).toEqual(['Climate signal', 'Top emitters', 'Share', 'By Country']);
+    expect(links.map((l) => l.textContent)).toEqual(['Climate signal', 'All Countries', 'Share', 'By Country']);
     expect(links.map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#top-emitters', '#share', '#by-country']);
     expect(document.getElementById('top-emitters')).not.toBeNull();
     expect(document.getElementById('map')).not.toBeNull(); // the old anchor still lands on the map
@@ -502,12 +502,12 @@ describe('OverviewPage', () => {
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { unmount } = render(<MemoryRouter initialEntries={['/overview?countries=vietnam&countries=Atlantis']}><OverviewPage /></MemoryRouter>);
-    await screen.findByText('All Countries');
+    await screen.findAllByText('All Countries');
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(['Vietnam']);
     unmount();
     vi.mocked(api.overview).mockClear();
     render(<MemoryRouter initialEntries={['/overview?countries=']}><OverviewPage /></MemoryRouter>);
-    await screen.findByText('All Countries');
+    await screen.findAllByText('All Countries');
     expect(await screen.findAllByText('Select at least one country.')).not.toHaveLength(0);
   });
 
@@ -516,14 +516,14 @@ describe('OverviewPage', () => {
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { unmount } = render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('All Countries');
+    await screen.findAllByText('All Countries');
     const map = () => screen.getByTestId('choropleth');
     // Default selection is the 10 featured; only China is in this 2-country fixture series.
     expect(map()).toHaveAttribute('data-outline', '["CHN"]');
     expect(screen.getByText(/Outlined: your selected countries\./)).toBeInTheDocument();
     unmount();
     render(<MemoryRouter initialEntries={['/overview?countries=vietnam']}><OverviewPage /></MemoryRouter>);
-    await screen.findByText('All Countries');
+    await screen.findAllByText('All Countries');
     expect(map()).toHaveAttribute('data-outline', '["VNM"]');
   });
 
@@ -535,7 +535,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'XXX'], countries: ['China', 'Vietnam', 'Nowhere'], values: [[14350, 21, null], [25324, 370, null]] });
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('All Countries');
+    await screen.findAllByText('All Countries');
     expect(screen.queryByRole('region', { name: 'Table of values' })).not.toBeInTheDocument();
 
     const toggle = screen.getByRole('button', { name: 'Table view' });
@@ -904,7 +904,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     // By Country: the chart is titled and drawn for the page year; the map has its own title
     expect(screen.getAllByText('CO₂ Emissions by Country (2000)')).toHaveLength(1);
-    expect(screen.getByText('Where emissions are, 2000')).toBeInTheDocument();
+    expect(screen.getByText('Where emissions come from, 2000')).toBeInTheDocument();
     expect(screen.getByLabelText(/^Bar chart of total CO₂ emissions in 2000 for 1 countries/)).toBeInTheDocument();
     const h = screen.getByRole('heading', { level: 2, name: /^By Country/ });
     // "Year" is visually hidden text inside the badge (not an aria-label), so the heading reads "… Year 2000"
@@ -915,7 +915,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(screen.queryByText('Fastest Growth — China')).not.toBeInTheDocument();
     // the line on to the page that owns them carries the selection
     const link = screen.getByRole('link', { name: 'Top movers and % change since 1990 → Historical Trends' });
-    expect(link).toHaveAttribute('href', '/historical?countries=China#top-movers');
+    expect(link).toHaveAttribute('href', '/historical?countries=China&year=2000#top-movers'); // the page year rides along unless it is the latest
     expect(document.getElementById('percent-change')).toContainElement(link); // bookmarked #percent-change / #pct-change links still land beside it
   });
 
@@ -929,7 +929,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     }
   });
 
-  it('closes the page with one line on the pathways and links on, with a jump link and the illustrative label', async () => {
+  it('closes the page with one line on the pathways and links on, with the illustrative label and no jump link', async () => {
     vi.mocked(api.correlationScenarioTemperature).mockResolvedValue(SCENARIO_TEMPERATURE);
     mountFullRange(2024);
     const section = await screen.findByRole('region', { name: "Where today's patterns lead" });
@@ -940,7 +940,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(within(section).getByRole('link', { name: 'Forecasts to 2043 →' })).toHaveAttribute('href', '/forecasts');
     expect(within(section).getByRole('link', { name: 'compare them on Scenario Comparison →' })).toHaveAttribute('href', '/scenarios');
     const nav = screen.getByRole('navigation', { name: 'On this page' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href')).at(-1)).toBe('#pathways');
+    expect(within(nav).queryByRole('link', { name: 'Pathways' })).not.toBeInTheDocument(); // one line now, not a section of the anchor row
     // it sits after the By Country section
     expect(document.getElementById('by-country')!.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -953,36 +953,17 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(document.getElementById('pct-change')).not.toBeNull(); // bookmarked links still land
   });
 
-  it('on a phone the page year stays one control (the shell moves the page filters into its sheet) and the anchor row is one scrolling line', async () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: q === '(max-width: 640px)', media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  it('has no Year select or Play in the page header any more: the year is the map\'s (Play, stops and slider); Replay stays in the Share section (its own tests)', async () => {
     mountFullRange(2010);
-    const group = await screen.findByRole('group', { name: 'Page year' });
-    expect(screen.getAllByRole('group', { name: 'Page year' })).toHaveLength(1); // one control, not a chip as well
-    expect(screen.queryByRole('button', { name: /^Year 2010/ })).not.toBeInTheDocument();
-    const row = screen.getByRole('navigation', { name: 'On this page' }).closest('[style*="position: sticky"]') as HTMLElement;
-    expect(row.querySelector('.area2-anchor-line')).not.toBeNull();
-    expect(row.querySelector('.area2-anchor-scroll nav')).not.toBeNull(); // the jump links sit inside the scrolling part
-    expect(row.contains(group)).toBe(false); // the year is a page filter, drawn by the shell, not in the anchor row
-    // (beforeEach re-stubs matchMedia for the next test; unstubAllGlobals would also wipe the shared ResizeObserver stub)
-  });
-
-  it('above phone width there is no chip: the page year is the select and Play', async () => {
-    mountFullRange(2010);
-    await screen.findByRole('group', { name: 'Page year' });
-    expect(screen.queryByRole('button', { name: /^Year 2010/ })).not.toBeInTheDocument();
-  });
-
-  it('has a page Year control (drawn in the shell\'s bar) that moves the same year as the map (one value, not two)', async () => {
-    mountFullRange(2010);
-    const group = await screen.findByRole('group', { name: 'Page year' });
-    expect(within(group).getByRole('combobox', { name: 'Page year' })).toHaveTextContent('2010');
-    fireEvent.click(within(group).getByRole('combobox', { name: 'Page year' }));
-    fireEvent.click(screen.getByRole('option', { name: '1990' }));
-    expect(DEFAULT_ANIMATION.seek).toHaveBeenCalledWith(1990);
-    // its Play and the map's Play are the same toggle
-    fireEvent.click(within(group).getByRole('button', { name: 'Play' }));
-    fireEvent.click(within(document.querySelector('.overview-map-card') as HTMLElement).getByRole('button', { name: 'Play' }));
-    expect(DEFAULT_ANIMATION.toggle).toHaveBeenCalledTimes(2);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.queryByRole('group', { name: 'Page year' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Page year' })).not.toBeInTheDocument();
+    // the only Play left is the map's, and it still moves the page's one year
+    const plays = screen.getAllByRole('button', { name: 'Play' });
+    expect(plays).toHaveLength(1);
+    expect(document.querySelector('.overview-map-card')).toContainElement(plays[0]);
+    fireEvent.click(plays[0]);
+    expect(DEFAULT_ANIMATION.toggle).toHaveBeenCalledTimes(1);
   });
 
   it('shows a button per decade stop -- 1970 … 2020 and the latest year -- with the current one pressed, and a click seeks to it', async () => {
@@ -1088,7 +1069,7 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(screen.getByText('Cumulative CO₂ Emissions by Country, 1750–2024')).toBeInTheDocument();
     expect(screen.getByText('Running total, MtCO₂ emitted since 1750 (the cards beside the map show GtCO₂)')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: 'Absolute' }));
-    expect(screen.getByText('Where emissions are, 2024')).toBeInTheDocument();
+    expect(screen.getByText('Where emissions come from, 2024')).toBeInTheDocument();
     expect(screen.getByTestId('choropleth')).toHaveAttribute('data-value-label', 'CO₂ emissions, MtCO₂');
   });
 

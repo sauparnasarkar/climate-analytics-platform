@@ -29,4 +29,14 @@ describe('moversFromSeries', () => {
     expect(moversFromSeries([s('A', [2000, 2024], [1, 2])])).toBeNull();
     expect(moversFromSeries([s('A', [1980, 1990], [1, 2])])).toBeNull();
   });
+
+  it('measures to the year the reader chose, lists the years it can choose, and reads a year the data lacks as the latest', () => {
+    const data = [s('A', [1990, 2000, 2024], [10, 15, 30]), s('B', [1990, 2000, 2024], [10, 5, 10])];
+    const r = moversFromSeries(data, 2000)!;
+    expect(r.year).toBe(2000);
+    expect(r.years).toEqual([2000, 2024]);
+    expect(r.movers.map((m) => [m.country, m.pctChange])).toEqual([['A', 50], ['B', -50]]);
+    expect(moversFromSeries(data, 2010)!.year).toBe(2024);
+    expect(moversFromSeries(data, 1990)!.year).toBe(2024); // the baseline itself is not a year to compare with
+  });
 });

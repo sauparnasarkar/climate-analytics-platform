@@ -1,4 +1,4 @@
-import { ChartCard, Chart, InlineAlert, Spinner, formatFigure } from '@syena/ds';
+import { ChartCard, Chart, InlineAlert, Select, Spinner, formatFigure } from '@syena/ds';
 import type { TimeseriesSeries } from '../../api/types';
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../../constants';
 import { moversFromSeries } from '../../lib/movers';
@@ -39,8 +39,12 @@ function MoverList({ title, rows, color, arrow }: { title: string; rows: Mover[]
  * decreases in CO₂, and every selected country's change, from the 1990 baseline to the latest year. Read from the same annual series as the page's own chart,
  * so a number here agrees with a point there. Both sections are always in the DOM so their jump targets exist, whatever the selection or the data.
  */
-export function MoversSection({ series, loading, error, countryCount }: { series: TimeseriesSeries[] | null; loading: boolean; error: string | null; countryCount: number }) {
-  const result = series ? moversFromSeries(series) : null;
+export function MoversSection({ series, loading, error, countryCount, year, onYearChange }: {
+  series: TimeseriesSeries[] | null; loading: boolean; error: string | null; countryCount: number;
+  /** The year the reader chose (null: the latest the data has), and the setter; a year the data does not have reads as the latest. */
+  year: number | null; onYearChange: (year: number) => void;
+}) {
+  const result = series ? moversFromSeries(series, year) : null;
   const status = countryCount === 0
     ? <InlineAlert variant="warning">Select at least one country.</InlineAlert>
     : error ? <InlineAlert variant="error">{error}</InlineAlert>
@@ -55,8 +59,17 @@ export function MoversSection({ series, loading, error, countryCount }: { series
       <div id={TOP_MOVERS_ANCHOR} style={{ marginTop: 24 }}>
         <h2 className="syn-title-sm" style={{ margin: '0 0 4px' }}>Top Movers{result ? `, 1990 → ${result.year}` : ' since 1990'}</h2>
         <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '0 0 12px' }}>
-          Fastest growth and largest reduction in CO₂ emissions among the {countryCount} selected countries.
+          Fastest growth and largest reduction in CO₂ emissions among the {countryCount} selected countries, from 1990 to the year you choose.
         </p>
+        {result && (
+          // One year for both sections below: Top Movers and % Change are always measured from 1990 to the same year.
+          <div role="group" aria-label="Year" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px' }}>
+            <span className="syn-text-lg" style={{ color: 'var(--syn-color-text-muted)' }}>Year</span>
+            <div style={{ minWidth: 96 }}>
+              <Select size="small" suppressSearch ariaLabel="Year" value={String(result.year)} onChange={(v) => onYearChange(Number(v))} options={[...result.years].reverse().map((y) => ({ value: String(y), label: String(y) }))} />
+            </div>
+          </div>
+        )}
         {status ?? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
             <MoverList title="Largest increases" rows={increases} color={NEGATIVE_COLOR} arrow="▲" />

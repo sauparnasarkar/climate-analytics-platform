@@ -13,7 +13,7 @@ import { useLayoutSettled } from '../hooks/useLayoutSettled';
 import { useCountingFrom } from '../hooks/useCountingFrom';
 import { useUrlChoice } from '../hooks/useUrlChoice';
 import { CountingFromControl } from '../components/CountingFromControl';
-import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
+import { BASELINE_YEAR, GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 import { cumulativeAreaSeries, shareLineSeries } from '../lib/historicalCumulative';
 import { PageChrome } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
@@ -21,6 +21,9 @@ import { OWID } from '../lib/sources';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
 const GAS_KEYS = Object.keys(GAS_COLUMNS);
+// The Top Movers / % Change year, kept in ?year= like the page's other choices. 'latest' is the default (no param); any year after the 1990 baseline is accepted here and
+// read against the data later, so a year the series does not have falls back to the latest.
+const MOVERS_YEAR_KEYS = ['latest', ...Array.from({ length: 2100 - BASELINE_YEAR }, (_, i) => String(BASELINE_YEAR + 1 + i))];
 
 // The chart-card view switch (SPEC.md §5.28). URL-backed (?view=cumulative) so a link opens on it. Cumulative and Share
 // are CO₂-only (OWID has no cumulative methane/N₂O): for any other gas the switch is not shown at all (only Annual exists),
@@ -69,6 +72,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
   // URL-backed too (?gas=methane), so "Open in Historical Trends" from the Ask page lands on the same gas.
   const [gas, setGas] = useUrlChoice('gas', GAS_KEYS, 'co2');
+  const [moversYear, setMoversYear] = useUrlChoice('year', MOVERS_YEAR_KEYS, 'latest');
 
   const [from, setFrom] = useCountingFrom();
   const [viewChoice, setView] = useUrlChoice('view', VIEW_KEYS, 'annual');
@@ -191,7 +195,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         </ChartCard>
       ) : null}
 
-      <MoversSection series={moversSeries.data?.series ?? null} loading={moversSeries.loading} error={moversSeries.error} countryCount={selectedCountries.length} />
+      <MoversSection series={moversSeries.data?.series ?? null} loading={moversSeries.loading} error={moversSeries.error} countryCount={selectedCountries.length} year={moversYear === 'latest' ? null : Number(moversYear)} onYearChange={(y) => setMoversYear(String(y))} />
 
       <div style={{ marginTop: 24 }}>
         <h2 id="ghg-by-decade" className="syn-title-sm">GHG Share by Gas Type per Decade</h2>
