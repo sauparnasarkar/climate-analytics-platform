@@ -1,5 +1,6 @@
 import { ChartCard, MultiSelect, Select, SegmentedControl, Button, InlineAlert, Spinner, useReducedMotion, Chart } from '@syena/ds';
 import { MethodNote } from '../components/MethodNote';
+import { MoversSection, PERCENT_CHANGE_ANCHOR, TOP_MOVERS_ANCHOR } from '../components/historical/MoversSection';
 import { METHODS_ANCHORS } from '../lib/methodology';
 import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from '@syena/ds';
@@ -12,7 +13,7 @@ import { useLayoutSettled } from '../hooks/useLayoutSettled';
 import { useCountingFrom } from '../hooks/useCountingFrom';
 import { useUrlChoice } from '../hooks/useUrlChoice';
 import { CountingFromControl } from '../components/CountingFromControl';
-import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
+import { BASELINE_YEAR, GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 import { cumulativeAreaSeries, shareLineSeries } from '../lib/historicalCumulative';
 import { PageChrome } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
@@ -20,6 +21,9 @@ import { OWID } from '../lib/sources';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
 const GAS_KEYS = Object.keys(GAS_COLUMNS);
+// The Top Movers / % Change year, kept in ?year= like the page's other choices. 'latest' is the default (no param); any year after the 1990 baseline is accepted here and
+// read against the data later, so a year the series does not have falls back to the latest.
+const MOVERS_YEAR_KEYS = ['latest', ...Array.from({ length: 2100 - BASELINE_YEAR }, (_, i) => String(BASELINE_YEAR + 1 + i))];
 
 // The chart-card view switch (SPEC.md §5.28). URL-backed (?view=cumulative) so a link opens on it. Cumulative and Share
 // are CO₂-only (OWID has no cumulative methane/N₂O): for any other gas the switch is not shown at all (only Annual exists),
@@ -53,6 +57,8 @@ function viewCopy(view: string, from: number | null): ViewCopy {
 // nav itself every time the gas selector changes.
 const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'emissions-over-time', label: 'Emissions Over Time' },
+  { id: TOP_MOVERS_ANCHOR, label: 'Top Movers' },
+  { id: PERCENT_CHANGE_ANCHOR, label: '% Change Since 1990' },
   { id: 'ghg-by-decade', label: 'GHG Share by Decade' },
 ];
 
@@ -66,6 +72,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
   // URL-backed too (?gas=methane), so "Open in Historical Trends" from the Ask page lands on the same gas.
   const [gas, setGas] = useUrlChoice('gas', GAS_KEYS, 'co2');
+  const [moversYear, setMoversYear] = useUrlChoice('year', MOVERS_YEAR_KEYS, 'latest');
 
   const [from, setFrom] = useCountingFrom();
   const [viewChoice, setView] = useUrlChoice('view', VIEW_KEYS, 'annual');
@@ -81,6 +88,11 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   const cumulative = useAsync(
     () => (annual ? Promise.resolve(null) : from == null ? api.historicalCumulative(selectedCountries) : api.historicalCumulative(selectedCountries, from)),
     [selectedCountries.join(','), annual, from],
+  );
+  // Top Movers and % Change are always CO₂ and always the annual series, whatever the chart above is showing (its gas and view switches do not apply to them).
+  const moversSeries = useAsync(
+    () => (selectedCountries.length ? api.historicalTimeseries(selectedCountries, 'co2') : Promise.resolve(null)),
+    [selectedCountries.join(',')],
   );
   const composition = useAsync(
     () => api.historicalDecadeComposition(selectedCountries),
@@ -103,9 +115,11 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
   const { rowReady, onRowReady } = useStickyRowReady();
   // The jump waits for the page's data and for the layout to stop growing: a jump measured on the short, still-loading page lands short of the section.
-  const dataIn = !timeseries.loading && !cumulative.loading && !composition.loading;
+  const dataIn = !timeseries.loading && !cumulative.loading && !moversSeries.loading && !composition.loading;
   const layoutSettled = useLayoutSettled(rowReady && dataIn);
   useJumpToHashOnLoad(rowReady && dataIn && layoutSettled, reduceMotion);
+
+  const pickerLabel = `Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`;
 
   return (
     <div>
@@ -115,8 +129,10 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         summary={`${selectedCountries.length} of ${MAX_SELECTED_COUNTRIES} countries`}
         filters={
           <>
+            {/* The label sits on one line with the picker and Reset, as on the Overview: visible text here, the same words as the picker's accessible name. */}
+            <span aria-hidden="true" className="syn-text-lg" style={{ color: 'var(--syn-color-text-muted)', whiteSpace: 'nowrap' }}>{pickerLabel}</span>
             <MultiSelect
-              label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
+              ariaLabel={pickerLabel}
               options={expanded.map((c) => ({ value: c, label: c }))}
               value={selectedCountries}
               onChange={setSelectedCountries}
@@ -182,6 +198,8 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
           </p>
         </ChartCard>
       ) : null}
+
+      <MoversSection series={moversSeries.data?.series ?? null} loading={moversSeries.loading} error={moversSeries.error} countryCount={selectedCountries.length} year={moversYear === 'latest' ? null : Number(moversYear)} onYearChange={(y) => setMoversYear(String(y))} />
 
       <div style={{ marginTop: 24 }}>
         <h2 id="ghg-by-decade" className="syn-title-sm">GHG Share by Gas Type per Decade</h2>
