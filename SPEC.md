@@ -1972,6 +1972,14 @@ that actually owns `api/main.py`.
 | Rows | Rank, name, bar on a fixed 0–max scale, cumulative GtCO₂ and share of the world's cumulative total. The link on is "Cumulative share on the Overview →" (`/overview#share`) |
 | Hero banner 2 | The annual figure stays and is explicit, so the two top-10 numbers cannot be confused: "…the 10 largest emitters produced N% of {year}'s emissions" (and the card "Top 10's share of {year} emissions") against the race's "N% of all CO₂ emitted since 1750" |
 
+### 5.33 Home globe: top-10 labels (Proposed: item 6 of the page consolidation)
+
+| Area | Specification |
+|---|---|
+| Count | The globe names the **ten** largest emitters of the year in view on a desktop or tablet (was five) and **five** on a phone (its globe is about 210 px across): `GLOBE_LABEL_COUNT` and `GLOBE_LABEL_COUNT_PHONE` |
+| Basis | Labels rank on the globe's own annual values for the current year (the same series the colours use), so a label and a colour agree |
+| Collisions | The design system's `Globe` has no collision handling (a label sits at its country's centre; only the facing side is drawn), so neighbours (East Asia, the Gulf) can overlap. Judged on the preview at 1970, 1990, 2010 and 2024 at 1920 and 1440 wide; a fix (drop the lower-ranked of two colliding labels) is a design-system change and a pin bump, made only if asked |
+
 ---
 
 ## 6. Post-Ship Corrections to the Curriculum Notebooks

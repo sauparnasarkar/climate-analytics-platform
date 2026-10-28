@@ -197,11 +197,35 @@ describe('LandingPage', () => {
   it('while the globe plays, the total, year slider and the largest emitters\' labels all stay', async () => {
     mount(); // ANIMATION is playing
     const globe = await screen.findByTestId('globe');
-    expect(JSON.parse(globe.dataset.labels!).map((l: { id: string }) => l.id)).toEqual(['BBB', 'AAA', 'DDD', 'CCC']); // labels stay while it spins; the largest of the year, up to five
+    expect(JSON.parse(globe.dataset.labels!).map((l: { id: string }) => l.id)).toEqual(['BBB', 'AAA', 'DDD', 'CCC']); // labels stay while it spins; the largest of the year, up to ten
     expect(screen.getByText('272 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('all countries')).toBeInTheDocument();
     expect(screen.getByRole('slider')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pause years' })).toBeInTheDocument();
+  });
+
+  it('names the ten largest emitters of the year in view on a desktop or tablet and five on a phone, ranked on the values the globe colours by', async () => {
+    const countries = Array.from({ length: 12 }, (_, i) => `Country${i}`);
+    const wide: WorldMapTimeSeries = {
+      iso_codes: countries.map((_, i) => `C${String(i).padStart(2, '0')}`), countries, years: [2022, 2023, 2024],
+      // the largest is the last country, so the order is not the data's order: 12 down to 1 in 2024
+      values: [2022, 2023, 2024].map(() => countries.map((_, i) => 10 + i * 10)), value_range: [1, 120],
+    };
+    const labelIds = (el: HTMLElement) => JSON.parse(el.dataset.labels!).map((l: { id: string }) => l.id);
+    const { unmount } = mount(overview(), wide);
+    const globe = await screen.findByTestId('globe');
+    expect(labelIds(globe)).toEqual(['C11', 'C10', 'C09', 'C08', 'C07', 'C06', 'C05', 'C04', 'C03', 'C02']);
+    expect(JSON.parse(globe.dataset.values!)).toMatchObject({ C11: 120 }); // the colours are the same annual values the labels rank on
+    expect(JSON.parse(globe.dataset.labels!)[0].text).toBe('Country11 120');
+    unmount();
+    const saved = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q === '(max-width: 640px)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+    try {
+      mount(overview(), wide);
+      expect(labelIds(await screen.findByTestId('globe'))).toEqual(['C11', 'C10', 'C09', 'C08', 'C07']);
+    } finally {
+      window.matchMedia = saved;
+    }
   });
 
   it('when the globe is not spinning the labels are still shown, with everything else unchanged -- also under reduced motion, which starts paused', async () => {
