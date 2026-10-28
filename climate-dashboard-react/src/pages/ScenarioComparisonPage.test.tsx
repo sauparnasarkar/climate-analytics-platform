@@ -267,6 +267,19 @@ describe('ScenarioComparisonPage', () => {
     expect(vi.mocked(api.scenarioCompare)).toHaveBeenLastCalledWith(['China', 'Vietnam']);
   });
 
+  it('puts the picker\'s label on one line with the control, as the Overview and Historical Trends do, under one accessible name', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
+    await screen.findByRole('heading', { name: 'BAU' });
+
+    const combobox = screen.getByRole('combobox', { name: /^Select countries \(up to \d+\/\d+\)$/ });
+    const visible = screen.getByText(/^Select countries \(up to \d+\/\d+\)$/);
+    expect(visible).toHaveAttribute('aria-hidden', 'true'); // the words appear once to a screen reader, as the combobox's name
+    expect(visible.parentElement).toBe(combobox.closest('.country-picker-row')); // beside the control, not stacked above it inside it
+  });
+
   it('shows a warning instead of calling scenarioCompare when no countries are selected', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
