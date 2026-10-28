@@ -58,10 +58,10 @@ describe('useRouteAnnouncements', () => {
     const announcer = document.getElementById('route-announcer');
     expect(announcer).toBeInTheDocument();
     fireEvent.click(screen.getByText('about'));
-    expect(document.title).toBe('About — Climate Analytics Platform');
+    expect(document.title).toBe('Methods & data — Climate Analytics Platform');
     expect(document.getElementById('route-announcer')).toBe(announcer);
     expect(announcer).toHaveAttribute('aria-live', 'polite');
-    expect(announcer).toHaveTextContent('About page');
+    expect(announcer).toHaveTextContent('Methods & data page');
   });
 
   it('gives pages that are not navigation items their own title', () => {

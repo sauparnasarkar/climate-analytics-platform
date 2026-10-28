@@ -1923,6 +1923,20 @@ that actually owns `api/main.py`.
 | Counting from | Both pages get a toggle, "Since records began" (default) / "From a year" with a year select (1970 to the latest year), in the URL as `?from=YYYY`. From a year, Historical Trends' Cumulative view is titled "CO₂ Emitted Since YYYY, by Country" (the chart is rebased to zero just before YYYY; the first point is YYYY's own emissions) and Country Profile's figures read "Emitted since YYYY", the share of that period's World emissions, and the rank by the period. Non-CO₂ gases hide the Cumulative and Share of world tabs |
 | Agent links | A since-year answer's links carry `from=`; they keep the fixed links for a year before 1970, a period ending before the latest data year, a ranking, and PRIMAP-hist |
 
+### 5.29 Methods & data, and a method note on every page (Shipped: item 2 of the page consolidation)
+
+> Guiding rule: each visual has one owning page; elsewhere it gets at most one line and a link. Methods & data owns how every number is made.
+
+| Area | Specification |
+|---|---|
+| Page | About is retitled **Methods & data** (route `/about` unchanged) in the rail, footer, page title and route announcement. Seven anchored sections: `#project`, `#sources`, `#baselines`, `#forecasting`, `#correlation`, `#scenarios`, `#limits`, with a sticky jump row like the other pages |
+| Sources table | One platform-wide table built from `GET /correlation/meta` (the "Derived" crosswalk row excluded). Columns: source, used for, coverage, vintage, licence, links. Landing pages and a short citation come from `lib/sources.ts` (`SOURCE_INFO`, keyed by the API's source id) because the pipeline's metadata has the data-file URLs but no landing pages; the raw `source_urls` stay as a secondary "Data file" link. Climate Watch is gone (not ingested). Moving `SOURCE_INFO` into pipeline metadata is recorded in `STATUS.md` |
+| Moved here | The baselines-by-view table and the temperature-offset note, the 7-step derivation accordion, "Why emissions series differ", the two-totals note and the splice note, previously in Climate Correlation's methodology block |
+| Two cumulative totals | A note in Data sources: fossil and industry CO₂ counted from the start of the OWID record (country shares, Home, Overview) against total anthropogenic CO₂ including land use from the regression's start year (the Climate Correlation slope). Both years are read from the API, not typed |
+| Guardrails | Stated once, in `#limits`; the derivation's last step points there |
+| Method notes | `MethodNote` (two lines plus "Method →") at the foot of Overview, Historical Trends, Country Profile, Forecasts, Scenario Comparison, Data Explorer and Climate Correlation, each linking to its section. Climate Correlation's methodology block, sources table and derivation are removed; its "Methodology" jump link goes with them |
+| Stale facts | "Filtered to sovereign nations from 1990 onwards" no longer describes the platform (climate series 1850+, globe 1970+, PRIMAP-hist 1970+, ML window 1990–2018); the forecasting table now says the ML window only |
+
 ---
 
 ## 6. Post-Ship Corrections to the Curriculum Notebooks

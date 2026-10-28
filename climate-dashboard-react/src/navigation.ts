@@ -23,7 +23,7 @@ export const NAV_ITEMS: AppNavItem[] = [
   { id: 'data-explorer', label: 'Data Explorer', icon: 'explorer', path: '/data-explorer', group: 'Exploration' },
   { id: 'forecasts', label: 'Forecasts', icon: 'forecasts', path: '/forecasts', group: 'Projection' },
   { id: 'scenarios', label: 'Scenario Comparison', icon: 'scenarios', path: '/scenarios', group: 'Projection' },
-  { id: 'about', label: 'About', icon: 'info', path: '/about' },
+  { id: 'about', label: 'Methods & data', icon: 'info', path: '/about' },
 ];
 
 // The landing page (SPEC.md §5.25) lives at '/'. Deliberately not in NAV_ITEMS: it has

@@ -1,4 +1,6 @@
 import { ChartCard, Select, DataTable, InlineAlert, KpiStat, Spinner, useReducedMotion, Chart } from '@syena/ds';
+import { MethodNote } from '../components/MethodNote';
+import { METHODS_ANCHORS } from '../lib/methodology';
 import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
@@ -163,6 +165,9 @@ function CumulativeSection({ country, data, from }: { country: string; data: Cou
           <Link to="/climate-correlation">Open in Climate Correlation</Link>
         </p>
       </ChartCard>
+      <MethodNote anchor={METHODS_ANCHORS.baselines}>
+        The trend uses each country&apos;s full OWID history, with 1990 shown as a marker. Shares are of the World total. Baselines and the cumulative scope are on Methods &amp; data.
+      </MethodNote>
     </>
   );
 }

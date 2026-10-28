@@ -1,4 +1,6 @@
 import { ChartCard, MultiSelect, Select, SegmentedControl, Button, InlineAlert, Spinner, useReducedMotion, Chart } from '@syena/ds';
+import { MethodNote } from '../components/MethodNote';
+import { METHODS_ANCHORS } from '../lib/methodology';
 import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
@@ -210,6 +212,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
             />
           </ChartCard>
         )}
+      <MethodNote anchor={METHODS_ANCHORS.baselines}>
+        Emissions are Our World in Data (Global Carbon Project) series; indexed views use 1990 = 100, and the gas mix here is OWID per decade. Baselines, and why this differs from the PRIMAP-hist gas view, are on Methods &amp; data.
+      </MethodNote>
       </div>
     </div>
   );

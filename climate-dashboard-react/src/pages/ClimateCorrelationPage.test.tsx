@@ -51,7 +51,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(await screen.findByRole('heading', { level: 2, name: 'Causal chain' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'On this page' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#causal-chain', '#global-relationship', '#country-view', '#scenarios', '#methodology']);
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#causal-chain', '#global-relationship', '#country-view', '#scenarios']);
     expect((nav.closest('[style*="position: sticky"]') as HTMLElement)).not.toBeNull();
     expect(within(document.querySelector('.module-chain') as HTMLElement).getAllByRole('listitem')[0]).toHaveTextContent('37,398 MtCO₂ in 2024'); // world total from the series, not typed in
     expect(screen.getByText('Fossil + cement only')).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(screen.getByRole('heading', { level: 2, name: 'Country view' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument(); // a parent heading for the orphaned sections
     const nav = screen.getByRole('navigation', { name: 'On this page' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#country-view', '#scenarios', '#methodology']); // the chain and relationship links are gone; the independent sections' remain
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#country-view', '#scenarios']); // the chain and relationship links are gone; the independent sections' remain
   });
 
   it('shows the scenario section last, from the scenario endpoint, and omits it with its anchor when that request fails', async () => {
@@ -174,54 +174,6 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(document.getElementById('scenarios')).not.toBeNull();
   });
 
-  it('ends with the methodology section, fed by /meta and the concentration splice, with the anchor always present', async () => {
-    mount();
-    const m = await screen.findByRole('heading', { level: 2, name: 'Methodology & sources' });
-    expect(api.correlationMeta).toHaveBeenCalledTimes(1);
-    const scenarios = await screen.findByRole('heading', { level: 2, name: /^Implied temperature by scenario/ });
-    expect(scenarios.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // after Scenarios, not just after the Country view
-    const sections = [...document.querySelectorAll('.climate-module section[id]')].map((s) => s.id);
-    expect(sections.at(-1)).toBe('methodology'); // and nothing follows it
-    expect(await screen.findByRole('table', { name: 'Sources' })).toBeInTheDocument();
-    expect(screen.getByText(/Two global totals/)).toBeInTheDocument();
-    cleanup();
-    vi.mocked(api.correlationMeta).mockRejectedValue(new ApiError(503, 'x'));
-    mount();
-    expect(await screen.findByText(/The sources, licences and data vintages could not be loaded right now/)).toBeInTheDocument();
-    const nav = screen.getByRole('navigation', { name: 'On this page' });
-    expect(within(nav).getByRole('link', { name: 'Methodology' })).toBeInTheDocument();
-  });
-
-  it('shows the splice note from the concentration response even when the headline signal is unavailable', async () => {
-    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => { if (o?.source === 'primap_ghg') return ALL_GAS_PAIR; throw new ApiError(503, 'x'); }); // no signal
-    mount();
-    expect(await screen.findByText(/climate data is unavailable right now/)).toBeInTheDocument();
-    expect(await screen.findByText('The 1959 splice')).toBeInTheDocument();
-    expect(screen.getByText(/Over the overlap years 1959–2004 the two records differ by up to 3\.9 ppm/)).toBeInTheDocument();
-  });
-
-  it('shows "How this number was derived" inside the methodology section when the headline response carries its fit, and not otherwise', async () => {
-    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.source === 'primap_ghg' ? ALL_GAS_PAIR : o?.variant === 'fossil' ? ({ ...PAIR, fit: { ...PAIR.fit, slope: 0.797 } } as never) : HEADLINE_PAIR));
-    mount();
-    const heading = await screen.findByRole('heading', { level: 3, name: 'How this number was derived' });
-    expect(heading.closest('section')!.id).toBe('methodology'); // inside it, so Methodology stays the last section
-    expect([...document.querySelectorAll('.climate-module section[id]')].map((s) => s.id).at(-1)).toBe('methodology');
-    expect(screen.getAllByRole('button', { name: /^0\d/ })).toHaveLength(7);
-    cleanup();
-    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.source === 'primap_ghg' ? ALL_GAS_PAIR : PAIR)); // a fit without its label/unit metadata
-    mount();
-    await screen.findByRole('heading', { level: 2, name: 'Methodology & sources' });
-    expect(screen.queryByRole('heading', { name: 'How this number was derived' })).not.toBeInTheDocument();
-  });
-
-  it('shows the derivation even when the headline signal is unavailable (it needs only the headline response)', async () => {
-    vi.mocked(api.correlationConcentration).mockRejectedValue(new ApiError(503, 'x')); // no signal
-    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.source === 'primap_ghg' ? ALL_GAS_PAIR : HEADLINE_PAIR));
-    mount();
-    expect(await screen.findByText(/climate data is unavailable right now/)).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { level: 3, name: 'How this number was derived' })).toBeInTheDocument();
-  });
-
   it('a #country-view deep link waits for the sections above it, so a late one cannot push the target out of view', async () => {
     window.history.replaceState(null, '', '/climate-correlation#country-view');
     let answer!: (r: typeof PAIR) => void;
@@ -234,16 +186,16 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('country-view'));
   });
 
-  it('a #methodology deep link waits for /meta, then jumps once', async () => {
-    window.history.replaceState(null, '', '/climate-correlation#methodology');
-    let answer!: (r: typeof META) => void;
-    vi.mocked(api.correlationMeta).mockReturnValue(new Promise((r) => { answer = r; }));
-    mount('#methodology');
-    await screen.findByRole('heading', { level: 2, name: 'Country view' });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(scrollSpy).not.toHaveBeenCalled();
-    await act(async () => answer(META));
-    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('methodology'));
+  it('ends with a short method note that links to Methods & data, and no longer carries the methodology, the sources or the derivation', async () => {
+    mount();
+    await screen.findByRole('heading', { level: 2, name: /^Implied temperature by scenario/ });
+    const link = screen.getByRole('link', { name: 'Method →' });
+    expect(link).toHaveAttribute('href', '/about#correlation');
+    expect(screen.queryByRole('heading', { name: 'Methodology & sources' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'How this number was derived' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Sources' })).not.toBeInTheDocument();
+    expect(document.getElementById('methodology')).toBeNull();
+    expect(api.correlationMeta).not.toHaveBeenCalled();
   });
 
   it('asks for the temperature series once each (annual and 5-year mean), shared by the chain and the country view', async () => {

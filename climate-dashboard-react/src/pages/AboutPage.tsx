@@ -1,21 +1,66 @@
-import { Link, Table } from '@syena/ds';
+import { useMemo, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
+import { JumpLinks, Table, useReducedMotion } from '@syena/ds';
+import type { JumpLinkItem } from '@syena/ds';
+import { api } from '../api/client';
+import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
+import { DerivationAccordion } from '../components/module/DerivationAccordion';
+import { BaselinesSection } from '../components/methods/BaselinesSection';
+import { SourcesSection } from '../components/methods/SourcesSection';
+import { useAsync } from '../hooks/useAsync';
+import { useClimateSignal } from '../hooks/useClimateSignal';
 import { useCountries } from '../hooks/useCountries';
-import { FOOTER_COPYRIGHT, PRODUCT_NAME } from '../navigation';
+import { useElementHeight } from '../hooks/useElementHeight';
+import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
+import { useScrollSpy } from '../hooks/useScrollSpy';
+import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 import { PageChrome } from '../layouts/PageChrome';
+import { FOOTER_COPYRIGHT } from '../navigation';
+import { FORCING_CONCEPT_ONLY, NOT_A_CLIMATE_MODEL, NO_COUNTRY_ATTRIBUTION, SCENARIO_LABEL } from '../lib/climateCopy';
+import { buildDerivation } from '../lib/derivation';
+import { METHODS_ANCHORS, owidCumulativeFrom } from '../lib/methodology';
+import { SCENARIO_END_YEAR, SCENARIO_START_YEAR } from '../constants';
 
-const DATA_SOURCE_ROWS = [
-  { dataset: 'OWID CO₂ and GHG Emissions', url: 'https://github.com/owid/co2-data' },
-  { dataset: 'Climate Watch Historical Emissions', url: 'https://climatewatchdata.org' },
+const JUMP_ROW_PX = 52;
+const JUMP_ROW_GAP_PX = 10;
+
+const SECTIONS: Array<{ id: string; label: string }> = [
+  { id: METHODS_ANCHORS.project, label: 'About the project' },
+  { id: METHODS_ANCHORS.sources, label: 'Data sources' },
+  { id: METHODS_ANCHORS.baselines, label: 'Baselines by view' },
+  { id: METHODS_ANCHORS.forecasting, label: 'Emissions forecasting' },
+  { id: METHODS_ANCHORS.correlation, label: 'Climate correlation' },
+  { id: METHODS_ANCHORS.scenarios, label: 'Scenarios & implied temperature' },
+  { id: METHODS_ANCHORS.limits, label: 'What this platform does not do' },
 ];
+const JUMP_ITEMS: JumpLinkItem[] = SECTIONS.map((s, i) => ({ id: s.id, label: `${i + 1} · ${s.label}` }));
 
+function Section({ id, n, title, children }: { id: string; n: number; title: string; children: ReactNode }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-heading`} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
+      <span className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', letterSpacing: '0.06em' }}>{String(n).padStart(2, '0')}</span>
+      <h2 id={`${id}-heading`} className="syn-title-md" style={{ margin: 0 }}>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+const prose = { margin: 0, maxWidth: 820 } as const;
+
+/**
+ * Methods & data (route /about): how every number on the platform is made, and where the data comes from. The one place the method is written; the other
+ * pages carry a two-line note and a "Method →" link here. Every figure is read from the API; only the descriptions of the app's own rules are fixed copy.
+ */
 export default function AboutPage() {
   const countries = useCountries();
+  const climate = useClimateSignal();
+  const metaQuery = useAsync(async () => api.correlationMeta(), []);
+  const derivation = useMemo(() => buildDerivation(climate.headline), [climate.headline]);
+  const meta = metaQuery.data;
+
   const methodologyRows = [
-    { step: 'Dataset', detail: 'OWID CO₂ dataset, filtered to sovereign nations from 1990 onwards' },
     {
-      // Unlike other pages, this renders the table immediately rather than blocking on
-      // useCountries() with a top-level Spinner — everything else here is static, so only
-      // this one cell should show a brief "Loading…" rather than delaying the whole page.
+      // Renders immediately rather than blocking on useCountries(): only this cell shows a brief "Loading…".
       step: 'Countries',
       detail: countries.data
         ? `Expanded: ${countries.data.expanded.length} countries (data-quality coverage + emissions-materiality selection). `
@@ -24,47 +69,91 @@ export default function AboutPage() {
           ? countries.error
           : 'Loading…',
     },
-    { step: 'Feature Engineering', detail: 'Lag features (1–3 yrs), 5-yr rolling mean, YoY % change, GHG intensity' },
-    { step: 'Train / Test Split', detail: 'Temporal — train 1990–2018, test 2019–2023' },
-    { step: 'Models', detail: "Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N)" },
-    { step: 'Forecasting', detail: "Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, forecast to 2043 with 95% CI" },
-    { step: 'Scenarios', detail: 'BAU · Moderate (−2%/yr) · Aggressive (−5%/yr) from 2025' },
+    { step: 'Data', detail: 'OWID annual CO₂ per country, 1990 onward (the machine-learning window)' },
+    { step: 'Features', detail: 'Lag features (1–3 yrs), 5-yr rolling mean, YoY % change, GHG intensity' },
+    { step: 'Split', detail: 'Temporal: train 1990–2018, test 2019–2023' },
+    { step: 'Models compared', detail: 'Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N)' },
+    { step: 'Forecast', detail: "Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, forecast to 2043 with 95% CI" },
   ];
+
+  const reduceMotion = useReducedMotion();
+  const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
+  const stickyHeight = useElementHeight(stickyRow);
+  const barHeight = useStickyBarHeight();
+  const jumpRowPx = stickyHeight ? Math.ceil(stickyHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
+  // A deep link from another page waits for the sticky row's height and for the sections that load above its target to settle.
+  const { hash } = useLocation();
+  const sourcesAbove = hash === `#${METHODS_ANCHORS.project}` || hash === '' ? true : !metaQuery.loading;
+  const correlationSettled = hash === `#${METHODS_ANCHORS.correlation}` || hash === `#${METHODS_ANCHORS.scenarios}` || hash === `#${METHODS_ANCHORS.limits}` ? climate.done : true;
+  useJumpToHashOnLoad(sourcesAbove && correlationSettled && stickyHeight !== null, reduceMotion);
+  const activeId = useScrollSpy(JUMP_ITEMS.map((i) => i.id), barHeight + jumpRowPx);
 
   return (
     <div>
-      <PageChrome title="About This Project" purpose="How the platform was built and where its data comes from." ownsPurpose />
-      <h2 className="syn-title-md" style={{ margin: '16px 0 8px' }}>{PRODUCT_NAME}</h2>
-      <p className="syn-text-md" style={{ marginBottom: 24 }}>
-        The backend and AI/ML processes for this dashboard began as a 7-week data science project.
-        Since then this has been expanded to introduce this React Dashboard and a conversational AI Agent.
-      </p>
+      <style>{`.methods-page [id] { scroll-margin-top: ${barHeight + jumpRowPx}px; }`}</style>
+      <div className="methods-page">
+        <PageChrome title="Methods & data" purpose="How every number on the platform is made, and where its data comes from." ownsPurpose />
+        <StickyAnchorRow innerRef={setStickyRow}>
+          <div className="area2-anchor-line">
+            <AnchorScroll>
+              <JumpLinks items={JUMP_ITEMS} activeId={activeId} />
+            </AnchorScroll>
+          </div>
+        </StickyAnchorRow>
 
-      <h3 className="syn-title-sm" style={{ marginBottom: 8 }}>Methodology Summary</h3>
-      <Table
-        caption="Methodology summary"
-        columns={[
-          { key: 'step', header: 'Step' },
-          { key: 'detail', header: 'Detail', wrap: true },
-        ]}
-        rows={methodologyRows}
-        withBorder
-      />
+        <Section id={METHODS_ANCHORS.project} n={1} title="About the project">
+          <p className="syn-text-md" style={prose}>
+            The data pipeline and machine-learning models began as a 7-week data science project. The platform has since added this dashboard, the Climate Correlation page built on
+            observed temperature and concentration records, and a conversational agent that answers from the same API. Every figure on screen is read from the pipeline&apos;s output.
+          </p>
+          <p className="syn-caption" style={{ ...prose, color: 'var(--syn-color-text-muted)' }}><em>{FOOTER_COPYRIGHT}</em></p>
+        </Section>
 
-      <h3 className="syn-title-sm" style={{ margin: '24px 0 8px' }}>Data Sources</h3>
-      <Table
-        caption="Data sources"
-        columns={[
-          { key: 'dataset', header: 'Dataset' },
-          { key: 'url', header: 'URL', wrap: true, render: (row) => <Link href={row.url} target="_blank" rel="noopener noreferrer">{row.url}</Link> },
-        ]}
-        rows={DATA_SOURCE_ROWS}
-        withBorder
-      />
+        <Section id={METHODS_ANCHORS.sources} n={2} title="Data sources">
+          <SourcesSection
+            meta={meta}
+            metaFailed={metaQuery.error !== null}
+            splice={climate.splice}
+            cumulativeFrom={owidCumulativeFrom(meta)}
+            anthropogenicFrom={derivation?.regression.start ?? null}
+          />
+        </Section>
 
-      <p className="syn-caption" style={{ marginTop: 24, color: 'var(--syn-color-text-muted)' }}>
-        <em>{FOOTER_COPYRIGHT}</em>
-      </p>
+        <Section id={METHODS_ANCHORS.baselines} n={3} title="Baselines by view">
+          <BaselinesSection meta={meta} />
+        </Section>
+
+        <Section id={METHODS_ANCHORS.forecasting} n={4} title="Emissions forecasting">
+          <Table caption="Emissions forecasting method" columns={[{ key: 'step', header: 'Step' }, { key: 'detail', header: 'Detail', wrap: true }]} rows={methodologyRows} withBorder />
+          <p className="syn-text-md" style={prose}>Model comparison and fitted parameters are results, not method: they are on the Forecasts page.</p>
+        </Section>
+
+        <Section id={METHODS_ANCHORS.correlation} n={5} title="Climate correlation">
+          <p className="syn-text-md" style={prose}>
+            The headline slope relates the global temperature anomaly to cumulative CO₂. It is a simplified, data-driven analogue of the IPCC&apos;s TCRE, not a climate model.
+            The recent all-gas relationship (PRIMAP-hist, from 1970) uses the same method over a shorter window and is not a TCRE estimate.
+          </p>
+          {derivation && <DerivationAccordion derivation={derivation} />}
+        </Section>
+
+        <Section id={METHODS_ANCHORS.scenarios} n={6} title="Scenarios & implied temperature">
+          <p className="syn-text-md" style={prose}>
+            Three pathways run from {SCENARIO_START_YEAR} to {SCENARIO_END_YEAR}: business as usual (each country&apos;s ETS trend, fitted on all observed years), Moderate (−2% a year) and Aggressive (−5% a year).
+            Implied temperature = the observed 5-year-mean anchor + the long-run slope × the emissions still to come. The covered countries follow each pathway; the rest of the world is held at its latest share, and
+            land-use emissions at their latest level. {SCENARIO_LABEL}.
+          </p>
+        </Section>
+
+        <Section id={METHODS_ANCHORS.limits} n={7} title="What this platform does not do">
+          <ul className="syn-text-md" style={{ ...prose, paddingLeft: 20, lineHeight: 1.7 }}>
+            <li>{NOT_A_CLIMATE_MODEL}</li>
+            <li>Correlation is shown as context, not as proof of cause.</li>
+            <li>{NO_COUNTRY_ATTRIBUTION}</li>
+            <li>{FORCING_CONCEPT_ONLY}</li>
+            <li>Scenario temperatures are illustrative translations of the pathways, not projections.</li>
+          </ul>
+        </Section>
+      </div>
     </div>
   );
 }

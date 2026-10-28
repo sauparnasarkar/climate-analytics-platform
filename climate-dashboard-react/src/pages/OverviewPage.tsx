@@ -34,6 +34,8 @@ import { buildHeadlineSentence } from '../lib/overviewHeadline';
 import { BASELINE_YEAR, CLIMATE_SERIES_START_YEAR, MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR, SECTION_GAP } from '../constants';
 import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 import { OWID } from '../lib/sources';
+import { MethodNote } from '../components/MethodNote';
+import { METHODS_ANCHORS } from '../lib/methodology';
 
 // Stable, hand-authored jump-nav labels (SPEC.md §5.19) -- never copied from a ChartCard's own
 // (often dynamic) title. "Map" and "By Country" would otherwise collide if taken verbatim from
@@ -721,6 +723,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
       </div>
       </div>
 
+      <MethodNote anchor={METHODS_ANCHORS.baselines}>
+        Totals are fossil and cement CO₂ from Our World in Data (Global Carbon Project); indexed views use 1990 = 100. Each tier&apos;s country set, and the baselines every page uses, are on Methods &amp; data.
+      </MethodNote>
       {pathways && <PathwaysSection pathways={pathways} />}
     </div>
   );

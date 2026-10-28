@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { Themed } from '../test/Themed';
 import { api } from '../api/client';
 import type { ExplorerDataResponse, ExplorerMetaResponse, ModelComparisonResponse } from '../api/types';
@@ -99,7 +100,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerData).mockResolvedValue(DATA);
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/api/explorer/download?foo=bar');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
 
     expect(await screen.findByText('Data Explorer')).toBeInTheDocument();
     expect(await screen.findByText('1 rows · page 1 of 1')).toBeInTheDocument();
@@ -117,7 +118,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerData).mockResolvedValue({ ...DATA, columns: ['country', 'year', 'population'], rows: [{ country: 'China', year: 1990, population: 1135185000 }] });
     vi.mocked(api.explorerSummary).mockResolvedValue({ columns: ['statistic', 'year'], rows: [{ statistic: 'min', year: '1990' }, { statistic: 'max', year: '2024' }] });
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/x');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
     const preview = await screen.findByRole('table', { name: 'Dataset preview' });
     expect(await within(preview).findByText('1990')).toBeInTheDocument();
     expect(within(preview).queryByText('1,990')).not.toBeInTheDocument();
@@ -138,7 +139,7 @@ describe('DataExplorerPage', () => {
     });
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/x');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
     const preview = await screen.findByRole('table', { name: 'Dataset preview' });
     const rows = within(preview).getAllByRole('row').map((r) => [...r.children].map((c) => c.textContent));
     expect(rows).toEqual([
@@ -164,7 +165,7 @@ describe('DataExplorerPage', () => {
       ],
     });
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/x');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
     const summary = await screen.findByRole('table', { name: 'Summary statistics' });
     const rows = within(summary).getAllByRole('row').map((r) => [...r.children].map((c) => c.textContent));
     expect(rows).toEqual([
@@ -185,7 +186,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerData).mockResolvedValue(DATA);
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/x');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
     expect(await screen.findByRole('table', { name: 'Dataset preview' })).toHaveAttribute('data-density', 'compact');
     expect(screen.getByRole('table', { name: 'Summary statistics' })).toHaveAttribute('data-density', 'compact');
   });
@@ -195,7 +196,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerData).mockResolvedValue(DATA);
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/x');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
     expect(await screen.findByRole('table', { name: 'Dataset preview' })).toHaveAttribute('data-max-rows', '14');
     expect(screen.getByRole('table', { name: 'Summary statistics' })).toHaveAttribute('data-max-rows', '14');
   });
@@ -205,13 +206,13 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerData).mockResolvedValue(DATA);
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/x');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
     expect(await screen.findByText(/aggregates like "World" or "European Union" excluded/)).toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when meta fails to load', async () => {
     vi.mocked(api.explorerMeta).mockRejectedValue(new Error('Failed to load data.'));
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
   });
@@ -220,7 +221,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerMeta).mockResolvedValue(META);
     vi.mocked(api.explorerData).mockRejectedValue(new Error('Failed to load data.'));
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load data.');
     expect(await screen.findByRole('heading', { name: 'Summary Statistics' })).toBeInTheDocument();
@@ -231,7 +232,7 @@ describe('DataExplorerPage', () => {
     vi.mocked(api.explorerData).mockResolvedValue(DATA);
     vi.mocked(api.explorerSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.explorerDownloadUrl).mockReturnValue('/api/explorer/download?foo=bar');
-    render(<Themed><DataExplorerPage /></Themed>);
+    render(<Themed><MemoryRouter><DataExplorerPage /></MemoryRouter></Themed>);
     await screen.findByText('1 rows · page 1 of 1');
 
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
