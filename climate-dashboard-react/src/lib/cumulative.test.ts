@@ -30,9 +30,15 @@ describe('cumulativeSeriesMt', () => {
     const r = cumulativeSeriesMt(S, { byIso: { AAA: 1000, BBB: 500 }, from: 1750 })!;
     expect(r.years).toEqual([1970, 1971, 1972]);
     expect(r.countries).toEqual(S.countries);
-    expect(r.values[0]).toEqual([1010, 505, null]); // CCC: nothing emitted yet, so "no data" rather than a zero
-    expect(r.values[2]).toEqual([1060, 510, 2]);
-    expect(r.value_range).toEqual([2, 1060]);
+    // (Mt → Gt → Mt is not exact in floating point, so compare closely)
+    expect(r.values[0][0]).toBeCloseTo(1010, 9);
+    expect(r.values[0][1]).toBeCloseTo(505, 9);
+    expect(r.values[0][2]).toBeNull(); // CCC: nothing emitted yet, so "no data" rather than a zero
+    expect(r.values[2][0]).toBeCloseTo(1060, 9);
+    expect(r.values[2][1]).toBeCloseTo(510, 9);
+    expect(r.values[2][2]).toBeCloseTo(2, 9);
+    expect(r.value_range[0]).toBeCloseTo(1, 9); // the smallest positive value: CCC in 1971
+    expect(r.value_range[1]).toBeCloseTo(1060, 9);
   });
 
   it('is null when there is no snapshot to build on', () => {
