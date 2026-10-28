@@ -184,6 +184,19 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(scrollSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('a #method deep link waits for the fossil comparison and the world total, which change the height above the note, then jumps once', async () => {
+    window.history.replaceState(null, '', '/climate-correlation#method');
+    let fossil!: (r: typeof PAIR) => void;
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation((o) => (o?.variant === 'fossil' ? new Promise((r) => { fossil = r as never; }) : Promise.resolve(o?.source === 'primap_ghg' ? ALL_GAS_PAIR : PAIR)) as never);
+    mount('#method');
+    await screen.findByRole('heading', { level: 3, name: /^Gas composition/ });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(scrollSpy).not.toHaveBeenCalled();
+    await act(async () => fossil(PAIR));
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('method'));
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('offsets jump targets by the measured height of the sticky row', async () => {
     // The shell's pinned bar (68px) sits outside the canvas; the page's own pinned row (90px) inside it.
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {

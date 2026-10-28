@@ -63,10 +63,13 @@ export default function ClimateCorrelationPage() {
 
   // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for everything ABOVE its target to settle:
   // a section that loads late grows above the target and pushes it down, so jumping earlier lands short.
-  // The chain and relationship wait for the climate signal; all-gas and composition also wait for it, as they sit below; the method note waits for all of them.
+  // The chain waits for the climate signal. Everything below it also waits for the fossil comparison (it changes the headline's height) and the world total (it fills in the
+  // chain's emissions figure); all-gas, composition and the method note, which sit lower still, wait for those two sections as well.
   const { hash } = useLocation();
+  const headSettled = climate.done && !fossil.loading && !world.loading;
   const targetReady =
-    hash === `#${ALL_GAS_ANCHOR}` || hash === `#${GAS_COMPOSITION_ANCHOR}` || hash === `#${METHOD_NOTE_ID}` ? climate.done && !allGasQuery.loading && !compositionQuery.loading
+    hash === `#${ALL_GAS_ANCHOR}` || hash === `#${GAS_COMPOSITION_ANCHOR}` || hash === `#${METHOD_NOTE_ID}` ? headSettled && !allGasQuery.loading && !compositionQuery.loading
+    : hash === `#${GLOBAL_RELATIONSHIP_ANCHOR}` ? headSettled
     : climate.done;
   useJumpToHashOnLoad(targetReady && stickyHeight !== null, reduceMotion);
   const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), ...(allGas ? [ALL_GAS_JUMP] : []), ...(composition ? [COMPOSITION_JUMP] : []), METHOD_JUMP];
