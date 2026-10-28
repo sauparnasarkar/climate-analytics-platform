@@ -119,6 +119,8 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   const layoutSettled = useLayoutSettled(rowReady && dataIn);
   useJumpToHashOnLoad(rowReady && dataIn && layoutSettled, reduceMotion);
 
+  const pickerLabel = `Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`;
+
   return (
     <div>
       <PageChrome
@@ -127,8 +129,10 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         summary={`${selectedCountries.length} of ${MAX_SELECTED_COUNTRIES} countries`}
         filters={
           <>
+            {/* The label sits on one line with the picker and Reset, as on the Overview: visible text here, the same words as the picker's accessible name. */}
+            <span aria-hidden="true" className="syn-text-lg" style={{ color: 'var(--syn-color-text-muted)', whiteSpace: 'nowrap' }}>{pickerLabel}</span>
             <MultiSelect
-              label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
+              ariaLabel={pickerLabel}
               options={expanded.map((c) => ({ value: c, label: c }))}
               value={selectedCountries}
               onChange={setSelectedCountries}
