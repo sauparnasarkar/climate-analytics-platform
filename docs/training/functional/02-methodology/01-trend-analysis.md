@@ -11,11 +11,11 @@
 |---|---|---|---|
 | **Level** (MtCO₂) | How much is emitted? | Overview, Country Profile, Data Explorer | Large countries dominate any comparison of levels |
 | **Year-on-year change** (%) | Is the country emitting more or less than last year? | Country Profile (YoY chart) | Noisy; one recession, pandemic or data revision swings a single year |
-| **Change since a base year** (%, or index with base = 100) | How far has it moved from the starting point? | Overview "% Change", Historical Trends, Scenario Comparison | The answer depends on the base year chosen (§2) |
+| **Change since a base year** (%, or index with base = 100) | How far has it moved from the starting point? | Historical Trends ("Top Movers" and "% Change Since 1990", with a Year control), Scenario Comparison | The answer depends on the base year chosen (§2) |
 | **Per capita** (tCO₂ per person) | How much per resident? | Country Profile | Hides total scale: a small, rich country can be high per person and tiny in total |
 | **Share** (% of a total) | Who accounts for how much? | Overview share section, gas-composition charts | A share can fall while the level rises, if others grow faster |
 | **Composition by decade** (% by gas) | Which gases make up the total? | Historical Trends | Needs a source that covers all gases (PRIMAP-hist), so it starts later than the CO₂ series |
-| **Cumulative** (GtCO₂) | How much has been emitted in total since a start year? | Overview map (cumulative view), correlation module | Warming follows the cumulative total, not any single year |
+| **Cumulative** (GtCO₂) | How much has been emitted in total since a start year? | Overview map (cumulative view), Home's Top 10 ranking race, Climate Correlation | Warming follows the cumulative total, not any single year |
 
 **Colour convention.** Decreases in emissions are shown in green and increases in crimson, on
 every chart where a direction is judged. A *forecast* is shown in a neutral colour, because a

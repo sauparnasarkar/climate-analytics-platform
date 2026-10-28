@@ -72,13 +72,15 @@ appear as bands, which is why a narrow interval is not the same as a confident p
 
 | Where | What it carries |
 |---|---|
-| **About** page, "Methodology Summary" | A seven-row summary: dataset, countries, features, train/test split, models, forecasting, scenarios |
-| **Climate Correlation**, "Methodology & sources" | Sources, coverage, vintage and licence for every dataset; the baseline used by each view; the temperature offset; why the emissions series differ; the two-totals note; the 1959 splice |
-| **Climate Correlation**, "How this number was derived" | The seven-step derivation of the slope, including a "what this is not" step |
+| **Methods & data** (`/about`), "Data sources" | One table of every source: what it is used for, coverage, vintage, licence and links to its landing page and data file; why the emissions series differ; the two global totals; the two cumulative totals (since the OWID record began, and total anthropogenic CO₂ since 1850); the 1959 splice |
+| **Methods & data**, "Baselines by view" | The baseline each view uses, and the temperature offset |
+| **Methods & data**, "Emissions forecasting" | Countries, data, features, train/test split, models compared, forecast |
+| **Methods & data**, "Climate correlation" | The seven-step derivation of the slope, including a "what this is not" step |
+| **Methods & data**, "What this platform does not do" | The guardrails, stated once: not a climate model, correlation is not proof, no warming is attributed to a country, forcing is described not calculated, scenarios are illustrative |
 | **Forecasts** | The five-model comparison, the fitted ETS parameters, and the holdout overlay on each forecast |
-| **Scenario Comparison** and **Overview** | The scenario definitions and the "illustrative" label on implied temperature |
+| **Scenario Comparison** and **Overview** | The implied temperature by scenario, with the "illustrative" label |
 
-The About page is a short summary; the other pages hold the detail.
+Every other page carries a two-line note with a "Method →" link to its section of Methods & data: the full method is written once, there.
 
 ## 6. A checklist before quoting a number
 

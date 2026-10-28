@@ -468,6 +468,11 @@ Sections to include:
 | v66 | Oct 2026 | §2.1 / §5.26: the Home Banner-1 KPI row (temperature, CO₂) is read for the same year its chart ends (the last year with emissions data, 2024 today) so figures and chart agree; the Correlation module's headline chart carries a note when the latest temperature is newer than the pair; Overview KPIs and the chain band keep the latest readings, each labelled with its year |
 | v67 | Oct 2026 | §5.26 licensing row: PRIMAP-hist maintainer's reply recorded (2026-10-08) — CC BY-NC-SA 4.0 authoritative, upstream licences compatible, no extra restrictions |
 | v68 | Oct 2026 | §5.26: Section 3 (MCP & agent) design written docs-first (`services/mcp-server/SPEC.md` §5.1, `services/agent/SPEC.md` §15). |
+| v69 | Oct 2026 | §5.29: About becomes **Methods & data** (same route): seven anchored sections, one platform-wide sources table from `/correlation/meta` with landing pages and citations from a front-end lookup, the baselines table, derivation and series notes moved from Climate Correlation; a two-line "Method →" note on every page; one name ("Climate Correlation") and the nav order Overview, Climate Correlation, Historical, Country Profile, Data Explorer, Forecasts, Scenario Comparison, Methods & data |
+| v70 | Oct 2026 | §5.30: each visual has one owning page: Home's chain is one compact row; Overview loses the "Why emissions matter" card, the scatter toggle and the pathways cards; implied temperature by scenario moves to Scenario Comparison; Correlation's Country view and scenarios are removed; the two gas-composition views label their sources and link each other; the agent's links follow |
+| v71 | Oct 2026 | §5.31: the annual map is "Where emissions come from" (anchor "All Countries", no Pathways link); the Overview header Year select and Play are removed; Top Movers and % Change move to Historical Trends with their own Year control (`?year=`); the country picker's label shares a line with the control on Overview and Historical |
+| v72 | Oct 2026 | §5.32: Home's Top 10 ranking race is ranked on cumulative CO₂ since the API's `cumulative_from` (no new endpoint); hero banner 2 says its annual share is of the year's emissions |
+| v73 | Oct 2026 | §5.33: the Home globe names the ten largest emitters (five on a phone); overlapping labels keep the larger value (syena-design-system PR #69, pin `0e99730`); the source strip's control is a Methods & data link (design-system PR #68) |
 
 ---
 
@@ -555,6 +560,8 @@ data-driven ~40-country set alongside it, across the notebooks, `app.py`, `api/`
 | `syena-design-system` | `Select` gained the same type-to-search pattern §5.5 added to `MultiSelect`; `MultiSelect` gained the new `maxSelected` prop described above |
 
 ### 5.7 Three-Tier Overview
+
+> **Update (Oct 2026):** the Overview's header Year select and Play, Top Movers and % Change, and the pathways cards are gone from this page (see §5.30 and §5.31). The map, the tier cards, the ranking and By Country remain here; the page year is moved by the map's Play, stops and slider.
 
 **Status: shipped** —not a curriculum change. Restructures the
 Overview page (`app.py`, `api/`, `climate-dashboard-react/`) from a single 10-country KPI row
@@ -1076,6 +1083,8 @@ extreme (1990/2024), no layout clash with the Play button or `ChartCard` title, 
 value label confirmed removed.
 
 ### 5.18 Overview Headline Sentence, Compressed Tier Panel, Slider Touch Target & No-Data Hover
+
+> **Update (Oct 2026):** Top Movers and % Change moved to Historical Trends (§5.31).
 
 **Status: Shipped.** Bundles two unrelated efforts from the same review pass under one release,
 following the precedent set by §5.9 — no dependency between them and no shared code,
@@ -1840,6 +1849,8 @@ that actually owns `api/main.py`.
 
 ### 5.25 Landing Page, Emissions Globe, Overview Restyle, and Dedicated Sub-Domain (Docs-first)
 
+> **Update (Oct 2026):** the Home Top 10 ranking race is ranked on cumulative CO₂ (§5.32), the chain band is one compact row (§5.30), and the globe names ten countries (§5.33).
+
 **Status: docs-first stage — design accepted, implementation not started.** Not a curriculum change, same category as the rest of §5.
 
 | Aspect | Detail |
@@ -1856,6 +1867,8 @@ that actually owns `api/main.py`.
 ---
 
 ### 5.26 Area 2: Climate Context Layer (Docs-first)
+
+> **Update (Oct 2026):** the Climate Correlation page no longer carries the methodology block, the sources table, the derivation, the scenarios or the Country view: the first three are on Methods & data (§5.29), the scenarios on Scenario Comparison and the shares on Overview and Country Profile (§5.30). Its page title and every link now say "Climate Correlation".
 
 > Full plan, phase table,
 > effort assessment and open items. Source requirements:
@@ -1951,7 +1964,7 @@ that actually owns `api/main.py`.
 | Climate Correlation jump links | Causal chain, Global relationship, All-gas 1970 on, Gas composition, Method (the closing note) |
 | Agent links | `get_scenario_temperature` links to `/scenarios#implied-temperature` and `/climate-correlation#global-relationship`; the cumulative-share tool's fixed links are `/overview#share` and `/overview#top-emitters` (services/agent SPEC.md §15) |
 
-### 5.31 Overview middle: distinct titles, one year control, and Top Movers / % Change on Historical Trends (Proposed: item 4 of the page consolidation)
+### 5.31 Overview middle: distinct titles, one year control, and Top Movers / % Change on Historical Trends (Shipped: item 4 of the page consolidation)
 
 | Area | Specification |
 |---|---|
@@ -1962,7 +1975,7 @@ that actually owns `api/main.py`.
 | Overview header | The header Year select and Play are removed (`PageYearControl` deleted). The year is still one value: the map's Play, decade stops and slider move it, and the Share section's Replay animates 1970 → that year. The picker's label now sits on one line with the dropdown and Reset to default |
 | Overview anchor row | "Top emitters" reads **All Countries** (the id stays `#top-emitters`, which the agent and bookmarks use); the "Pathways" link is gone, as that section is one line now (its `#pathways` id stays) |
 
-### 5.32 Home: the ranking race is cumulative (Proposed: item 5 of the page consolidation)
+### 5.32 Home: the ranking race is cumulative (Shipped: item 5 of the page consolidation)
 
 | Area | Specification |
 |---|---|
@@ -1972,7 +1985,7 @@ that actually owns `api/main.py`.
 | Rows | Rank, name, bar on a fixed 0–max scale, cumulative GtCO₂ and share of the world's cumulative total. The link on is "Cumulative share on the Overview →" (`/overview#share`) |
 | Hero banner 2 | The annual figure stays and is explicit, so the two top-10 numbers cannot be confused: "…the 10 largest emitters produced N% of {year}'s emissions" (and the card "Top 10's share of {year} emissions") against the race's "N% of all CO₂ emitted since 1750" |
 
-### 5.33 Home globe: top-10 labels (Proposed: item 6 of the page consolidation)
+### 5.33 Home globe: top-10 labels (Shipped: item 6 of the page consolidation)
 
 | Area | Specification |
 |---|---|

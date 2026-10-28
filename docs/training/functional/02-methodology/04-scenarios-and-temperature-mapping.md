@@ -104,9 +104,9 @@ regression period, emissions source and model assumptions".
 
 | Dashboard element | What it shows |
 |---|---|
-| Scenario Comparison page | The three pathways per country, a treemap of cumulative BAU emissions coloured by each scenario's 2040 level against today's, a cumulative table |
-| Overview and Climate Correlation | The implied-temperature translation, labelled illustrative |
-| About page | A one-line description of the three scenarios |
+| Scenario Comparison page | The implied temperature by scenario, 2025–2040 (emissions and temperature for the same three pathways, side by side, labelled illustrative), the three pathways per country, a treemap of cumulative BAU emissions coloured by each scenario's 2040 level against today's, a cumulative table |
+| Overview | One line giving the range of implied temperatures at the horizon year, labelled illustrative, with links to Scenario Comparison and Forecasts |
+| Methods & data, "Scenarios & implied temperature" | The three pathways and how the implied temperature is calculated |
 
 ## See also
 
