@@ -919,6 +919,15 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(document.getElementById('percent-change')).toContainElement(link); // bookmarked #percent-change / #pct-change links still land beside it
   });
 
+  it('links on to Historical Trends with an explicitly empty selection when nothing is selected, not the defaults', async () => {
+    mountFullRange(2024); // sets every mock; then open the page again on an explicitly empty selection
+    cleanup();
+    render(<MemoryRouter initialEntries={['/overview?countries=']}><OverviewPage /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const link = await screen.findByRole('link', { name: 'Top movers and % change since 1990 → Historical Trends' });
+    expect(link).toHaveAttribute('href', '/historical?countries=#top-movers');
+  });
+
   it('keeps By Country for years up to 1990, with nothing about a baseline to explain', async () => {
     for (const year of [1990, 1980]) {
       cleanup();

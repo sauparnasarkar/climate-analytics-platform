@@ -425,7 +425,8 @@ function AnimatedWorldMap({
 // GET /api/countries resolves.
 /** The link on to Historical Trends' Top Movers: the selection, and the page year unless it is the latest (Historical's default), so the same comparison opens there. */
 function moversHref(selected: string[], year: number, latest: number): string {
-  const params = new URLSearchParams(selected.map((c): [string, string] => ['countries', c]));
+  // An empty selection is a bare `countries=` (the selection hook reads that as intentionally empty), not an absent parameter, which would reopen on the defaults.
+  const params = new URLSearchParams(selected.length ? selected.map((c): [string, string] => ['countries', c]) : [['countries', '']]);
   if (year !== latest && year > BASELINE_YEAR) params.set('year', String(year));
   const qs = params.toString();
   return `/historical${qs ? `?${qs}` : ''}#top-movers`;
