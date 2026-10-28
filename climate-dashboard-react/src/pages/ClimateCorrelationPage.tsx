@@ -38,7 +38,7 @@ const COMPOSITION_JUMP: JumpLinkItem = { id: GAS_COMPOSITION_ANCHOR, label: 'Gas
 const METHOD_JUMP: JumpLinkItem = { id: METHOD_NOTE_ID, label: 'Method' };
 
 /**
- * The Temperature & GHG Correlation module (Area 2, Phases 2.4 and 2.5). 7a: the causal chain and the headline
+ * The Climate Correlation page (Area 2, Phases 2.4 and 2.5). 7a: the causal chain and the headline
  * relationship. Descriptive throughout: correlation as context, never proof of cause. If the climate data is unavailable the module says so once and
  * shows no chain or relationship -- never zeros.
  */
