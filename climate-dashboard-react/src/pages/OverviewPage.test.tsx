@@ -682,7 +682,7 @@ describe('OverviewPage — climate signal', () => {
     expect(within(section).getByRole('region', { name: 'Baseline for Atmospheric CO₂ · 2024' })).toHaveTextContent('(ppm ÷ ppm₁₈₅₀ − 1) × 100%');
   });
 
-  it('explains the chain in the "Why emissions matter" card (data-driven) and links to the correlation module without attributing warming to a country', async () => {
+  it('explains the chain in the "Why emissions matter" card (data-driven) and links to Climate Correlation without attributing warming to a country', async () => {
     mountWithClimate();
     // a labelled region, not an <aside>: a complementary landmark must be top level and this one sits inside <main>
     const card = await screen.findByRole('region', { name: 'Why emissions matter' });
@@ -692,7 +692,7 @@ describe('OverviewPage — climate signal', () => {
     expect(card).toHaveTextContent(/temperature anomaly: \+1.62 °C in 2024/);
     expect(card).toHaveTextContent(/accumulated global forcing and the response of the ocean and climate system, not only this year’s emissions/);
     expect(card).toHaveTextContent(/do not assign warming to any country/);
-    expect(within(card).getByRole('link', { name: /Temperature & GHG Correlation module/ })).toHaveAttribute('href', '/climate-correlation');
+    expect(within(card).getByRole('link', { name: /^Climate Correlation →$/ })).toHaveAttribute('href', '/climate-correlation');
   });
 
   it('states the sources, the not-a-climate-model note and the Berkeley vintage caveat behind "Sources & method"', async () => {

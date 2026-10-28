@@ -47,7 +47,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
 
   it('shows the intro, a sticky anchor row, the four-step chain and the headline relationship from the API', async () => {
     mount();
-    expect(await screen.findByRole('heading', { level: 1, name: 'Temperature & GHG Correlation' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Climate Correlation' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { level: 2, name: 'Causal chain' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'On this page' });

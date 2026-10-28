@@ -270,7 +270,7 @@ describe('LandingPage', () => {
     mount();
     const features = (await screen.findByRole('heading', { name: 'Everything you need to read the trend' })).closest('section')!;
     const hrefs = within(features).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/overview', '/historical', '/country-profile', '/data-explorer', '/climate-correlation', '/forecasts', '/scenarios', '/ask']);
+    expect(hrefs).toEqual(['/overview', '/climate-correlation', '/historical', '/country-profile', '/data-explorer', '/forecasts', '/scenarios', '/ask']);
   });
 });
 
@@ -339,7 +339,7 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(within(band).getByText('Berkeley Earth', { exact: false })).toBeInTheDocument();
   });
 
-  it('Banner 1 sends the primary CTA to the Overview climate signal and sends the second button to the correlation module and keeps Forecasts as a link', async () => {
+  it('Banner 1 sends the primary CTA to the Overview climate signal and sends the second button to Climate Correlation and keeps Forecasts as a link', async () => {
     mountWithClimate();
     const primary = await screen.findByRole('link', { name: 'See the climate signal' });
     expect(primary).toHaveAttribute('href', '/overview#climate-signal');

@@ -53,7 +53,7 @@ export function ChainBand({ signal, emissions }: { signal: ClimateSignal; emissi
             Global totals, built up over time. One country’s emissions in one year do not set that year’s temperature.
           </p>
         </div>
-        <Link to="/climate-correlation" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Open the Correlation module →</Link>
+        <Link to="/climate-correlation" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Climate Correlation →</Link>
       </div>
       <ol className="chain-band__steps">
         <li className="chain-band__card">
