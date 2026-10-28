@@ -1978,7 +1978,7 @@ that actually owns `api/main.py`.
 |---|---|
 | Count | The globe names the **ten** largest emitters of the year in view on a desktop or tablet (was five) and **five** on a phone (its globe is about 210 px across): `GLOBE_LABEL_COUNT` and `GLOBE_LABEL_COUNT_PHONE` |
 | Basis | Labels rank on the globe's own annual values for the current year (the same series the colours use), so a label and a colour agree |
-| Collisions | The design system's `Globe` has no collision handling (a label sits at its country's centre; only the facing side is drawn), so neighbours (East Asia, the Gulf) can overlap. Judged on the preview at 1970, 1990, 2010 and 2024 at 1920 and 1440 wide; a fix (drop the lower-ranked of two colliding labels) is a design-system change and a pin bump, made only if asked |
+| Collisions | The design system's `Globe` keeps the earlier of two labels that would touch and hides the later one until turning or zooming moves them apart (syena-design-system PR #69, pin `0e99730`; measured after drawing, re-checked on resize and when a label changes size), so the dashboard lists labels largest first. Checked on the preview at 1990 (Europe shows Germany alone) and 2024 (China intact, South Korea hidden) |
 
 ---
 

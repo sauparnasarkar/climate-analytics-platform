@@ -232,8 +232,8 @@ export function phoneGlobeMax({ viewportHeight, top, ceiling, below = PHONE_GLOB
 }
 
 /** How many countries the globe names on a desktop or tablet: the ten largest emitters of the year in view, ranked on the same annual values the globe colours by, so a label and a colour
- * agree. The design system's globe has no collision handling (a label sits at its country's centre; only the facing side is drawn), so names near each other, such as East Asia's
- * and the Gulf's, can overlap; whether that is acceptable is judged on the preview, and a fix would be a design-system change (drop the lower-ranked of two colliding labels). */
+ * agree. Labels are listed largest first because the design system's globe keeps the earlier of two that would overlap and hides the later one until the view moves them apart
+ * (so, in East Asia, "China" stays and "South Korea" waits). */
 export const GLOBE_LABEL_COUNT = 10;
 /** On a phone the globe is about 210 px across, so only the five largest are named. */
 export const GLOBE_LABEL_COUNT_PHONE = 5;
