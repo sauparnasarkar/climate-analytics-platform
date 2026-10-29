@@ -8,13 +8,14 @@ import { apiRuntimeCachePattern, backendProxyKey, navigateFallbackDenylist, stri
 import { SECURITY_HEADERS } from './src/lib/securityHeaders.js'
 import { WORKER_CACHE_CONTROL, isWorkerScript } from './src/lib/workerCache.js'
 import { savedCopyPlugin } from './src/lib/savedCopy.js'
+import { parseRetiredHosts, retiredOriginReply } from './src/lib/retiredOrigin.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The design system's source: a sibling checkout (../../syena-design-system by default). `SYN_DS_PATH` points at a different checkout.
 const synDs = path.resolve(__dirname, process.env.SYN_DS_PATH ?? '../../syena-design-system')
 
-// The production deploy (climate-analytics.syena.io, SPEC.md §5.25) is served from the
+// The production deploy (degreesofcarbon.syena.io, SPEC.md §5.25) is served from the
 // host root, so DEPLOY_BASE_PATH=/ (or unset) is now the real production value. It can still be set
 // to a prefix (labs.syena.io/app-prefix/, say) when the app has to
 // live under a path. Defaults to root so local `npm run dev` / `npm run build` behavior is unchanged. Normalized so a
@@ -117,6 +118,24 @@ function previewNoindexPlugin(): Plugin {
   }
 }
 
+// The retired hosts (src/lib/retiredOrigin.ts): their /sw.js is a worker that removes itself and moves the tab to the new origin; every other path redirects there.
+// Off unless RETIRE_OLD_ORIGIN=1 -- set only once the new host serves the app. Added first, so nothing else answers a retired host.
+function retiredOriginPlugin(): Plugin {
+  return {
+    name: 'retired-origin',
+    configurePreviewServer(server) {
+      if (process.env.RETIRE_OLD_ORIGIN !== '1') return
+      const hosts = parseRetiredHosts(process.env.RETIRED_HOST_MAP)
+      server.middlewares.use((req, res, next) => {
+        const reply = retiredOriginReply({ method: req.method, url: req.url, host: req.headers.host }, hosts)
+        if (!reply) return next()
+        res.writeHead(reply.status, reply.headers)
+        res.end(reply.body)
+      })
+    },
+  }
+}
+
 // The service worker script is sent with `no-store` (src/lib/workerCache.ts). Set as the headers are written: the static file server sets its own caching header after any middleware.
 function workerNoStorePlugin(): Plugin {
   return {
@@ -147,6 +166,7 @@ export default defineConfig({
   plugins: [
     react(),
     redirectBareBasePlugin(),
+    retiredOriginPlugin(),
     previewNoindexPlugin(),
     workerNoStorePlugin(),
     VitePWA({
@@ -208,7 +228,7 @@ export default defineConfig({
         // login the normal way instead of silently serving stale cached UI.
         //
         // The backend prefixes (api/mcp/agent) are denylisted for a related reason: at the root base
-        // of climate-analytics.syena.io (SPEC.md §5.25) this worker's scope is the whole
+        // of degreesofcarbon.syena.io (SPEC.md §5.25) this worker's scope is the whole
         // origin, so a top-level navigation to one of them must reach the tunnel's backend route,
         // not be answered with the SPA shell. The list is built (and unit-tested) in lib/basePath.ts.
         navigateFallbackDenylist: navigateFallbackDenylist(base),
@@ -279,10 +299,17 @@ export default defineConfig({
     headers: SECURITY_HEADERS,
     proxy: { ...apiProxyEntry, ...agentProxyEntry },
     // Vite blocks unrecognized Host headers by default (DNS-rebinding protection) —
-    // the Cloudflare Tunnel forwards requests with Host: climate-analytics.syena.io (or climate-analytics-preview.syena.io for the preview), which needs
+    // the Cloudflare Tunnel forwards requests with Host: degreesofcarbon.syena.io (or degreesofcarbon-preview.syena.io for the preview), which needs
     // an explicit allow (localhost and IP hosts are always allowed by Vite itself). Not gated on the
     // base being prefixed: the root-base deploy (SPEC.md §5.25) is the real production
-    // case, and leaving `allowedHosts` undefined there would 403 the tunnel's Host header outright.
-    allowedHosts: ['climate-analytics.syena.io', 'climate-analytics-preview.syena.io'],
+    // case, and leaving `allowedHosts` undefined there would 403 the tunnel's Host header outright. The two retired hosts stay listed: Vite
+    // answers an unlisted host with a 403, and a browser that still holds the old worker must be able to fetch its replacement (retiredOriginPlugin).
+    allowedHosts: [
+      'degreesofcarbon.syena.io',
+      'degreesofcarbon-preview.syena.io',
+      'climate-analytics.syena.io',
+      'climate-analytics-preview.syena.io',
+      ...Object.keys(parseRetiredHosts(process.env.RETIRED_HOST_MAP)),
+    ],
   },
 })
