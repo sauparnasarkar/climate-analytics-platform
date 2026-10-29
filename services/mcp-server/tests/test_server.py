@@ -38,8 +38,8 @@ def test_streamable_http_settings_set_locks_to_the_tunnel_hostname():
     path, security = _streamable_http_settings("/app-prefix/")
     assert path == "/app-prefix/mcp"
     assert security is not None
-    assert security.allowed_hosts == ["climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
-    assert security.allowed_origins == ["https://climate-analytics.syena.io"]
+    assert security.allowed_hosts == ["degreesofcarbon.syena.io", "climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
+    assert security.allowed_origins == ["https://degreesofcarbon.syena.io", "https://climate-analytics.syena.io"]
     # The retired labs.syena.io host must no longer be accepted.
     assert "labs.syena.io" not in security.allowed_hosts
     assert "https://labs.syena.io" not in security.allowed_origins
@@ -61,8 +61,9 @@ def test_streamable_http_settings_at_root_serves_the_release_20_subdomain():
     # 421 the moment the tunnel forwards the new host's traffic.
     path, security = _streamable_http_settings("/")
     assert path == "/mcp"
-    assert "climate-analytics.syena.io" in security.allowed_hosts
-    assert "https://climate-analytics.syena.io" in security.allowed_origins
+    assert "degreesofcarbon.syena.io" in security.allowed_hosts  # the product's host since the rename
+    assert "https://degreesofcarbon.syena.io" in security.allowed_origins
+    assert "climate-analytics.syena.io" in security.allowed_hosts  # the retired host still gets its redirect, not a 421
 
 
 def test_streamable_http_settings_deployed_at_root_still_enables_security():
@@ -74,7 +75,7 @@ def test_streamable_http_settings_deployed_at_root_still_enables_security():
     path, security = _streamable_http_settings("/")
     assert path == "/mcp"
     assert security is not None
-    assert security.allowed_hosts == ["climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
+    assert security.allowed_hosts == ["degreesofcarbon.syena.io", "climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
 
 
 def test_timestamp_uvicorn_logs_prefixes_access_and_default_formats():

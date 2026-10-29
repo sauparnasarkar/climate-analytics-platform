@@ -85,9 +85,11 @@ app.add_middleware(
     # accident of same-origin deployment -- e.g. a future subdomain or staging environment on a
     # different origin should have to be added here deliberately, not inherit access simply
     # because nothing else was ever listed.
-    # The dashboard moved from labs.syena.io/app-prefix/ to climate-analytics.syena.io
-    # (SPEC.md §5.25); the old origin is retired.
-    allow_origins=["http://localhost:5173", "https://climate-analytics.syena.io"],
+    # The dashboard moved from labs.syena.io/app-prefix/ to its own sub-domain (SPEC.md §5.25), then to
+    # degreesofcarbon.syena.io when the product became Degrees of Carbon. The retired climate-analytics.syena.io
+    # stays listed: a page cached by an old service worker still calls /api for a moment before the replacement
+    # worker moves it to the new origin.
+    allow_origins=["http://localhost:5173", "https://degreesofcarbon.syena.io", "https://climate-analytics.syena.io"],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
