@@ -41,7 +41,7 @@ describe('App routing', () => {
     }
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/overview');
     expect(screen.queryByText('Overview page stub')).not.toBeInTheDocument();
-    expect(document.title).toBe('Degrees of Carbon: how every tonne becomes a degree');
+    expect(document.title).toBe('Degrees of Carbon: how emissions add up to warming');
     // Data Explorer and Methods & data sit in the footer, not the top nav, so the nav fits one line (Area 2 design).
     expect(within(nav).queryByRole('link', { name: 'Data Explorer' })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: 'Methods & data' })).not.toBeInTheDocument();

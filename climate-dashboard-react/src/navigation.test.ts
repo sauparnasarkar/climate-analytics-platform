@@ -5,10 +5,10 @@ describe('navigation', () => {
   it('names the product the same everywhere, and keeps the tagline out of the rail', () => {
     expect(PRODUCT_NAME).toBe('Degrees of Carbon');
     expect(RAIL_PRODUCT_NAME).toBe(PRODUCT_NAME);
-    expect(LANDING_TITLE).toBe('Degrees of Carbon: how every tonne becomes a degree');
+    expect(LANDING_TITLE).toBe('Degrees of Carbon: how emissions add up to warming');
     expect(FOOTER_COPYRIGHT).toBe('Degrees of Carbon · A Syena project · Sauparna Sarkar');
-    expect(TAGLINE).toBe('How every tonne becomes a degree.');
-    expect(TAGLINE_HEADING).toBe('How every tonne becomes a degree');
+    expect(TAGLINE).toBe('How emissions add up to warming.');
+    expect(TAGLINE_HEADING).toBe('How emissions add up to warming');
     expect(RAIL_PRODUCT_NAME).not.toContain(TAGLINE);
   });
 
