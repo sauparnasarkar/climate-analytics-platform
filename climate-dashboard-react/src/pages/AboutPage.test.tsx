@@ -39,7 +39,7 @@ describe('AboutPage — Methods & data', () => {
   it('opens the first section with what the product shows, by its name', async () => {
     mount();
     const project = (await screen.findByRole('heading', { level: 2, name: 'About the project' })).closest('section')!;
-    expect(within(project).getAllByText(/./, { selector: 'p' })[0]).toHaveTextContent('Degrees of Carbon shows how CO₂ emissions become warming, from emissions to temperature.');
+    expect(within(project).getAllByText(/./, { selector: 'p' })[0]).toHaveTextContent('Degrees of Carbon traces how CO₂ emissions become warming.');
     expect(screen.getByRole('heading', { level: 1, name: 'Methods & data' })).toBeInTheDocument();
   });
 

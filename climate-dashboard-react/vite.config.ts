@@ -179,7 +179,7 @@ export default defineConfig({
       manifest: {
         name: 'Degrees of Carbon',
         short_name: 'Degrees',
-        description: 'How every tonne becomes a degree. Country CO₂ emissions, forecasts and scenarios, set in the context of atmospheric CO₂ and global warming.',
+        description: "How every tonne of CO₂ becomes a degree of warming. See who emits, how emissions build up in the atmosphere, and where today's pathways lead.",
         theme_color: APP_BACKGROUND,
         background_color: APP_BACKGROUND,
         display: 'standalone',

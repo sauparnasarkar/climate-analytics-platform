@@ -94,7 +94,7 @@ describe('AgentPage', () => {
     for (const name of ['Historical trends', 'Climate outcomes', 'Forecasts']) {
       expect(screen.getByRole('region', { name })).toBeInTheDocument();
     }
-    expect(within(screen.getByRole('region', { name: 'Climate outcomes' })).getByText('NEW')).toBeInTheDocument();
+    expect(screen.queryByText('NEW')).not.toBeInTheDocument(); // no column is tagged new
     for (const name of ['Historical trends', 'Climate outcomes', 'Forecasts']) {
       expect(within(screen.getByRole('region', { name })).getAllByRole('button')).toHaveLength(2);
     }

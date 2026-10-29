@@ -20,7 +20,6 @@ export const STARTER_COLUMNS: StarterColumn[] = [
   },
   {
     label: 'Climate outcomes',
-    isNew: true,
     prompts: [
       'Show the relationship between cumulative emissions and warming.',
       'How do temperature outcomes vary based on different emissions pathways?',

@@ -111,7 +111,7 @@ export default function AboutPage() {
 
         <Section id={METHODS_ANCHORS.project} n={1} title="About the project">
           <p className="syn-text-md" style={prose}>
-            {PRODUCT_NAME} shows how CO₂ emissions become warming, from emissions to temperature.
+            {PRODUCT_NAME} traces how CO₂ emissions become warming.
           </p>
           <p className="syn-text-md" style={prose}>
             The data pipeline and machine-learning models began as a 7-week data science project. The platform has since added this dashboard, the Climate Correlation page built on
