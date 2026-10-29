@@ -23,30 +23,29 @@ const mount = (path = '/overview') => render(
 );
 
 describe('DashboardLayout rail brand', () => {
-  it('writes the short product name in the rail and keeps the full name for the page title', () => {
+  it('writes the product name in the rail', () => {
     mount();
     const rail = screen.getByRole('navigation', { name: 'Primary' });
-    expect(rail.querySelector('a[href="/"] span')).toHaveTextContent(/^Climate Analytics$/);
-    expect(document.querySelector('h1, [role="banner"]')?.textContent ?? '').not.toMatch(/^Climate Analytics$/);
+    expect(rail.querySelector('a[href="/"] span')).toHaveTextContent(/^Degrees of Carbon$/);
   });
 
   it('names the product and links to Home, and a plain click moves within the app', () => {
     mount();
-    const brand = screen.getByRole('link', { name: /Climate Analytics Platform/ });
+    const brand = screen.getByRole('link', { name: /Degrees of Carbon/ });
     expect(brand).toHaveAttribute('href', '/');
     fireEvent.click(brand);
     expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/);
   });
 
-  it('names the Home link with the full product name once the rail is collapsed, though the rail writes the short one', () => {
+  it('keeps the Home link named with the product name once the rail is collapsed', () => {
     mount();
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }));
-    expect(screen.getByRole('link', { name: 'Climate Analytics Platform' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Degrees of Carbon' })).toHaveAttribute('href', '/');
   });
 
   it('keeps a modified click for the browser (new tab)', () => {
     mount();
-    fireEvent.click(screen.getByRole('link', { name: /Climate Analytics Platform/ }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole('link', { name: /Degrees of Carbon/ }), { ctrlKey: true });
     expect(screen.getByTestId('where')).toHaveTextContent('/overview');
   });
 });

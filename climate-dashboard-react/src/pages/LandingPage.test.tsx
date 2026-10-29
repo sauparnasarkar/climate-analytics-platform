@@ -150,6 +150,8 @@ describe('LandingPage', () => {
     expect(screen.getByText('Global CO₂ emissions have grown by more than two-thirds since 2022, and the 10 largest emitters produced 80% of 2024’s emissions.')).toBeInTheDocument();
     expect(screen.getByText('427')).toBeInTheDocument(); // latest_co2_total
     expect(screen.getByText('MtCO₂ in 2024, all countries')).toBeInTheDocument();
+    const hero = document.querySelector('.landing-hero__text')!;
+    expect(hero.firstElementChild).toHaveTextContent('Degrees of CarbonHow every tonne becomes a degree.'); // the name, then the tagline under it
     expect(screen.getByText('+70.8%')).toBeInTheDocument(); // (427-250)/250
     expect(screen.getByText('Change since 2022')).toBeInTheDocument();
     expect(screen.getByText('Countries in the Expanded set').previousElementSibling).toHaveTextContent('12');

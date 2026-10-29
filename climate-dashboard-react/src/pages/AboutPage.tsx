@@ -15,7 +15,7 @@ import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 import { PageChrome } from '../layouts/PageChrome';
-import { FOOTER_COPYRIGHT } from '../navigation';
+import { FOOTER_COPYRIGHT, PRODUCT_NAME } from '../navigation';
 import { READING_MEASURE } from '../lib/readingMeasure';
 import { FORCING_CONCEPT_ONLY, NOT_A_CLIMATE_MODEL, NO_COUNTRY_ATTRIBUTION, SCENARIO_LABEL } from '../lib/climateCopy';
 import { buildDerivation } from '../lib/derivation';
@@ -110,6 +110,9 @@ export default function AboutPage() {
         </StickyAnchorRow>
 
         <Section id={METHODS_ANCHORS.project} n={1} title="About the project">
+          <p className="syn-text-md" style={prose}>
+            {PRODUCT_NAME} shows how CO₂ emissions become warming, from emissions to temperature.
+          </p>
           <p className="syn-text-md" style={prose}>
             The data pipeline and machine-learning models began as a 7-week data science project. The platform has since added this dashboard, the Climate Correlation page built on
             observed temperature and concentration records, and a conversational agent that answers from the same API. Every figure on screen is read from the pipeline&apos;s output.

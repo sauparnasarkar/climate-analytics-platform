@@ -36,6 +36,13 @@ afterEach(() => {
 const mount = (hash = '') => render(<MemoryRouter initialEntries={[`/about${hash}`]}><AboutPage /></MemoryRouter>);
 
 describe('AboutPage — Methods & data', () => {
+  it('opens the first section with what the product shows, by its name', async () => {
+    mount();
+    const project = (await screen.findByRole('heading', { level: 2, name: 'About the project' })).closest('section')!;
+    expect(within(project).getAllByText(/./, { selector: 'p' })[0]).toHaveTextContent('Degrees of Carbon shows how CO₂ emissions become warming, from emissions to temperature.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Methods & data' })).toBeInTheDocument();
+  });
+
   it('has the seven anchored sections, in order, each reachable from the jump row', async () => {
     mount();
     expect(await screen.findByRole('heading', { level: 2, name: 'Data sources' })).toBeInTheDocument();

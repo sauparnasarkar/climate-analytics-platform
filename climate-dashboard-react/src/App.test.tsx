@@ -41,12 +41,12 @@ describe('App routing', () => {
     }
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/overview');
     expect(screen.queryByText('Overview page stub')).not.toBeInTheDocument();
-    expect(document.title).toBe('Climate Analytics Platform');
+    expect(document.title).toBe('Degrees of Carbon: how every tonne becomes a degree');
     // Data Explorer and Methods & data sit in the footer, not the top nav, so the nav fits one line (Area 2 design).
     expect(within(nav).queryByRole('link', { name: 'Data Explorer' })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: 'Methods & data' })).not.toBeInTheDocument();
     const footer = screen.getByRole('contentinfo');
-    expect(within(footer).getByText('Climate Analytics Platform · Sauparna Sarkar')).toBeInTheDocument();
+    expect(within(footer).getByText('Degrees of Carbon · A Syena project · Sauparna Sarkar')).toBeInTheDocument();
     expect(within(footer).getByRole('link', { name: 'Data Explorer' })).toHaveAttribute('href', '/data-explorer');
     expect(within(footer).getByRole('link', { name: 'Methods & data' })).toHaveAttribute('href', '/about');
   });
@@ -55,7 +55,7 @@ describe('App routing', () => {
     renderAt('/overview');
     expect(screen.getByText('Overview page stub')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: /where the world’s co₂/i })).not.toBeInTheDocument();
-    expect(document.title).toBe('Overview — Climate Analytics Platform');
+    expect(document.title).toBe('Overview — Degrees of Carbon');
   });
 
   it('has a Home rail item that returns to "/" and an Overview item that opens "/overview"', () => {
@@ -193,18 +193,18 @@ describe('Area 2 foundation', () => {
   it('routes /climate-correlation to the Climate Correlation page inside the dashboard shell', () => {
     renderAt('/climate-correlation');
     expect(screen.getByRole('heading', { level: 1, name: /^climate correlation$/i })).toBeInTheDocument();
-    expect(document.title).toBe('Climate Correlation — Climate Analytics Platform');
+    expect(document.title).toBe('Climate Correlation — Degrees of Carbon');
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: /Climate Correlation/ })).toHaveAttribute('href', '/climate-correlation');
   });
 
-  it('shows the product name in the dashboard rail and footer, in full on a phone\'s top bar', () => {
+  it('shows the product name in the dashboard rail and footer, and on a phone\'s top bar', () => {
     renderAt('/historical');
-    const brand = within(screen.getByRole('navigation', { name: 'Primary' })).getByText('Climate Analytics', { selector: 'span' }); // the rail's short name
+    const brand = within(screen.getByRole('navigation', { name: 'Primary' })).getByText('Degrees of Carbon', { selector: 'span' });
     expect(brand.closest('a')).toHaveAttribute('href', '/');
-    expect(within(screen.getByRole('contentinfo')).getByText('Climate Analytics Platform · Sauparna Sarkar')).toBeInTheDocument();
+    expect(within(screen.getByRole('contentinfo')).getByText('Degrees of Carbon · A Syena project · Sauparna Sarkar')).toBeInTheDocument();
     cleanup();
     mobile = true;
     renderAt('/historical');
-    expect(within(screen.getByRole('banner')).getByText('Climate Analytics Platform')).toBeInTheDocument();
+    expect(within(screen.getByRole('banner')).getAllByText('Degrees of Carbon').length).toBeGreaterThan(0);
   });
 });
