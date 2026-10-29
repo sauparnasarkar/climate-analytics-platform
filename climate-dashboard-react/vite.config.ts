@@ -157,9 +157,9 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Climate Analytics Platform',
-        short_name: 'Climate Analytics',
-        description: 'Country CO₂ emissions, forecasts and scenarios, set in the context of atmospheric CO₂ and global warming.',
+        name: 'Degrees of Carbon',
+        short_name: 'Degrees',
+        description: 'How every tonne becomes a degree. Country CO₂ emissions, forecasts and scenarios, set in the context of atmospheric CO₂ and global warming.',
         theme_color: APP_BACKGROUND,
         background_color: APP_BACKGROUND,
         display: 'standalone',

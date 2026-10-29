@@ -58,15 +58,25 @@ describe('useRouteAnnouncements', () => {
     const announcer = document.getElementById('route-announcer');
     expect(announcer).toBeInTheDocument();
     fireEvent.click(screen.getByText('about'));
-    expect(document.title).toBe('Methods & data — Climate Analytics Platform');
+    expect(document.title).toBe('Methods & data — Degrees of Carbon');
     expect(document.getElementById('route-announcer')).toBe(announcer);
     expect(announcer).toHaveAttribute('aria-live', 'polite');
     expect(announcer).toHaveTextContent('Methods & data page');
   });
 
+  it('points the canonical link at the page\'s own path on the production origin, whichever host serves it', () => {
+    renderAt('/');
+    const canonical = () => document.head.querySelectorAll('link[rel="canonical"]');
+    expect(canonical()).toHaveLength(1);
+    expect(canonical()[0]).toHaveAttribute('href', 'https://degreesofcarbon.syena.io/');
+    fireEvent.click(screen.getByText('about'));
+    expect(canonical()).toHaveLength(1);
+    expect(canonical()[0]).toHaveAttribute('href', 'https://degreesofcarbon.syena.io/about');
+  });
+
   it('gives pages that are not navigation items their own title', () => {
     renderAt('/ask');
-    expect(document.title).toBe('Ask the Agent — Climate Analytics Platform');
+    expect(document.title).toBe('Ask the Agent — Degrees of Carbon');
   });
 
   it('leaves scrolling to the jump-to-hash hook when the destination has a #hash', () => {

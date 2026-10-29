@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { useLocation } from 'react-router-dom';
-import { APP_TITLE, HOME_ITEM, LANDING_TITLE, NAV_ITEMS } from '../navigation';
+import { APP_TITLE, CANONICAL_ORIGIN, HOME_ITEM, LANDING_TITLE, NAV_ITEMS } from '../navigation';
 
 // Module-level (not a per-layout ref): the landing layout and the dashboard layout are separate
 // mounts, so a per-layout "first render" flag would wrongly skip focus on the very first
@@ -37,6 +37,17 @@ function announce(label: string) {
   ensureAnnouncer().textContent = `${label} page`;
 }
 
+/** Points the page's canonical link at its path on the production origin (created on first use: index.html carries none, as one fixed value would claim every route is the Home page). */
+function setCanonical(pathname: string) {
+  let link = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'canonical';
+    document.head.appendChild(link);
+  }
+  link.href = `${CANONICAL_ORIGIN}${pathname}`;
+}
+
 /** Route changes were previously silent and untitled: document.title never changed, no focus
  * moved, and nothing was announced -- a screen-reader user got no signal the page changed
  * (SPEC.md §5.10). Every layout shares this one title/focus-management effect rather than
@@ -56,6 +67,7 @@ export function useRouteAnnouncements(mainRef: RefObject<HTMLElement | null>) {
     const isHome = pathname === HOME_ITEM.path;
     const pageLabel = isHome ? HOME_ITEM.label : NAV_ITEMS.find((item) => item.path === pathname)?.label ?? EXTRA_PAGE_LABELS[pathname];
     document.title = isHome ? LANDING_TITLE : pageLabel ? `${pageLabel} — ${APP_TITLE}` : APP_TITLE;
+    setCanonical(pathname);
     if (!initialLoadDone) {
       initialLoadDone = true;
       return;

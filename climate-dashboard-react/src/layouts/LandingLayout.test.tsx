@@ -38,12 +38,12 @@ describe('LandingLayout header', () => {
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
   });
 
-  it('writes the short name beside the logo and keeps the full name as the link\'s accessible name and tooltip', () => {
+  it('writes the product name beside the logo, as the link\'s accessible name and tooltip', () => {
     stubMedia(() => false);
     mount();
-    const home = screen.getByRole('link', { name: 'Climate Analytics Platform' });
-    expect(home).toHaveAttribute('title', 'Climate Analytics Platform');
-    expect(home).toHaveTextContent(/^🌍\s*Climate Analytics$/);
+    const home = screen.getByRole('link', { name: 'Degrees of Carbon' });
+    expect(home).toHaveAttribute('title', 'Degrees of Carbon');
+    expect(home).toHaveTextContent(/^🌍\s*Degrees of Carbon$/);
   });
 
   it('on a desktop-sized screen shows the link row in the header, not a Menu button', () => {

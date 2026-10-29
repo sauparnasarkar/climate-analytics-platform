@@ -31,13 +31,17 @@ export const NAV_ITEMS: AppNavItem[] = [
 // the Exploration group rather than beside About in the footer.
 export const HOME_ITEM: AppNavItem = { id: 'home', label: 'Home', icon: 'home', path: '/' };
 
-// One product name everywhere.
-export const PRODUCT_NAME = 'Climate Analytics Platform';
-// The rail's name is shorter so it fits one line beside the mark; page titles keep the full name.
-export const RAIL_PRODUCT_NAME = 'Climate Analytics';
+// One product name everywhere, rail included.
+export const PRODUCT_NAME = 'Degrees of Carbon';
+/** Shown on the Home hero and in the meta description; not in the rail. */
+export const TAGLINE = 'How every tonne becomes a degree.';
+/** The production origin: every page's canonical link points here, whichever host served it (the preview too), so only one origin is indexed. */
+export const CANONICAL_ORIGIN = 'https://degreesofcarbon.syena.io';
+export const RAIL_PRODUCT_NAME = PRODUCT_NAME;
 export const APP_TITLE = PRODUCT_NAME;
-export const LANDING_TITLE = PRODUCT_NAME;
-export const FOOTER_COPYRIGHT = `${PRODUCT_NAME} · Sauparna Sarkar`;
+/** The Home page's browser title: the name, then the tagline without its full stop. */
+export const LANDING_TITLE = `${PRODUCT_NAME}: ${TAGLINE.charAt(0).toLowerCase()}${TAGLINE.slice(1, -1)}`;
+export const FOOTER_COPYRIGHT = `${PRODUCT_NAME} · A Syena project · Sauparna Sarkar`;
 
 // The landing top nav fits one line at 1280px by leaving these two to the footer and (below 768px)
 // the menu, which still lists every page (Area 2 design, L1 SPEC NOTES "Nav").

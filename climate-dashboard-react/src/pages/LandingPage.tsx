@@ -20,7 +20,7 @@ import {
 } from '../constants';
 import { fmtInt, fmtPct, GLOBE_LABEL_COUNT, GLOBE_LABEL_COUNT_PHONE, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, RACE_SIZE, sparklinePath, topEmitterLabels, type Story } from '../lib/landingData';
 import { cumulativeBaseFrom, cumulativeSeriesMt, worldTotalsFrom } from '../lib/cumulative';
-import { NAV_ITEMS } from '../navigation';
+import { NAV_ITEMS, PRODUCT_NAME, TAGLINE } from '../navigation';
 import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 
 // Landing page (SPEC.md §5.25). Every number and year on it is computed from the API's
@@ -258,6 +258,10 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
   return (
     <section ref={sectionRef} aria-labelledby="landing-title" className="landing-slide landing-hero">
       <div className="landing-hero__text">
+        <p style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span className="syn-title-md" style={{ fontWeight: 700 }}>{PRODUCT_NAME}</span>
+          <span className="syn-text-md" style={{ color: 'var(--syn-color-text-muted)' }}>{TAGLINE}</span>
+        </p>
         <div className="syn-caption" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--syn-color-accent-text, inherit)' }}>
           Our World in Data CO₂ · {minYear}–{maxYear}<span className="landing-hero__eyebrow-count"> · {all.countries_count} countries</span>
         </div>
