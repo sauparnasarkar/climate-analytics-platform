@@ -32,8 +32,8 @@ export const HOME_ITEM: AppNavItem = { id: 'home', label: 'Home', icon: 'home', 
 
 // One product name everywhere, rail included.
 export const PRODUCT_NAME = 'Degrees of Carbon';
-/** Shown on the Home hero and in the meta description; not in the rail. */
-export const TAGLINE = 'How every tonne becomes a degree.';
+/** The Home chain heading and the page title; not in the rail. */
+export const TAGLINE = 'How emissions add up to warming.';
 /** The Home chain section's heading: the tagline without its full stop. */
 export const TAGLINE_HEADING = TAGLINE.replace(/\.$/, '');
 /** The production origin: every page's canonical link points here, whichever host served it (the preview too), so only one origin is indexed. */
