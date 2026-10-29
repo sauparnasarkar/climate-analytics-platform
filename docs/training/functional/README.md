@@ -1,4 +1,4 @@
-# Climate Analytics Platform Functional Series
+# Degrees of Carbon Functional Series
 
 A domain-level series on what the platform measures, how it analyses it, how the results compare
 with authoritative climate references, and what its trends imply for the Paris Agreement

@@ -234,7 +234,7 @@ instead of resolving to `index.html`.
 and `api/main.py` (`_normalize_deploy_prefix`, §4) from the **same** env var, so the two
 can't drift on what prefix is being stripped. Must be set at *build* time for the
 frontend, not just serve time — the prefix is baked into the built assets. Production is served
-from the **host root** of `climate-analytics.syena.io` (`SPEC.md` §5.25), so its value is
+from the **host root** of `degreesofcarbon.syena.io` (`SPEC.md` §5.25), so its value is
 `/`; a prefix (the retired `labs.syena.io/app-prefix/` deploy used one) still works.
 `services/agent` is the exception among the services: its routes are bare (`/query`,
 `/admin/llm`) and the tunnel forwards `/agent/...` unstripped, so its value is `/agent/`.
@@ -266,7 +266,7 @@ hosting. Five `launchd` agents plus the tunnel (`~/Library/LaunchAgents/com.ghge
 
 | Agent | Runs | Port | Notes |
 |---|---|---|---|
-| `cloudflared` | `cloudflared tunnel run` | — | Publishes `climate-analytics.syena.io` (path rules in order: `^/api` → :8081, `^/mcp` → :8765, `^/agent` → :8766, catch-all → :4173) plus `labs.syena.io` for the other apps on this tunnel; forwards full paths with no stripping (`KeepAlive`) |
+| `cloudflared` | `cloudflared tunnel run` | — | Publishes `degreesofcarbon.syena.io` and `degreesofcarbon-preview.syena.io` (the preview, §6; path rules in order: `^/api` → :8081, `^/mcp` → :8765, `^/agent` → :8766, catch-all → :4173) plus `labs.syena.io` for the other apps on this tunnel; forwards full paths with no stripping (`KeepAlive`) |
 | `uvicorn` | `api.main:app` | `127.0.0.1:8081` | `DEPLOY_BASE_PATH=/` |
 | `vitepreview` | `vite preview` (built `climate-dashboard-react/dist`) | `127.0.0.1:4173` | `DEPLOY_BASE_PATH=/`; must be rebuilt (not just restarted) after any change, since the prefix is baked in at build time |
 | `mcpserver` | `python -m mcp_server` (Streamable HTTP) | `127.0.0.1:8765` | `DEPLOY_BASE_PATH=/`, `MCP_TRANSPORT=streamable-http`, `API_BASE_URL=http://127.0.0.1:8081/api` — publicly reachable at `climate-analytics.syena.io/mcp`, gated by a Cloudflare Access application (Service Auth policy, named per-client Service Tokens, §7) rather than app-layer code |
@@ -285,6 +285,17 @@ kickstart re-runs the already-loaded job definition and silently keeps the old e
 (`assets/index-<hash>.js`) is the reliable way to confirm a fresh build — not a stale
 bundle — is actually what's live.
 
+**The retired origin.** The product was renamed Degrees of Carbon and moved to `degreesofcarbon.syena.io`
+(preview: `degreesofcarbon-preview.syena.io`). The old hostnames (`climate-analytics.syena.io` and
+`climate-analytics-preview.syena.io`) stay on the tunnel, pointing at the same front end, and are
+kept indefinitely. A browser that visited them holds a service worker that answers from its cache and never
+sees an edge redirect, so with `RETIRE_OLD_ORIGIN=1` (set on the `vitepreview` job's environment, off by
+default) `vite preview` answers a retired host itself (`src/lib/retiredOrigin.ts`): `/sw.js` is a replacement
+worker (200, `no-store`, never a redirect) that claims the tab, clears the caches, unregisters and moves the tab
+to the same path on the new origin; every other path is redirected there (301; 308 for a non-GET). A Cloudflare
+redirect rule for the same paths does the same at the edge, with `/sw.js` excluded. The switch is turned on
+only once the new host serves the app. The theme preference (`localStorage`) is per origin and does not carry over.
+
 ## 7. MCP server (`services/mcp-server/`)
 
 Wraps `api/` as hand-curated MCP tools — Stage 1 of a separate conversational-agent project
@@ -298,7 +309,7 @@ Independently versioned/deployable from `api/` (own `pyproject.toml`), though in
 still ship from the same repo and the same Mac Mini would host both if this were deployed.
 
 **Deployed and publicly live**, gated at the edge. The `mcpserver` `launchd` agent (§6) is
-running on the Mac Mini; `climate-analytics.syena.io/mcp` is a published Cloudflare
+running on the Mac Mini; `degreesofcarbon.syena.io/mcp` is a published Cloudflare
 Access application with a Service Auth policy (not login-based) and named, individually
 revocable Service Tokens per client — `SPEC.md` §8, settled and shipped 2026-08-13. Verified
 from outside the Mac Mini: the public endpoint returns `403` with no credentials or a wrong
@@ -315,10 +326,10 @@ A single app-wide admin surface, gated by one Cloudflare Access application
 (`ghg-emissions-admin`, a **login** policy — Google as the identity provider, restricted to the
 owner's own account — distinct from §7's Service Auth policy for machine clients). Two path
 rules exist today under that one application: the SPA hub page
-(`climate-analytics.syena.io/admin`, `climate-dashboard-react/src/pages/AdminPage.tsx`,
+(`degreesofcarbon.syena.io/admin`, `climate-dashboard-react/src/pages/AdminPage.tsx`,
 deliberately absent from §5's `NAV_ITEMS`/nav — reachable by URL only, the same unlisted-route
 precedent `/ask` already sets) and `services/agent`'s admin API
-(`climate-analytics.syena.io/agent/admin`). Both paths must be gated, not just the API:
+(`degreesofcarbon.syena.io/agent/admin`). Both paths must be gated, not just the API:
 a login policy answers an unauthenticated request with a redirect to Google, which only a real
 top-level page navigation can usefully follow — see `services/agent/SPEC.md` for the full
 rationale.
@@ -358,7 +369,7 @@ app-layer code, since every request there also costs a real Anthropic API call.
 `climate-dashboard-react/`'s `/ask` nav item, security review) shipped, and deployed/running on
 the Mac Mini (`com.ghgemissions.agent`, port 8766) — verified live end-to-end (real MCP tool
 call, real LLM response) 2026-08-14. The public route is live at
-`climate-analytics.syena.io/agent` (verified end-to-end through it 2026-09-29) — see
+`degreesofcarbon.syena.io/agent` (verified end-to-end through it 2026-09-29, then on the old host name) — see
 `services/agent/SPEC.md` for its design.
 
 ## 10. See also
