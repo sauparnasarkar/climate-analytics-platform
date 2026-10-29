@@ -1,4 +1,4 @@
-# Climate Analytics Platform Training
+# Degrees of Carbon Training
 
 Two companion series cover this project. They share one platform but answer different questions.
 

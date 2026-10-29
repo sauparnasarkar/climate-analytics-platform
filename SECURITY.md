@@ -9,7 +9,7 @@ Say what you found, where, and how to reproduce it. This is a one-person project
 ## What is in scope
 
 - The code in this repository.
-- The site it runs, <https://climate-analytics.syena.io>, and the preview of it.
+- The site it runs, <https://degreesofcarbon.syena.io>, and the preview of it.
 
 Not in scope: Cloudflare, GitHub and other services the site relies on (report those to their owners); libraries this code uses (report them upstream, and tell us if we ship a version with a known advisory); load or denial-of-service testing against the site (please do not); social engineering.
 

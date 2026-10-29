@@ -1,4 +1,4 @@
-# Climate Analytics Platform Technical Series
+# Degrees of Carbon Technical Series
 
 A deep-dive technical series on the technical stack behind this project's analysis, API,
 dashboards and conversational agent. Each area explains the **concepts**, the **technical
