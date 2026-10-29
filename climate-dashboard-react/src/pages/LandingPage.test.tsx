@@ -385,7 +385,7 @@ describe('LandingPage — climate-signal carousel', () => {
 
   it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
     mountWithClimate();
-    const band = await screen.findByRole('region', { name: 'How every tonne becomes a degree.' });
+    const band = await screen.findByRole('region', { name: 'How every tonne becomes a degree' });
     expect(within(band).getAllByRole('listitem')).toHaveLength(4);
     expect(within(band).getByRole('link', { name: 'How this works → Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
   });
@@ -617,7 +617,7 @@ describe('LandingPage — climate-signal carousel', () => {
     await screen.findByTestId('globe'); // the hero itself (the loading placeholder shares its headline)
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'How every tonne becomes a degree.' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'How every tonne becomes a degree' })).not.toBeInTheDocument();
     expect(screen.queryByText('+1.62 °C')).not.toBeInTheDocument();
   });
 

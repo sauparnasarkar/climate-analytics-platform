@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOOTER_COPYRIGHT, LANDING_TITLE, NAV_ITEMS, PRODUCT_NAME, RAIL_PRODUCT_NAME, TAGLINE } from './navigation';
+import { FOOTER_COPYRIGHT, LANDING_TITLE, NAV_ITEMS, PRODUCT_NAME, RAIL_PRODUCT_NAME, TAGLINE, TAGLINE_HEADING } from './navigation';
 
 describe('navigation', () => {
   it('names the product the same everywhere, and keeps the tagline out of the rail', () => {
@@ -8,6 +8,7 @@ describe('navigation', () => {
     expect(LANDING_TITLE).toBe('Degrees of Carbon: how every tonne becomes a degree');
     expect(FOOTER_COPYRIGHT).toBe('Degrees of Carbon · A Syena project · Sauparna Sarkar');
     expect(TAGLINE).toBe('How every tonne becomes a degree.');
+    expect(TAGLINE_HEADING).toBe('How every tonne becomes a degree');
     expect(RAIL_PRODUCT_NAME).not.toContain(TAGLINE);
   });
 

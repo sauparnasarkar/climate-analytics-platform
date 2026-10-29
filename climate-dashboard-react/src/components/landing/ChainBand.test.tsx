@@ -19,7 +19,7 @@ function renderBand(signal: ClimateSignal = SIGNAL) {
 describe('ChainBand', () => {
   it('is one ordered row of the four steps, labelled by its heading, in the order of the causal chain', () => {
     renderBand();
-    const section = screen.getByRole('region', { name: 'How every tonne becomes a degree.' });
+    const section = screen.getByRole('region', { name: 'How every tonne becomes a degree' });
     const steps = within(section).getByRole('list').querySelectorAll(':scope > li');
     expect(section.querySelector('ol')).not.toBeNull();
     expect([...steps].map((li) => li.querySelector('.chain-band__label')?.textContent)).toEqual(['01 · Emissions', '02 · Concentration', '03 · Radiative forcing', '04 · Temperature anomaly']);
