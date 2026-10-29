@@ -33,6 +33,12 @@ def test_cors_headers_present_for_the_release_20_subdomain(client):
     assert resp.headers.get("access-control-allow-origin") == "https://climate-analytics.syena.io"
 
 
+def test_cors_headers_present_for_the_degrees_of_carbon_origin(client):
+    # The product's origin since the rename; the retired one above stays allowed for pages an old service worker still serves.
+    resp = client.get("/api/health", headers={"Origin": "https://degreesofcarbon.syena.io"})
+    assert resp.headers.get("access-control-allow-origin") == "https://degreesofcarbon.syena.io"
+
+
 def test_cors_headers_absent_for_the_retired_labs_origin(client):
     # labs.syena.io/app-prefix was retired when the dashboard moved to its own sub-domain.
     resp = client.get("/api/health", headers={"Origin": "https://labs.syena.io"})

@@ -242,8 +242,10 @@ app.add_middleware(
     # surface. Protected by the existing Cloudflare edge rate-limit rule on the whole
     # /app-prefix path prefix (SPEC.md "Corrections applied" #5), not app-layer
     # auth -- this is a public feature, matching the rest of the dashboard.
-    # labs.syena.io retired when the dashboard moved to its own sub-domain (root SPEC.md §5.25).
-    allow_origins=["http://localhost:5173", "https://climate-analytics.syena.io"],
+    # labs.syena.io retired when the dashboard moved to its own sub-domain (root SPEC.md §5.25); the product's
+    # origin is now degreesofcarbon.syena.io, and the retired climate-analytics.syena.io stays listed for pages an
+    # old service worker is still serving.
+    allow_origins=["http://localhost:5173", "https://degreesofcarbon.syena.io", "https://climate-analytics.syena.io"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

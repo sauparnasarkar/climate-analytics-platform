@@ -72,11 +72,13 @@ def _streamable_http_settings(deploy_base_path: str | None) -> tuple[str, Transp
             allowed_hosts=[
                 # Root SPEC.md §5.25: the dashboard/agent/MCP endpoint lives on its own
                 # sub-domain, served from the host root; labs.syena.io/app-prefix is retired.
+                "degreesofcarbon.syena.io",
+                # Retired, and redirected to the new host: still listed so a client that has not moved yet gets the redirect, not a 421.
                 "climate-analytics.syena.io",
                 f"127.0.0.1:{DEFAULT_STREAMABLE_HTTP_PORT}",
                 f"localhost:{DEFAULT_STREAMABLE_HTTP_PORT}",
             ],
-            allowed_origins=["https://climate-analytics.syena.io"],
+            allowed_origins=["https://degreesofcarbon.syena.io", "https://climate-analytics.syena.io"],
         )
         if is_deployed
         else None

@@ -104,8 +104,9 @@ def test_cors_allows_the_release_20_subdomain_and_rejects_strangers():
     from fastapi.testclient import TestClient
 
     client = TestClient(server.app)
-    ok = client.get("/health", headers={"Origin": "https://climate-analytics.syena.io"})
-    assert ok.headers.get("access-control-allow-origin") == "https://climate-analytics.syena.io"
+    for origin in ("https://degreesofcarbon.syena.io", "https://climate-analytics.syena.io"):  # the product's origin, and the retired one a cached page still calls from
+        ok = client.get("/health", headers={"Origin": origin})
+        assert ok.headers.get("access-control-allow-origin") == origin
     bad = client.get("/health", headers={"Origin": "https://evil.example.com"})
     assert "access-control-allow-origin" not in bad.headers
     retired = client.get("/health", headers={"Origin": "https://labs.syena.io"})
