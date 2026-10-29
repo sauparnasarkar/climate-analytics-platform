@@ -150,8 +150,6 @@ describe('LandingPage', () => {
     expect(screen.getByText('Global CO₂ emissions have grown by more than two-thirds since 2022, and the 10 largest emitters produced 80% of 2024’s emissions.')).toBeInTheDocument();
     expect(screen.getByText('427')).toBeInTheDocument(); // latest_co2_total
     expect(screen.getByText('MtCO₂ in 2024, all countries')).toBeInTheDocument();
-    const hero = document.querySelector('.landing-hero__text')!;
-    expect(hero.firstElementChild).toHaveTextContent('Degrees of CarbonHow every tonne becomes a degree.'); // the name, then the tagline under it
     expect(screen.getByText('+70.8%')).toBeInTheDocument(); // (427-250)/250
     expect(screen.getByText('Change since 2022')).toBeInTheDocument();
     expect(screen.getByText('Countries in the Expanded set').previousElementSibling).toHaveTextContent('12');
@@ -387,7 +385,7 @@ describe('LandingPage — climate-signal carousel', () => {
 
   it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
     mountWithClimate();
-    const band = await screen.findByRole('region', { name: 'The chain reaction' });
+    const band = await screen.findByRole('region', { name: 'How every tonne becomes a degree.' });
     expect(within(band).getAllByRole('listitem')).toHaveLength(4);
     expect(within(band).getByRole('link', { name: 'How this works → Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
   });
@@ -619,7 +617,7 @@ describe('LandingPage — climate-signal carousel', () => {
     await screen.findByTestId('globe'); // the hero itself (the loading placeholder shares its headline)
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'The chain reaction' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'How every tonne becomes a degree.' })).not.toBeInTheDocument();
     expect(screen.queryByText('+1.62 °C')).not.toBeInTheDocument();
   });
 

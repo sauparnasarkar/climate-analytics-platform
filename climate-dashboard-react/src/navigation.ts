@@ -16,8 +16,7 @@ export interface AppNavItem {
 // The conversational agent is not a NAV_ITEMS entry: it is the rail's one persistent action (see DashboardLayout). The '/ask' route is unchanged.
 export const NAV_ITEMS: AppNavItem[] = [
   { id: 'overview', label: 'Overview', icon: 'overview', path: '/overview', group: 'Exploration' },
-  // Area 2. The NEW badge is the design's tag for a recently added page.
-  { id: 'climate-correlation', label: 'Climate Correlation', icon: 'correlation', path: '/climate-correlation', group: 'Exploration', badge: 'NEW' },
+  { id: 'climate-correlation', label: 'Climate Correlation', icon: 'correlation', path: '/climate-correlation', group: 'Exploration' },
   { id: 'historical', label: 'Historical Trends', icon: 'historical', path: '/historical', group: 'Exploration' },
   { id: 'country-profile', label: 'Country Profile', icon: 'country', path: '/country-profile', group: 'Exploration' },
   { id: 'data-explorer', label: 'Data Explorer', icon: 'explorer', path: '/data-explorer', group: 'Exploration' },
