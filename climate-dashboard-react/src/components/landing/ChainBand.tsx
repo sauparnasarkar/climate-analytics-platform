@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { fmtAnomaly, type ClimateSignal } from '../../lib/climateSignal';
 import { fmtInt } from '../../lib/landingData';
+import { TAGLINE } from '../../navigation';
 
 // The four-step row (Area 2, requirements §2.1): emissions → concentration → radiative forcing → temperature anomaly, between the
 // hero and the rest of the page. One compact row of the four values with a link to Climate Correlation, which owns the full chain
@@ -46,7 +47,7 @@ export function ChainBand({ signal, emissions }: { signal: ClimateSignal; emissi
     <section aria-labelledby="chain-heading" style={{ padding: 'var(--landing-pad-y) var(--landing-pad-x) 0', background: 'var(--syn-color-surface-raised)', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <style>{CHAIN_BAND_STYLES}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px 24px' }}>
-        <h2 id="chain-heading" className="landing-h2" style={{ margin: 0 }}>The chain reaction</h2>
+        <h2 id="chain-heading" className="landing-h2" style={{ margin: 0 }}>{TAGLINE}</h2>
         <Link to="/climate-correlation" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>How this works → Climate Correlation</Link>
       </div>
       <ol className="chain-band__steps">
