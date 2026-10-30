@@ -30,13 +30,16 @@ function DefaultCountriesControl({ featured, expanded }: { featured: string[]; e
     <section aria-label="Default countries settings" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <Text as="h3" type="caption" tone="muted">Default countries</Text>
       <Text as="p" type="caption" tone="muted">Used when a page opens without a selection. Up to 10.</Text>
-      <MultiSelect
-        ariaLabel="Default countries"
-        options={expanded.map((c) => ({ value: c, label: c }))}
-        value={draft}
-        onChange={change}
-        maxSelected={MAX_SELECTED_COUNTRIES}
-      />
+      {/* The design system gives a field a minimum width a little wider than the phone drawer's content; here it may shrink to the room it has. */}
+      <div className="settings-field-fit">
+        <MultiSelect
+          ariaLabel="Default countries"
+          options={expanded.map((c) => ({ value: c, label: c }))}
+          value={draft}
+          onChange={change}
+          maxSelected={MAX_SELECTED_COUNTRIES}
+        />
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <Text as="span" type="caption" tone="muted">{custom ? 'Your own list.' : draft.length === 0 ? 'None chosen: pages use the Featured ten.' : 'The 10 Featured countries.'}</Text>
         <Button variant="secondary" size="small" disabled={!custom && draft.length === featured.length} onClick={reset}>Reset to featured</Button>
