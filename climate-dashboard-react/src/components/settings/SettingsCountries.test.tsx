@@ -86,6 +86,17 @@ describe('Settings: default countries', () => {
     expect(screen.getByRole('combobox', { name: 'Add a country' })).toHaveFocus();
   });
 
+  it('moves focus to the newly added chip when adding the tenth country removes the add field', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(FEATURED.slice(0, 9)));
+    const user = userEvent.setup();
+    mount();
+    await field();
+    await user.click(screen.getByRole('combobox', { name: 'Add a country' }));
+    await user.click(await screen.findByRole('option', { name: 'Australia' }));
+    expect(screen.getByRole('button', { name: 'Remove Australia' })).toHaveFocus();
+    expect(screen.queryByRole('combobox', { name: 'Add a country' })).toBeNull();
+  });
+
   it('brings the list of countries to add into view when it opens, so it is not left below the fold of a scrolling panel', async () => {
     localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['India']));
     const scrollIntoView = vi.fn();

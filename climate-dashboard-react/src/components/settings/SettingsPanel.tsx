@@ -33,7 +33,11 @@ function DefaultCountriesControl({ featured, expanded }: { featured: string[]; e
   // the editor itself must be able to show it empty, or removing the last chip would snap straight back to ten countries.
   const [draft, setDraft] = useState(defaults);
   const change = (next: string[]) => { setDraft(next); setStored(next.length === 0 ? null : next); };
-  const add = (picked: string[]) => change([...draft, ...picked.filter((c) => !draft.includes(c))].slice(0, MAX_SELECTED_COUNTRIES));
+  const add = (picked: string[]) => {
+    const next = [...draft, ...picked.filter((c) => !draft.includes(c))].slice(0, MAX_SELECTED_COUNTRIES);
+    if (draft.length < MAX_SELECTED_COUNTRIES && next.length === MAX_SELECTED_COUNTRIES) pendingFocus.current = next.length - 1;
+    change(next);
+  };
   // Removing a chip removes the button that had focus: put focus on the next chip's remove button (the previous one at the end), or on the
   // add field when none is left, so the keyboard stays inside the panel and Escape still closes it.
   const chipList = useRef<HTMLUListElement>(null);
