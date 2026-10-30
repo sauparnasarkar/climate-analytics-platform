@@ -191,6 +191,29 @@ describe('Motion: switching away from Reduce again', () => {
     expect(played.result.current.autoplay).toBe(true); // they started it, and System leaves it going
   });
 
+  it('a carousel the visitor paused and then played stays theirs through later changes of the setting', () => {
+    const { result, rerender } = renderHook(() => useCarousel({ count: 3 }), { wrapper: Wrapper });
+    act(() => result.current.pause());
+    act(() => result.current.play());
+    choice = 'reduce'; rerender();
+    expect(result.current.autoplay).toBe(false);
+    choice = 'full'; rerender();
+    expect(result.current.autoplay).toBe(false); // they took charge of it; the setting does not restart it
+  });
+
+  it('the globe that is not showing when Reduce ends is restored when it is shown', () => {
+    let shown = true;
+    const { result, rerender } = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500, enabled: shown }), { wrapper: Wrapper });
+    act(() => { vi.advanceTimersByTime(500); });
+    choice = 'reduce'; rerender();
+    expect(result.current).toMatchObject({ isPlaying: false, currentYear: 2024 });
+    shown = false; rerender();
+    choice = 'full'; rerender();
+    expect(result.current).toMatchObject({ isPlaying: false, currentYear: 2024 }); // still hidden: nothing yet
+    shown = true; rerender();
+    expect(result.current).toMatchObject({ isPlaying: true, currentYear: 1990 });
+  });
+
   it('the globe\'s year animation that Reduce stopped plays again from the first stop on Full; one the visitor drove stays', () => {
     const auto = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500 }), { wrapper: Wrapper });
     act(() => { vi.advanceTimersByTime(500); });

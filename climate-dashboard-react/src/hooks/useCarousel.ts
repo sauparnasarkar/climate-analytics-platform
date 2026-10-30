@@ -53,9 +53,11 @@ export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS, autoplay: auto
   // Paused by reduced motion rather than by the visitor: when reduced motion goes away (the Motion setting moved to Full or System, or the
   // device's preference changed) the rotation resumes. Once the visitor has pressed Play or Pause it is theirs, and nothing here touches it.
   const stoppedByMotion = useRef(reducedMotion && autoplayAtStart);
+  // Set for good by the first Play or Pause: from then on the rotation is the visitor's, whatever the setting does later.
+  const visitorOwned = useRef(false);
   useEffect(() => {
     if (reducedMotion) {
-      setPaused((was) => { if (!was) stoppedByMotion.current = true; return true; });
+      setPaused((was) => { if (!was && !visitorOwned.current) stoppedByMotion.current = true; return true; });
     } else if (stoppedByMotion.current) {
       stoppedByMotion.current = false;
       setPaused(false);
@@ -80,8 +82,8 @@ export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS, autoplay: auto
   }, [move, wrap, nav.index]);
   const next = useCallback(() => move(wrap(nav.index + 1), 'forward'), [move, wrap, nav.index]);
   const prev = useCallback(() => move(wrap(nav.index - 1), 'back'), [move, wrap, nav.index]);
-  const pause = useCallback(() => { stoppedByMotion.current = false; setPaused(true); }, []);
-  const play = useCallback(() => { stoppedByMotion.current = false; setPaused(false); }, []);
+  const pause = useCallback(() => { visitorOwned.current = true; stoppedByMotion.current = false; setPaused(true); }, []);
+  const play = useCallback(() => { visitorOwned.current = true; stoppedByMotion.current = false; setPaused(false); }, []);
 
   return { index: nav.index, previous: nav.previous, direction: nav.direction, autoplay: !paused && enabled, goTo, next, prev, pause, play };
 }

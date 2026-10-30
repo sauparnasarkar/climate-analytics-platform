@@ -80,9 +80,11 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
       setIsPlaying(false);
       if (!userDriven.current && initialYear === undefined) { setRawYear(maxYear); stoppedByMotion.current = autoplay; }
     } else if (stoppedByMotion.current) {
+      // While the animation is disabled (its slide is not showing) the restoration waits: this runs again when it is enabled.
+      if (!enabled) return;
       stoppedByMotion.current = false;
       // Where the autoplay waits for its element to scroll into view, it starts from there (the observer re-arms when reduced motion goes away).
-      if (!userDriven.current && enabled && stops.length > 1) { setRawYear(stops[0]); if (!deferAutoplay.current) setIsPlaying(true); }
+      if (!userDriven.current && stops.length > 1) { setRawYear(stops[0]); if (!deferAutoplay.current) setIsPlaying(true); }
     }
   }, [reducedMotion, maxYear, initialYear, autoplay, enabled, stops]);
 
