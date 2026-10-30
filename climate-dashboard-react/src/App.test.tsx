@@ -137,13 +137,15 @@ describe('Landing layout on a phone', () => {
 });
 
 describe('Dashboard shell actions', () => {
-  it('desktop: the theme toggle and Ask the Agent sit together in the rail', () => {
+  it('desktop: Settings and Ask the Agent sit together in the rail; the settings are in a popover, not inline', () => {
     renderAt('/about');
     const rail = screen.getByRole('navigation', { name: 'Primary' });
-    expect(within(rail).getByRole('radio', { name: 'Dark' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Settings' })).toHaveAttribute('aria-expanded', 'false');
     expect(within(rail).getByRole('button', { name: 'Ask the Agent' })).toBeInTheDocument();
     expect(screen.queryByRole('banner')).not.toBeInTheDocument(); // the phone top bar is not drawn on a wide screen
-    expect(screen.getAllByRole('radio', { name: 'Dark' })).toHaveLength(1); // exactly one toggle
+    expect(screen.queryByRole('radio', { name: 'Dark' })).not.toBeInTheDocument(); // closed until opened
+    fireEvent.click(within(rail).getByRole('button', { name: 'Settings' }));
+    expect(screen.getAllByRole('radio', { name: 'Dark' })).toHaveLength(1); // exactly one set of settings
   });
 
   it('marks Ask the Agent as the current page on /ask', () => {

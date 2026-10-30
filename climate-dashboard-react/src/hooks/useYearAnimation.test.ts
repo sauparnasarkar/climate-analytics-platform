@@ -170,7 +170,7 @@ describe('useYearAnimation', () => {
     expect(result.current.currentYear).toBe(2010);
   });
 
-  it('stops playback (leaving the year where it is) if the OS setting changes to reduced-motion mid-session', () => {
+  it('stops playback and lands on the latest year if reduced motion turns on mid-session and nobody started or moved it', () => {
     mockReducedMotion(false);
     const { result } = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500 }));
     act(() => vi.advanceTimersByTime(500)); // 1995, still playing
@@ -180,9 +180,9 @@ describe('useYearAnimation', () => {
     reduced = true;
     act(() => changeListener?.({ matches: true } as MediaQueryListEvent));
     expect(result.current.isPlaying).toBe(false);
-    expect(result.current.currentYear).toBe(1995);
+    expect(result.current.currentYear).toBe(2024);
     act(() => vi.advanceTimersByTime(2000));
-    expect(result.current.currentYear).toBe(1995); // and it stays put
+    expect(result.current.currentYear).toBe(2024); // and it stays put
 
     // Play remains available afterwards.
     act(() => result.current.play());

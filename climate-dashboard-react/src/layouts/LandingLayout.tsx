@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Footer, BackToTop, useIsMobile } from '@syena/ds';
+import { Footer, BackToTop, Text, useIsMobile } from '@syena/ds';
 
 import { AskAgentLink } from '../components/AskAgentLink';
 import { MobileMenuButton } from '../components/MobileMenuButton';
-import { ThemeToggle } from '../components/ThemeToggle';
+import { SettingsMenu } from '../components/settings/SettingsMenu';
+import { SettingsPanel } from '../components/settings/SettingsPanel';
 import { PHONE_LANDSCAPE_QUERY, TABLET_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { FOOTER_COPYRIGHT, LANDING_NAV_FOOTER_IDS, NAV_ITEMS, PRODUCT_NAME, RAIL_PRODUCT_NAME } from '../navigation';
@@ -108,15 +109,18 @@ export function LandingLayout() {
                 className="landing-header-line"
                 style={{
                   position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, display: 'flex', flexDirection: 'column', gap: 4, padding: 16,
+                  // The settings sections sit inline below the links, so on a short screen the menu scrolls instead of running off it.
+                  maxHeight: 'calc(100dvh - 68px)', overflowY: 'auto',
                   background: 'var(--syn-color-surface-raised)',
                 }}
               >
                 {NAV_ITEMS.map((item) => (
                   <Link key={item.id} to={item.path} style={{ ...linkStyle, padding: '12px 4px', fontSize: 16 }}>{item.label}</Link>
                 ))}
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', paddingTop: 12, flexWrap: 'wrap' }}>
-                  <ThemeToggle />
-                  {askLink}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', paddingTop: 12, flexWrap: 'wrap' }}>{askLink}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12, paddingTop: 16, borderTop: '1px solid var(--syn-color-border-default)' }}>
+                  <Text as="h2" type="title-sm">Settings</Text>
+                  <SettingsPanel />
                 </div>
               </nav>
             )}
@@ -125,7 +129,7 @@ export function LandingLayout() {
           <>
             <nav aria-label="Primary" className="landing-nav">{navLinks}</nav>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <ThemeToggle />
+              <SettingsMenu />
               {askLink}
             </div>
           </>

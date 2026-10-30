@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { AnalysisBar, AppShell, BackToTop, Button, Footer, Rail, SourceStrip, TopBar, useShell, type NavGroup, type NavItem } from '@syena/ds';
+import { AnalysisBar, AppShell, BackToTop, Button, Footer, Rail, SourceStrip, Text, TopBar, useIsMobile, useShell, type NavGroup, type NavItem } from '@syena/ds';
 
 import { PagePurpose } from '../components/PagePurpose';
 import { SavedDataNotice } from '../components/SavedDataNotice';
-import { ThemeToggle } from '../components/ThemeToggle';
+import { SettingsMenu } from '../components/settings/SettingsMenu';
+import { SettingsPanel } from '../components/settings/SettingsPanel';
 import { useKeepPlaceOnResize } from '../hooks/useKeepPlaceOnResize';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { FOOTER_COPYRIGHT, HOME_ITEM, NAV_ITEMS, PRODUCT_NAME, RAIL_PRODUCT_NAME, type AppNavItem } from '../navigation';
@@ -35,8 +36,10 @@ function AskAgentButton({ collapsed, active, onAsk }: { collapsed: boolean; acti
 }
 
 /** The dashboard shell (rail, analysis bar, source strip, footer, back-to-top) around every page under it; the landing page at '/' uses
- * LandingLayout instead. Each page names itself and draws its page-wide filters through PageChrome. Theme state lives in App so both layouts share it. */
+ * LandingLayout instead. Each page names itself and draws its page-wide filters through PageChrome. Settings (theme, motion) live in App's providers, so both layouts share them. */
 export function DashboardLayout() {
+  // The drawer, where the settings sections sit inline instead of in a popover.
+  const drawer = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement | null>(null);
@@ -79,7 +82,10 @@ export function DashboardLayout() {
             current={current}
             onItemClick={onItemClick}
             actions={(collapsed) => <AskAgentButton collapsed={collapsed} active={askActive} onAsk={() => navigate('/ask')} />}
-            utilities={(collapsed) => <ThemeToggle compact={collapsed} />}
+            utilities={(collapsed) => (drawer
+              ? <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><Text as="h2" type="title-sm">Settings</Text><SettingsPanel /></div>
+              : <SettingsMenu labelled={!collapsed} side="right" align="end" />)}
+            utilitiesScroll
           />
         }
         topBar={<TopBar logo={PRODUCT_MARK} productName={RAIL_PRODUCT_NAME} title={title} summary={chrome?.summary} showControls={hasFilters} />}
