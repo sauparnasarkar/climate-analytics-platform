@@ -225,4 +225,25 @@ describe('default countries: changing them while a page is open', () => {
     act(() => changeDefaults(['Indonesia']));
     expect(text('many')).toBe('China|Japan');
   });
+
+  it('an address that arrived naming exactly the current defaults is still the sender\'s selection, not rewritten', () => {
+    storeDefaultCountries(['India', 'Brazil']);
+    mountSolo('many', '/p?countries=India&countries=Brazil');
+    act(() => changeDefaults(['Indonesia']));
+    expect(text('many')).toBe('India|Brazil');
+    cleanup();
+    storeDefaultCountries(['India', 'Brazil']);
+    mountSolo('one', '/p?country=India');
+    act(() => changeDefaults(['Indonesia']));
+    expect(text('one')).toBe('India');
+  });
+
+  it('choosing exactly the defaults (Reset) makes the page follow them again', () => {
+    storeDefaultCountries(['India', 'Brazil']);
+    mountSolo('many');
+    act(() => setMany(['Japan']));
+    act(() => setMany(['India', 'Brazil']));
+    act(() => changeDefaults(['Indonesia', 'Vietnam']));
+    expect(text('many')).toBe('Indonesia|Vietnam');
+  });
 });
