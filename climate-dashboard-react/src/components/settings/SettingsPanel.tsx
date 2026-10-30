@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, MultiSelect, SegmentedControl, Text, useSynTheme } from '@syena/ds';
 import { MAX_SELECTED_COUNTRIES } from '../../constants';
 import { useCountries } from '../../hooks/useCountries';
@@ -25,13 +25,28 @@ function DefaultCountriesControl({ featured, expanded }: { featured: string[]; e
   // picker itself must be able to show it empty, or Clear would snap straight back to ten countries and nothing else could be chosen.
   const [draft, setDraft] = useState(defaults);
   const change = (next: string[]) => { setDraft(next); setStored(next.length === 0 ? null : next); };
+  // The list opens below the field, which is often near the bottom of the panel (or the drawer): bring it into view when it opens, so it is
+  // not left below the fold behind a scrollbar.
+  const fit = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const holder = fit.current;
+    if (!holder) return undefined;
+    const reveal = () => {
+      const field = holder.querySelector('[role="combobox"]');
+      if (field?.getAttribute('aria-expanded') !== 'true') return;
+      holder.querySelector('[role="listbox"]')?.parentElement?.scrollIntoView?.({ block: 'nearest' });
+    };
+    const watch = new MutationObserver(reveal);
+    watch.observe(holder, { attributes: true, attributeFilter: ['aria-expanded'], subtree: true });
+    return () => watch.disconnect();
+  }, []);
   const reset = () => { setDraft(featured); setStored(null); };
   return (
     <section aria-label="Default countries settings" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <Text as="h3" type="caption" tone="muted">Default countries</Text>
       <Text as="p" type="caption" tone="muted">Used when a page opens without a selection. Up to 10.</Text>
       {/* The design system gives a field a minimum width a little wider than the phone drawer's content; here it may shrink to the room it has. */}
-      <div className="settings-field-fit">
+      <div ref={fit} className="settings-field-fit">
         <MultiSelect
           ariaLabel="Default countries"
           options={expanded.map((c) => ({ value: c, label: c }))}

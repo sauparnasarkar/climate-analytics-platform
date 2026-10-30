@@ -52,6 +52,21 @@ describe('Settings: default countries', () => {
     expect(JSON.parse(localStorage.getItem(DEFAULT_COUNTRIES_STORAGE_KEY)!)).toEqual(['Vietnam']);
   });
 
+  it('brings the list into view when it opens, so it is not left below the fold of a scrolling panel', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const user = userEvent.setup();
+    mount();
+    await user.click(await field());
+    await screen.findByRole('listbox', { name: 'Default countries' });
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' }));
+    // ...and it is the list's own box (search, options, footer) that is brought in, not the whole panel.
+    const target = scrollIntoView.mock.contexts[0] as HTMLElement;
+    expect(target.contains(screen.getByRole('listbox', { name: 'Default countries' }))).toBe(true);
+    expect(target.contains(screen.getByRole('combobox', { name: 'Default countries' }))).toBe(false);
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
   it('says so when the countries cannot be loaded, and keeps the other sections', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('offline'));
     mount();
