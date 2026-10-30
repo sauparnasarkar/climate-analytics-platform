@@ -34,7 +34,11 @@ function DefaultCountriesControl({ featured, expanded }: { featured: string[]; e
   const [draft, setDraft] = useState(defaults);
   const change = (next: string[]) => { setDraft(next); setStored(next.length === 0 ? null : next); };
   const add = (picked: string[]) => change([...draft, ...picked.filter((c) => !draft.includes(c))].slice(0, MAX_SELECTED_COUNTRIES));
-  const remove = (name: string) => change(draft.filter((c) => c !== name));
+  // Removing a chip removes the button that had focus: put focus on the next chip's remove button (the previous one at the end), or on the
+  // add field when none is left, so the keyboard stays inside the panel and Escape still closes it.
+  const chipList = useRef<HTMLUListElement>(null);
+  const pendingFocus = useRef<number | null>(null);
+  const remove = (name: string) => { pendingFocus.current = draft.indexOf(name); change(draft.filter((c) => c !== name)); };
   const full = draft.length >= MAX_SELECTED_COUNTRIES;
   // The list of countries to add from opens below its field, often near the bottom of the panel (or the drawer): bring it into view when it
   // opens, so it is not left below the fold behind a scrollbar.
@@ -51,6 +55,14 @@ function DefaultCountriesControl({ featured, expanded }: { featured: string[]; e
     watch.observe(holder, { attributes: true, attributeFilter: ['aria-expanded'], subtree: true });
     return () => watch.disconnect();
   }, [full]);
+  useEffect(() => {
+    const index = pendingFocus.current;
+    if (index === null) return;
+    pendingFocus.current = null;
+    const buttons = chipList.current?.querySelectorAll<HTMLButtonElement>('button') ?? [];
+    const target = buttons.length > 0 ? buttons[Math.min(index, buttons.length - 1)] : fit.current?.querySelector<HTMLElement>('[role="combobox"]');
+    target?.focus();
+  });
   const reset = () => { setDraft(featured); setStored(null); };
   return (
     <section aria-label="Default countries settings" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -60,7 +72,7 @@ function DefaultCountriesControl({ featured, expanded }: { featured: string[]; e
       </div>
       <Text as="p" type="caption" tone="muted">Used when a page opens without a selection. Up to 10.</Text>
       {draft.length > 0 ? (
-        <ul aria-label="Your default countries" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <ul ref={chipList} aria-label="Your default countries" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {draft.map((name) => (
             <li key={name} className="settings-chip">
               <span>{name}</span>

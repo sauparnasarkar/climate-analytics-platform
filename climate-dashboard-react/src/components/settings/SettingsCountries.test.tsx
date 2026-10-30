@@ -72,6 +72,20 @@ describe('Settings: default countries', () => {
     expect(screen.getByText('0 of 10')).toBeInTheDocument();
   });
 
+  it('keeps focus inside the panel when a chip is removed: the next chip, the previous at the end, the add field when none is left', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['India', 'Brazil', 'Vietnam']));
+    const user = userEvent.setup();
+    mount();
+    await field();
+    screen.getByRole('button', { name: 'Remove Brazil' }).focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: 'Remove Vietnam' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: 'Remove India' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('combobox', { name: 'Add a country' })).toHaveFocus();
+  });
+
   it('brings the list of countries to add into view when it opens, so it is not left below the fold of a scrolling panel', async () => {
     localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['India']));
     const scrollIntoView = vi.fn();
