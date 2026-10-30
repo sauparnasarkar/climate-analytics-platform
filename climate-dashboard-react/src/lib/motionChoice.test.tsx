@@ -149,3 +149,88 @@ describe('Motion: switching to Reduce while something is autoplaying', () => {
     expect(moved.result.current).toMatchObject({ isPlaying: false, currentYear: 2005 });
   });
 });
+
+describe('Motion: switching away from Reduce again', () => {
+  let choice: MotionChoice = 'system';
+  const Wrapper = ({ children }: { children: ReactNode }) => <SynMotionProvider choice={choice}>{children}</SynMotionProvider>;
+  beforeEach(() => { choice = 'system'; });
+
+  it('the carousel Reduce paused rotates again on Full and on System', () => {
+    for (const back of ['full', 'system'] as const) {
+      choice = 'system';
+      const { result, rerender, unmount } = renderHook(() => useCarousel({ count: 3 }), { wrapper: Wrapper });
+      expect(result.current.autoplay).toBe(true);
+      choice = 'reduce'; rerender();
+      expect(result.current.autoplay).toBe(false);
+      choice = back; rerender();
+      expect(result.current.autoplay).toBe(true);
+      act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+      expect(result.current.index).toBe(1);
+      unmount();
+    }
+  });
+
+  it('a carousel that opened under Reduce starts rotating when Reduce is switched off', () => {
+    choice = 'reduce';
+    const { result, rerender } = renderHook(() => useCarousel({ count: 3 }), { wrapper: Wrapper });
+    expect(result.current.autoplay).toBe(false);
+    choice = 'full'; rerender();
+    expect(result.current.autoplay).toBe(true);
+  });
+
+  it('a carousel the visitor paused, or started under Reduce, is not touched by the setting', () => {
+    const paused = renderHook(() => useCarousel({ count: 3 }), { wrapper: Wrapper });
+    act(() => paused.result.current.pause());
+    choice = 'reduce'; paused.rerender();
+    choice = 'full'; paused.rerender();
+    expect(paused.result.current.autoplay).toBe(false); // they paused it
+    choice = 'reduce';
+    const played = renderHook(() => useCarousel({ count: 3 }), { wrapper: Wrapper });
+    act(() => played.result.current.play());
+    choice = 'system'; played.rerender();
+    expect(played.result.current.autoplay).toBe(true); // they started it, and System leaves it going
+  });
+
+  it('a carousel the visitor paused and then played stays theirs through later changes of the setting', () => {
+    const { result, rerender } = renderHook(() => useCarousel({ count: 3 }), { wrapper: Wrapper });
+    act(() => result.current.pause());
+    act(() => result.current.play());
+    choice = 'reduce'; rerender();
+    expect(result.current.autoplay).toBe(false);
+    choice = 'full'; rerender();
+    expect(result.current.autoplay).toBe(false); // they took charge of it; the setting does not restart it
+  });
+
+  it('the globe that is not showing when Reduce ends is restored when it is shown', () => {
+    let shown = true;
+    const { result, rerender } = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500, enabled: shown }), { wrapper: Wrapper });
+    act(() => { vi.advanceTimersByTime(500); });
+    choice = 'reduce'; rerender();
+    expect(result.current).toMatchObject({ isPlaying: false, currentYear: 2024 });
+    shown = false; rerender();
+    choice = 'full'; rerender();
+    expect(result.current).toMatchObject({ isPlaying: false, currentYear: 2024 }); // still hidden: nothing yet
+    shown = true; rerender();
+    expect(result.current).toMatchObject({ isPlaying: true, currentYear: 1990 });
+  });
+
+  it('the globe\'s year animation that Reduce stopped plays again from the first stop on Full; one the visitor drove stays', () => {
+    const auto = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500 }), { wrapper: Wrapper });
+    act(() => { vi.advanceTimersByTime(500); });
+    choice = 'reduce'; auto.rerender();
+    expect(auto.result.current).toMatchObject({ isPlaying: false, currentYear: 2024 });
+    choice = 'full'; auto.rerender();
+    expect(auto.result.current).toMatchObject({ isPlaying: true, currentYear: 1990 });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(auto.result.current.currentYear).toBe(1995);
+    auto.unmount();
+
+    choice = 'system';
+    const driven = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500 }), { wrapper: Wrapper });
+    act(() => driven.result.current.seek(2005));
+    choice = 'reduce'; driven.rerender();
+    choice = 'full'; driven.rerender();
+    expect(driven.result.current).toMatchObject({ isPlaying: false, currentYear: 2005 });
+  });
+});
+
