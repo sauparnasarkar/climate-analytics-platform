@@ -418,6 +418,28 @@ describe('HistoricalTrendsPage', () => {
 });
 
 describe('HistoricalTrendsPage: the visitor\'s own default countries', () => {
+  it('the reset button is disabled while the selection is the defaults', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    render(<DefaultCountriesProvider><MemoryRouter><HistoricalTrendsPage /></MemoryRouter></DefaultCountriesProvider>);
+    expect(await screen.findByRole('button', { name: 'Reset to default' })).toBeDisabled();
+  });
+
+  it('lets an explicit URL selection matching the defaults reset to following defaults', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const query = FEATURED.map((country) => `countries=${encodeURIComponent(country)}`).join('&');
+    render(<MemoryRouter initialEntries={[`/historical?${query}`]}><HistoricalTrendsPage /></MemoryRouter>);
+    const reset = await screen.findByRole('button', { name: 'Reset to default' });
+    expect(reset).toBeEnabled();
+    await user.click(reset);
+    expect(await screen.findByRole('button', { name: 'Reset to default' })).toBeDisabled();
+  });
+
   afterEach(() => localStorage.removeItem(DEFAULT_COUNTRIES_STORAGE_KEY));
 
   it('opens on the stored list, drops names that are no longer Expanded, and "Reset to my defaults" returns to it', async () => {

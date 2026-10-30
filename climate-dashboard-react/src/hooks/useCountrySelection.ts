@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MAX_SELECTED_COUNTRIES } from '../constants';
 
@@ -39,7 +39,7 @@ const sameList = (a: string[], b: string[]) => a.length === b.length && a.every(
  * link must say its countries outright, or the person who opens it would see theirs. For the same reason a page that opens without
  * the param, for a visitor with their own defaults, gets the param written into its address (a replace, once), so the address is shareable.
  */
-export function useSelectedCountries(defaults: string[], expanded: string[], featured: string[] = defaults): [string[], (next: string[]) => void] {
+export function useSelectedCountries(defaults: string[], expanded: string[], featured: string[] = defaults): [string[], (next: string[]) => void, boolean] {
   const { search, hash, pathname } = useLocation();
   const navigate = useNavigate();
   const ownDefaults = !sameList(defaults, featured);
@@ -67,8 +67,8 @@ export function useSelectedCountries(defaults: string[], expanded: string[], fea
   // Whether the page is showing the defaults rather than a selection of its own: so when they change in Settings it follows them. True
   // when it opened without the parameter, or the visitor chose exactly the defaults (Reset); false once they chose something else, and
   // for an address that arrived naming countries, even if they happen to be the defaults (that is the sender's selection).
-  const following = useRef(new URLSearchParams(search).getAll(MULTI_PARAM).length === 0);
-  const setSelected = useCallback((next: string[]) => { following.current = sameList(next, defaults); write(next); }, [write, defaults]);
+  const [following, setFollowing] = useState(new URLSearchParams(search).getAll(MULTI_PARAM).length === 0);
+  const setSelected = useCallback((next: string[]) => { setFollowing(sameList(next, defaults)); write(next); }, [write, defaults]);
 
   // The visitor's own defaults are in use but the address does not say so: write them in, once.
   const bare = new URLSearchParams(search).getAll(MULTI_PARAM).length === 0;
@@ -89,10 +89,10 @@ export function useSelectedCountries(defaults: string[], expanded: string[], fea
     const previous = before.current;
     before.current = defaults;
     if (previous === defaults) return;
-    if (following.current && sameList(latest.current.selected, previous)) latest.current.write(defaults);
-  }, [defaults]);
+    if (following && sameList(latest.current.selected, previous)) latest.current.write(defaults);
+  }, [defaults, following]);
 
-  return [selected, setSelected];
+  return [selected, setSelected, following];
 }
 
 /** Single-country selection backed by `?country=`; unknown/absent -> `fallback`. */

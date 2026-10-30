@@ -24,16 +24,23 @@ const GROUPS: NavGroup[] = [
 ];
 const FOOTER_ITEMS: NavItem[] = NAV_ITEMS.filter((item) => !item.group).map(toNavItem);
 
+/** In the collapsed rail an icon-only button is as wide as the destinations' icons, not the control height: the rail's slots for the Ask action and the
+ * utilities are padded a little more than its destinations, and a full-height square overran the rail's edge (the icon straddled it, the gear was clipped). */
+const COLLAPSED_RAIL_BUTTON = { width: 'calc(100% + 2 * var(--syn-space-1))', marginInline: 'calc(-1 * var(--syn-space-1))' } as const;
+
 /** The rail's Ask action. In the phone drawer it closes the drawer as the rail's own links do, so the page it opens is not left under it. */
 function AskAgentButton({ collapsed, active, onAsk }: { collapsed: boolean; active: boolean; onAsk: () => void }) {
   const shell = useShell();
   const ask = () => { onAsk(); shell?.setNavigationOpen(false); };
   return collapsed ? (
-    <Button variant="secondary" icon="sparkle" aria-label="Ask the Agent" aria-current={active ? 'page' : undefined} onClick={ask} />
+    <Button variant="secondary" icon="sparkle" aria-label="Ask the Agent" aria-current={active ? 'page' : undefined} onClick={ask} style={COLLAPSED_RAIL_BUTTON} />
   ) : (
     <Button variant="secondary" icon="sparkle" aria-current={active ? 'page' : undefined} onClick={ask}>Ask the Agent</Button>
   );
 }
+
+/** The rail the Settings button sits in: its panel opens beyond the rail's edge, not over its icons. */
+const railElement = () => document.querySelector('nav[aria-label="Primary"]');
 
 /** The dashboard shell (rail, analysis bar, source strip, footer, back-to-top) around every page under it; the landing page at '/' uses
  * LandingLayout instead. Each page names itself and draws its page-wide filters through PageChrome. Settings (theme, motion) live in App's providers, so both layouts share them. */
@@ -84,7 +91,7 @@ export function DashboardLayout() {
             actions={(collapsed) => <AskAgentButton collapsed={collapsed} active={askActive} onAsk={() => navigate('/ask')} />}
             utilities={(collapsed) => (drawer
               ? <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><Text as="h2" type="title-sm">Settings</Text><SettingsPanel /></div>
-              : <SettingsMenu labelled={!collapsed} side="right" align="end" />)}
+              : <SettingsMenu labelled={!collapsed} side="right" align="end" clearOf={railElement} />)}
             utilitiesScroll
           />
         }

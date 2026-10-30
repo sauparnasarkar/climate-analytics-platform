@@ -33,6 +33,15 @@ describe('useSelectedCountries', () => {
     expect(result.current.value[0]).toEqual(['Vietnam', 'India']);
   });
 
+  it('distinguishes an explicit selection matching defaults until reset is chosen', () => {
+    const query = DEFAULTS.map((country) => `countries=${encodeURIComponent(country)}`).join('&');
+    const { result } = setup(`/x?${query}`, () => useSelectedCountries(DEFAULTS, EXPANDED));
+    expect(result.current.value[0]).toEqual(DEFAULTS);
+    expect(result.current.value[2]).toBe(false);
+    act(() => result.current.value[1](DEFAULTS));
+    expect(result.current.value[2]).toBe(true);
+  });
+
   it('falls back to the defaults when nothing valid remains', () => {
     const { result } = setup('/x?countries=Atlantis&countries=Mordor', () => useSelectedCountries(DEFAULTS, EXPANDED));
     expect(result.current.value[0]).toEqual(DEFAULTS);

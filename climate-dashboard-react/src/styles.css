@@ -33,3 +33,32 @@
 
 /* Settings -> Default countries: the field may be narrower than the design system's field minimum, so it fits the phone drawer (SettingsPanel). */
 div.settings-field-fit > * { min-width: 0; }
+
+/* Settings -> Default countries: one removable chip per chosen country, in the order chosen (SettingsPanel). */
+.settings-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 30px;
+  padding: 0 2px 0 var(--syn-space-3);
+  border: var(--syn-layout-border-hairline) solid var(--syn-color-border-default);
+  border-radius: var(--syn-radius-pill);
+  background: var(--syn-color-surface-sunken);
+  color: var(--syn-color-text-secondary);
+  font: var(--syn-type-text-sm-weight) var(--syn-type-text-sm-size) / var(--syn-type-text-sm-line) var(--syn-type-text-sm-family);
+}
+.settings-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--syn-radius-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.settings-chip button:hover { background: var(--syn-color-surface-raised); }
+.settings-chip button:focus-visible { outline: var(--syn-layout-focus-ring-width) solid var(--syn-color-focus-ring); outline-offset: 1px; }

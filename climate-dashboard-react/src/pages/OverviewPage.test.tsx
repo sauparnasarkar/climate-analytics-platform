@@ -1222,6 +1222,35 @@ describe('OverviewPage: the visitor\'s own default countries', () => {
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(['Vietnam', 'China']);
   });
 
+  it('the reset button has nothing to do while the selection is the defaults, and is enabled once it is not', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam', 'China']));
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<DefaultCountriesProvider><MemoryRouter><OverviewPage /></MemoryRouter></DefaultCountriesProvider>);
+    const reset = await screen.findByRole('button', { name: 'Reset to my defaults' });
+    expect(reset).toBeDisabled();
+    await user.click(screen.getByRole('combobox', { name: /^Select countries/ }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(await screen.findByRole('button', { name: 'Reset to my defaults' })).toBeEnabled();
+  });
+
+  it('lets an explicit URL selection matching the defaults reset to following defaults', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const query = FEATURED.map((country) => `countries=${encodeURIComponent(country)}`).join('&');
+    render(<MemoryRouter initialEntries={[`/overview?${query}`]}><OverviewPage /></MemoryRouter>);
+    const reset = await screen.findByRole('button', { name: 'Reset to default' });
+    expect(reset).toBeEnabled();
+    await user.click(reset);
+    expect(await screen.findByRole('button', { name: 'Reset to default' })).toBeDisabled();
+  });
+
   it('a ?countries= in the address always wins over the stored list', async () => {
     localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam']));
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);

@@ -20,55 +20,96 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const mount = () => render(<AppProviders><SettingsPanel /></AppProviders>);
-const field = () => screen.findByRole('combobox', { name: 'Default countries' });
+const field = () => screen.findByRole('list', { name: 'Your default countries' });
+const chips = () => within(screen.getByRole('list', { name: 'Your default countries' })).getAllByRole('listitem').map((li) => li.textContent);
 
 describe('Settings: default countries', () => {
-  it('is the third section, with the help text, and starts on the Featured ten with Reset disabled', async () => {
+  it('is the third section, with the help text, the ten Featured as chips in order, "10 of 10", Reset disabled and nothing to add', async () => {
     mount();
     await field();
     const section = screen.getByRole('region', { name: 'Default countries settings' });
     expect(within(section).getByText('Used when a page opens without a selection. Up to 10.')).toBeInTheDocument();
-    expect(await field()).toBeInTheDocument();
+    expect(chips()).toEqual(FEATURED);
+    expect(within(section).getByText('10 of 10')).toBeInTheDocument();
+    expect(within(section).getByText('Ten is the most a chart can show. Remove one to add another.')).toBeInTheDocument();
+    expect(within(section).queryByRole('combobox')).toBeNull();
     expect(within(section).getByRole('button', { name: 'Reset to featured' })).toBeDisabled();
     expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual(['Theme settings', 'Motion settings', 'Default countries settings']);
     expect(localStorage.getItem(DEFAULT_COUNTRIES_STORAGE_KEY)).toBeNull();
   });
 
-  it('shows the stored list (names that are gone dropped), and Reset to featured clears it', async () => {
-    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Indonesia', 'Atlantis', 'India']));
+  it('shows the stored list as chips in the visitor\'s own order (names that are gone dropped), and Reset to featured clears it', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam', 'Atlantis', 'India', 'Brazil']));
     const user = userEvent.setup();
     mount();
     await field();
     const section = screen.getByRole('region', { name: 'Default countries settings' });
+    expect(chips()).toEqual(['Vietnam', 'India', 'Brazil']);
+    expect(within(section).getByText('3 of 10')).toBeInTheDocument();
     await waitFor(() => expect(within(section).getByRole('button', { name: 'Reset to featured' })).toBeEnabled());
-    expect(await field()).toHaveTextContent(/Indonesia/);
     await user.click(within(section).getByRole('button', { name: 'Reset to featured' }));
     expect(localStorage.getItem(DEFAULT_COUNTRIES_STORAGE_KEY)).toBeNull();
-    await waitFor(() => expect(within(section).getByRole('button', { name: 'Reset to featured' })).toBeDisabled());
+    await waitFor(() => expect(chips()).toEqual(FEATURED));
   });
 
-  it('choosing countries stores them; clearing the list stores nothing', async () => {
+  it('removing a chip stores the rest in order; adding appends to the end; removing the last stores nothing', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['India', 'Brazil', 'Vietnam']));
     const user = userEvent.setup();
     mount();
-    await user.click(await field());
-    await user.click(await screen.findByRole('button', { name: 'Clear' }));
+    await field();
+    await user.click(screen.getByRole('button', { name: 'Remove Brazil' }));
+    expect(JSON.parse(localStorage.getItem(DEFAULT_COUNTRIES_STORAGE_KEY)!)).toEqual(['India', 'Vietnam']);
+    await user.click(screen.getByRole('combobox', { name: 'Add a country' }));
+    await user.click(await screen.findByRole('option', { name: /Brazil/ }));
+    expect(JSON.parse(localStorage.getItem(DEFAULT_COUNTRIES_STORAGE_KEY)!)).toEqual(['India', 'Vietnam', 'Brazil']);
+    expect(chips()).toEqual(['India', 'Vietnam', 'Brazil']);
+    // The list of countries to add from no longer offers the ones already chosen.
+    expect(screen.queryByRole('option', { name: /^India/ })).toBeNull();
+    await user.keyboard('{Escape}');
+    for (const name of ['India', 'Vietnam', 'Brazil']) await user.click(screen.getByRole('button', { name: `Remove ${name}` }));
     expect(localStorage.getItem(DEFAULT_COUNTRIES_STORAGE_KEY)).toBeNull();
-    await user.click(await screen.findByRole('option', { name: /Vietnam/ }));
-    expect(JSON.parse(localStorage.getItem(DEFAULT_COUNTRIES_STORAGE_KEY)!)).toEqual(['Vietnam']);
+    expect(screen.getByText('None chosen: pages use the Featured ten.')).toBeInTheDocument();
+    expect(screen.getByText('0 of 10')).toBeInTheDocument();
   });
 
-  it('brings the list into view when it opens, so it is not left below the fold of a scrolling panel', async () => {
+  it('keeps focus inside the panel when a chip is removed: the next chip, the previous at the end, the add field when none is left', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['India', 'Brazil', 'Vietnam']));
+    const user = userEvent.setup();
+    mount();
+    await field();
+    screen.getByRole('button', { name: 'Remove Brazil' }).focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: 'Remove Vietnam' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: 'Remove India' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('combobox', { name: 'Add a country' })).toHaveFocus();
+  });
+
+  it('moves focus to the newly added chip when adding the tenth country removes the add field', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(FEATURED.slice(0, 9)));
+    const user = userEvent.setup();
+    mount();
+    await field();
+    await user.click(screen.getByRole('combobox', { name: 'Add a country' }));
+    await user.click(await screen.findByRole('option', { name: 'Australia' }));
+    expect(screen.getByRole('button', { name: 'Remove Australia' })).toHaveFocus();
+    expect(screen.queryByRole('combobox', { name: 'Add a country' })).toBeNull();
+  });
+
+  it('brings the list of countries to add into view when it opens, so it is not left below the fold of a scrolling panel', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['India']));
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
     const user = userEvent.setup();
     mount();
-    await user.click(await field());
-    await screen.findByRole('listbox', { name: 'Default countries' });
+    await field();
+    await user.click(screen.getByRole('combobox', { name: 'Add a country' }));
+    await screen.findByRole('listbox', { name: 'Add a country' });
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' }));
-    // ...and it is the list's own box (search, options, footer) that is brought in, not the whole panel.
     const target = scrollIntoView.mock.contexts[0] as HTMLElement;
-    expect(target.contains(screen.getByRole('listbox', { name: 'Default countries' }))).toBe(true);
-    expect(target.contains(screen.getByRole('combobox', { name: 'Default countries' }))).toBe(false);
+    expect(target.contains(screen.getByRole('listbox', { name: 'Add a country' }))).toBe(true);
+    expect(target.contains(screen.getByRole('combobox', { name: 'Add a country' }))).toBe(false);
     delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
 

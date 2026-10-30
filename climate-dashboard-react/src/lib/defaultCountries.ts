@@ -26,6 +26,9 @@ export function storeDefaultCountries(list: string[] | null): void {
   }
 }
 
+/** Whether a page's selection is already exactly these countries, in this order (so its reset button has nothing to do). */
+export const sameSelection = (a: string[], b: string[]) => a.length === b.length && a.every((c, i) => c === b[i]);
+
 /**
  * What a page uses when it opens without a selection: the stored list checked against the current Expanded list (names that are no
  * longer there are dropped, duplicates removed, at most ten kept), or the platform's Featured ten when nothing is left of it.
