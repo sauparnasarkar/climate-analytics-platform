@@ -5,6 +5,7 @@ import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
 import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
 import { DerivationAccordion } from '../components/module/DerivationAccordion';
+import { AboutProject } from '../components/methods/AboutProject';
 import { BaselinesSection } from '../components/methods/BaselinesSection';
 import { SourcesSection } from '../components/methods/SourcesSection';
 import { useAsync } from '../hooks/useAsync';
@@ -15,7 +16,6 @@ import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 import { PageChrome } from '../layouts/PageChrome';
-import { FOOTER_COPYRIGHT, PRODUCT_NAME } from '../navigation';
 import { READING_MEASURE } from '../lib/readingMeasure';
 import { FORCING_CONCEPT_ONLY, NOT_A_CLIMATE_MODEL, NO_COUNTRY_ATTRIBUTION, SCENARIO_LABEL } from '../lib/climateCopy';
 import { buildDerivation } from '../lib/derivation';
@@ -110,14 +110,7 @@ export default function AboutPage() {
         </StickyAnchorRow>
 
         <Section id={METHODS_ANCHORS.project} n={1} title="About the project">
-          <p className="syn-text-md" style={prose}>
-            {PRODUCT_NAME} traces how CO₂ emissions become warming.
-          </p>
-          <p className="syn-text-md" style={prose}>
-            The data pipeline and machine-learning models began as a 7-week data science project. The platform has since added this dashboard, the Climate Correlation page built on
-            observed temperature and concentration records, and a conversational agent that answers from the same API. Every figure on screen is read from the pipeline&apos;s output.
-          </p>
-          <p className="syn-caption" style={{ ...prose, color: 'var(--syn-color-text-muted)' }}><em>{FOOTER_COPYRIGHT}</em></p>
+          <AboutProject headline={climate.headline} featured={countries.data?.featured[0]} />
         </Section>
 
         <Section id={METHODS_ANCHORS.sources} n={2} title="Data sources">
