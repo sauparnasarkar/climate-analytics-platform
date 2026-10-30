@@ -213,11 +213,18 @@ tidewater (light) themes and the component catalog; for those, see its `FOUNDATI
 - **A design-system change is its own PR, then a pin bump.** Change `syena-design-system` in its repo, merge it, then
   bump `syena-design-system.pin` here. A PR that only bumps the pin needs no code review; one that also changes the app does.
 - **One theme, set at the shell.** `App.tsx` wraps every route in `SynThemeProvider`, which applies the night or the
-  tidewater theme; individual pages don't opt in or out. The visitor chooses System, Light or Dark (`ThemeToggle`); System,
+  tidewater theme; individual pages don't opt in or out. The visitor chooses System, Light or Dark in the Settings menu (`SettingsMenu`, a design-system `Popover`; inline in the phone drawer); System,
   the default, follows `prefers-color-scheme` live and stores nothing, Light and Dark are kept in `localStorage` under
   `degrees-of-carbon-theme` (`src/lib/theme.ts`). The provider owns the choice; the app adds only that choosing System removes
   the stored key, and a one-time migration (`migrateLegacyTheme`, run in `main.tsx`) carries a choice from the old
   `climate-analytics-theme` key.
+- **Motion is a setting too.** The same Settings menu offers Motion: System, Reduce or Full. `MotionChoiceProvider` (in `App.tsx`,
+  inside the theme provider) holds the choice in `localStorage` under `degrees-of-carbon-motion` (absent = System, read in a state
+  initializer so Reduce is in force from the first render) and passes it to the design system's `SynMotionProvider`. Everything that
+  reads `useReducedMotion` follows it: the hero carousel, the Home globe's year animation, the ranking race, count-ups, chart
+  transitions, and jump-link scrolling; the stylesheet's reduced-motion rule follows through `data-syn-motion` on `<html>`. Switching
+  to Reduce while something autoplays stops it and lands on the latest year, unless the visitor started it or moved the year (then it
+  stops where it is). Play buttons always work.
 
 ### PWA / service worker
 

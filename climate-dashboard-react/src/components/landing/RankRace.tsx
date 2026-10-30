@@ -26,6 +26,8 @@ export function RankRace({ series, worldTotals, cumulativeFrom }: { series: Worl
   const [playing, setPlaying] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const autoplayed = useRef(false);
+  // True once the visitor pressed Play/Pause/Replay or moved the year slider: from then on the year is theirs to place.
+  const userDriven = useRef(false);
   const chartRef = useRef<HTMLDivElement>(null);
   const [labelHeight, setLabelHeight] = useState(0);
 
@@ -41,10 +43,12 @@ export function RankRace({ series, worldTotals, cumulativeFrom }: { series: Worl
     return () => window.clearInterval(id);
   }, [playing, last]);
 
-  // useReducedMotion is live-subscribed: if the preference turns on mid-race, stop and snap to the
-  // static final-year state instead of letting the timer keep advancing.
+  // useReducedMotion is live-subscribed: if reduced motion turns on mid-race (the device's setting or the Motion choice), stop the timer.
+  // An autoplay nobody asked for lands on the final year; once the visitor has pressed Play or moved the slider, it stops where it is.
   useEffect(() => {
-    if (reduced) { setPlaying(false); setYearIdx(last); }
+    if (!reduced) return;
+    setPlaying(false);
+    if (!userDriven.current) setYearIdx(last);
   }, [reduced, last]);
 
   // First time the section scrolls into view, play from the start (never under reduced motion).
@@ -86,6 +90,7 @@ export function RankRace({ series, worldTotals, cumulativeFrom }: { series: Worl
   const transition = reduced ? 'none' : 'top 450ms ease, opacity 300ms, width 450ms ease';
 
   const togglePlay = () => {
+    userDriven.current = true;
     if (playing) { setPlaying(false); return; }
     if (yearIdx >= last) setYearIdx(0);
     setPlaying(true);
@@ -118,6 +123,7 @@ export function RankRace({ series, worldTotals, cumulativeFrom }: { series: Worl
             step={1}
             value={model.years[yearIdx]}
             onChange={(year) => {
+              userDriven.current = true;
               setPlaying(false);
               setYearIdx(Math.max(0, Math.min(last, year - model.years[0])));
             }}
