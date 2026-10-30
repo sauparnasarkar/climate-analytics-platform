@@ -225,6 +225,13 @@ tidewater (light) themes and the component catalog; for those, see its `FOUNDATI
   transitions, and jump-link scrolling; the stylesheet's reduced-motion rule follows through `data-syn-motion` on `<html>`. Switching
   to Reduce while something autoplays stops it and lands on the latest year, unless the visitor started it or moved the year (then it
   stops where it is). Play buttons always work.
+- **Default countries are a setting.** Settings → Default countries keeps up to ten Expanded countries in `localStorage` under
+  `degrees-of-carbon-default-countries` (`DefaultCountriesProvider`; a JSON list, absent = the platform's Featured ten). Overview,
+  Historical Trends, Scenario Comparison and Country Profile open on it through `useEffectiveDefaults(featured, expanded)`: the stored
+  list checked against the current Expanded list (unknown names dropped, nothing left = Featured). The URL stays the source of truth
+  and always wins. Because a bare address now means *this visitor's* defaults, the selection hooks drop `?countries=` / `?country=`
+  only for the platform's own Featured selection and only while the visitor has no defaults of their own; with their own, the address
+  names the countries outright (written in once on load), so a shared link shows the recipient the same chart.
 
 ### PWA / service worker
 

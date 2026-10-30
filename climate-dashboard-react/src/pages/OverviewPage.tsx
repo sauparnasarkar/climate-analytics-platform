@@ -28,6 +28,7 @@ import { countryValuesForYear } from '../lib/yearViews';
 import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
+import { useEffectiveDefaults } from '../lib/DefaultCountriesProvider';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
 import { BASELINE_YEAR, CLIMATE_SERIES_START_YEAR, MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR, SECTION_GAP } from '../constants';
 import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
@@ -434,7 +435,9 @@ function moversHref(selected: string[], year: number, latest: number): string {
 
 function OverviewContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
-  const [selected, setSelected] = useSelectedCountries(featured, expanded);
+  // Opens on the visitor's own default countries (Settings) where they have set some, else the Featured ten.
+  const { defaults, custom } = useEffectiveDefaults(featured, expanded);
+  const [selected, setSelected] = useSelectedCountries(defaults, expanded, featured);
   // Still fires even when selected is empty (client.ts omits the query param, server
   // defaults to FEATURED_COUNTRIES) — matches HistoricalTrendsPage's exact precedent. The
   // Selected tier/charts/movers below are gated on the *local* selected.length, not on
@@ -527,7 +530,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
               onChange={setSelected}
               maxSelected={MAX_SELECTED_COUNTRIES}
             />
-            <Button variant="ghost" onClick={() => setSelected(featured)}>Reset to default</Button>
+            <Button variant="ghost" onClick={() => setSelected(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
           </>
         }
       />

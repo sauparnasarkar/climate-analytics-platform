@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { SynThemeProvider } from '@syena/ds';
+import { DefaultCountriesProvider } from './lib/DefaultCountriesProvider';
 import { MotionChoiceProvider } from './lib/MotionChoiceProvider';
 import { THEME_STORAGE_KEY } from './lib/theme';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -22,6 +23,7 @@ function App() {
   return (
     <SynThemeProvider defaultChoice="system" storageKey={THEME_STORAGE_KEY}>
     <MotionChoiceProvider>
+    <DefaultCountriesProvider>
       {/* Above every layout, so the Ask page's thread outlives navigating to any other page (including Home) and back. */}
       <AskThreadProvider>
       <Routes>
@@ -56,6 +58,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </AskThreadProvider>
+    </DefaultCountriesProvider>
     </MotionChoiceProvider>
     </SynThemeProvider>
   );

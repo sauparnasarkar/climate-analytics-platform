@@ -8,6 +8,7 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
+import { useEffectiveDefaults } from '../lib/DefaultCountriesProvider';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useLayoutSettled } from '../hooks/useLayoutSettled';
 import { useCountingFrom } from '../hooks/useCountingFrom';
@@ -69,7 +70,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // Defaults to the full 10 featured countries, matching Overview's Selected tier default
   // (previously just the first 5 here — inconsistent with the rest of the app).
   // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
-  const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
+  // Opens on the visitor's own default countries (Settings) where they have set some, else the Featured ten.
+  const { defaults, custom } = useEffectiveDefaults(featured, expanded);
+  const [selectedCountries, setSelectedCountries] = useSelectedCountries(defaults, expanded, featured);
   // URL-backed too (?gas=methane), so "Open in Historical Trends" from the Ask page lands on the same gas.
   const [gas, setGas] = useUrlChoice('gas', GAS_KEYS, 'co2');
   const [moversYear, setMoversYear] = useUrlChoice('year', MOVERS_YEAR_KEYS, 'latest');
@@ -138,7 +141,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
               onChange={setSelectedCountries}
               maxSelected={MAX_SELECTED_COUNTRIES}
             />
-            <Button variant="ghost" onClick={() => setSelectedCountries(featured)}>Reset to default</Button>
+            <Button variant="ghost" onClick={() => setSelectedCountries(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
           </>
         }
       />

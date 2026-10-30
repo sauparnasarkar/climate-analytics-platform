@@ -115,7 +115,7 @@ describe('AboutPage — Methods & data', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     mount();
     expect(await screen.findByText(/Expanded: 4 countries/)).toBeInTheDocument();
-    expect(screen.getByText(/defaults to these Featured countries: China, United States, India\./)).toBeInTheDocument();
+    expect(screen.getByText(/The default selection is the 3 Featured countries, unless you set your own in Settings\. Featured: China, United States, India\./)).toBeInTheDocument();
   });
 
   it('renders the error message inline in the forecasting table when listCountries fails', async () => {

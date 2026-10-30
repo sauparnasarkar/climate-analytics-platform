@@ -66,7 +66,7 @@ export default function AboutPage() {
       step: 'Countries',
       detail: countries.data
         ? `Expanded: ${countries.data.expanded.length} countries (data-quality coverage + emissions-materiality selection). `
-          + `Selected (Overview page comparison) defaults to these Featured countries: ${countries.data.featured.join(', ')}.`
+          + `The default selection is the ${countries.data.featured.length} Featured countries, unless you set your own in Settings. Featured: ${countries.data.featured.join(', ')}.`
         : countries.error
           ? countries.error
           : 'Loading…',

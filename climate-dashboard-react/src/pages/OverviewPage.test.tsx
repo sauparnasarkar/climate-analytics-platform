@@ -8,6 +8,8 @@ import { ApiError } from '../api/types';
 import type { CountriesResponse, OverviewResponse, WorldMapTimeSeries } from '../api/types';
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../constants';
 import OverviewPage from './OverviewPage';
+import { DefaultCountriesProvider } from '../lib/DefaultCountriesProvider';
+import { DEFAULT_COUNTRIES_STORAGE_KEY } from '../lib/defaultCountries';
 import { CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 import { buildCumulative } from '../lib/cumulative';
@@ -1204,5 +1206,30 @@ describe('OverviewPage — leading emitters', () => {
     mountFullRange(2024);
     const card = await screen.findByRole('region', { name: 'Leading emitters · 2024' });
     expect(card.textContent).not.toMatch(/warming|temperature/i);
+  });
+});
+
+describe('OverviewPage: the visitor\'s own default countries', () => {
+  afterEach(() => localStorage.removeItem(DEFAULT_COUNTRIES_STORAGE_KEY));
+
+  it('opens on the stored list, drops names that are no longer Expanded, and the reset button says "my defaults"', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam', 'Atlantis', 'China']));
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
+    render(<DefaultCountriesProvider><MemoryRouter><OverviewPage /></MemoryRouter></DefaultCountriesProvider>);
+    expect(await screen.findByRole('button', { name: 'Reset to my defaults' })).toBeInTheDocument();
+    expect(vi.mocked(api.overview)).toHaveBeenCalledWith(['Vietnam', 'China']);
+  });
+
+  it('a ?countries= in the address always wins over the stored list', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam']));
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
+    render(<DefaultCountriesProvider><MemoryRouter initialEntries={['/overview?countries=China&countries=India']}><OverviewPage /></MemoryRouter></DefaultCountriesProvider>);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(vi.mocked(api.overview)).toHaveBeenCalledWith(['China', 'India']);
+    expect(vi.mocked(api.overview)).not.toHaveBeenCalledWith(['Vietnam']);
   });
 });

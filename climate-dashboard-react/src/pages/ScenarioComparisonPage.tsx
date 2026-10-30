@@ -7,6 +7,7 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
+import { useEffectiveDefaults } from '../lib/DefaultCountriesProvider';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useLayoutSettled } from '../hooks/useLayoutSettled';
 import { MAX_SELECTED_COUNTRIES, SCENARIO_PANELS } from '../constants';
@@ -62,7 +63,9 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 // for an undefined selection before GET /api/countries resolves.
 function ScenarioComparisonContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?countries=…, like Historical Trends and Overview) so a link opens with a chosen selection.
-  const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
+  // Opens on the visitor's own default countries (Settings) where they have set some, else the Featured ten.
+  const { defaults } = useEffectiveDefaults(featured, expanded);
+  const [selectedCountries, setSelectedCountries] = useSelectedCountries(defaults, expanded, featured);
   const pickerLabel = `Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`;
   const isMobile = useIsMobile();
   const [treemapScenario, setTreemapScenario] = useState<string>('BAU');
