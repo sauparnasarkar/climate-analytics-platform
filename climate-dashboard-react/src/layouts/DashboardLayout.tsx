@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnalysisBar, AppShell, BackToTop, Button, Footer, Rail, SourceStrip, TopBar, useShell, type NavGroup, type NavItem } from '@syena/ds';
 
-import type { AppTheme } from '../lib/theme';
 import { PagePurpose } from '../components/PagePurpose';
 import { SavedDataNotice } from '../components/SavedDataNotice';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -37,7 +36,7 @@ function AskAgentButton({ collapsed, active, onAsk }: { collapsed: boolean; acti
 
 /** The dashboard shell (rail, analysis bar, source strip, footer, back-to-top) around every page under it; the landing page at '/' uses
  * LandingLayout instead. Each page names itself and draws its page-wide filters through PageChrome. Theme state lives in App so both layouts share it. */
-export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme: (t: AppTheme) => void }) {
+export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement | null>(null);
@@ -80,7 +79,7 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
             current={current}
             onItemClick={onItemClick}
             actions={(collapsed) => <AskAgentButton collapsed={collapsed} active={askActive} onAsk={() => navigate('/ask')} />}
-            utilities={(collapsed) => <ThemeToggle theme={theme} setTheme={setTheme} compact={collapsed} />}
+            utilities={(collapsed) => <ThemeToggle compact={collapsed} />}
           />
         }
         topBar={<TopBar logo={PRODUCT_MARK} productName={RAIL_PRODUCT_NAME} title={title} summary={chrome?.summary} showControls={hasFilters} />}

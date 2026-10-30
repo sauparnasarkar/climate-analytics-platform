@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Footer, BackToTop, useIsMobile } from '@syena/ds';
 
-import type { AppTheme } from '../lib/theme';
 import { AskAgentLink } from '../components/AskAgentLink';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -15,7 +14,7 @@ const linkStyle = { color: 'inherit', textDecoration: 'none', fontSize: 14, whit
 /** Layout for the landing page at '/' (SPEC.md §5.25): a top nav instead of the
  * dashboard's sidebar, using the app's exact nav labels. Below 768px (same breakpoint as
  * SidebarNav, via the design system's own useIsMobile) the nav collapses behind a menu button. */
-export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: (t: AppTheme) => void }) {
+export function LandingLayout() {
   const mainRef = useRef<HTMLElement>(null);
   // Portrait or landscape, a phone gets the same compact header: narrow screens (useIsMobile) and phones turned sideways. A tablet gets it too, below the width where the six nav links no longer fit on one line.
   // Both hooks run on every render (a `||` would skip the second while the first is true, and rotating the phone would change the hook count).
@@ -116,7 +115,7 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
                   <Link key={item.id} to={item.path} style={{ ...linkStyle, padding: '12px 4px', fontSize: 16 }}>{item.label}</Link>
                 ))}
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center', paddingTop: 12, flexWrap: 'wrap' }}>
-                  <ThemeToggle theme={theme} setTheme={setTheme} />
+                  <ThemeToggle />
                   {askLink}
                 </div>
               </nav>
@@ -126,7 +125,7 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
           <>
             <nav aria-label="Primary" className="landing-nav">{navLinks}</nav>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <ThemeToggle theme={theme} setTheme={setTheme} />
+              <ThemeToggle />
               {askLink}
             </div>
           </>

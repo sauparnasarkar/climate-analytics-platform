@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { SynThemeProvider } from '@syena/ds';
-import { useAppTheme } from './lib/useAppTheme';
+import { THEME_STORAGE_KEY } from './lib/theme';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { LandingLayout } from './layouts/LandingLayout';
 import LandingPage from './pages/LandingPage';
@@ -18,19 +18,17 @@ import { AskThreadProvider } from './agent/AskThreadProvider';
 import ClimateCorrelationPage from './pages/ClimateCorrelationPage';
 
 function App() {
-  const [theme, setTheme] = useAppTheme();
-
   return (
-    <SynThemeProvider theme={theme} storageKey={null}>
+    <SynThemeProvider defaultChoice="system" storageKey={THEME_STORAGE_KEY}>
       {/* Above every layout, so the Ask page's thread outlives navigating to any other page (including Home) and back. */}
       <AskThreadProvider>
       <Routes>
         {/* The landing page (SPEC.md §5.25) has its own layout -- top nav, no sidebar. */}
-        <Route element={<LandingLayout theme={theme} setTheme={setTheme} />}>
+        <Route element={<LandingLayout />}>
           <Route path="/" element={<LandingPage />} />
         </Route>
         {/* Everything else shares the dashboard shell. The Overview moved from '/' to '/overview'. */}
-        <Route element={<DashboardLayout theme={theme} setTheme={setTheme} />}>
+        <Route element={<DashboardLayout />}>
           <Route path="/overview" element={<OverviewPage />} />
           {/* Deliberately not '/agent' -- that path prefix is already claimed by the SSE proxy
               entry to services/agent's own backend (vite.config.ts's agentProxyEntry, matching

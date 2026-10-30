@@ -1,38 +1,44 @@
-import type { ThemeName } from '@syena/ds';
+import type { ThemeChoice } from '@syena/ds';
 
-// The app's own choice, kept in this origin's localStorage. The key names the app, so another app
+// The visitor's own choice, kept in this origin's localStorage by SynThemeProvider. The key names the app, so another app
 // served from the same origin never reads or overwrites it.
-export const THEME_STORAGE_KEY = 'climate-analytics-theme';
+export const THEME_STORAGE_KEY = 'degrees-of-carbon-theme';
+// What the key was called before the rename. Read once by `migrateLegacyTheme`, then deleted.
+export const LEGACY_THEME_STORAGE_KEY = 'climate-analytics-theme';
 
-// Dark (night) or Light (tidewater): the design system's own theme names.
-export type AppTheme = Extract<ThemeName, 'night' | 'tidewater'>;
+// System (follow the device), Light (tidewater) or Dark (night): the design system's own choice names.
+export type AppTheme = ThemeChoice;
 
-const isAppTheme = (value: unknown): value is AppTheme => value === 'night' || value === 'tidewater';
+/** The three choices in the order the toggle shows them. */
+export const THEME_CHOICES: { value: AppTheme; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'tidewater', label: 'Light' },
+  { value: 'night', label: 'Dark' },
+];
 
-// What the device asks for. With no matchMedia (an old browser, a test) Dark, the app's own look.
-const DARK_QUERY = '(prefers-color-scheme: dark)';
-export function systemTheme(): AppTheme {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'night';
-  return window.matchMedia(DARK_QUERY).matches ? 'night' : 'tidewater';
-}
-
-// The visitor's own choice, if they have made one with the toggle; null until then. Read in the state initializer, not an effect,
-// so a returning Light user never sees a flash of Dark on first paint. Storage can throw (private browsing, a blocking
-// extension or policy), which would otherwise crash the app before it renders.
-export function readStoredTheme(): AppTheme | null {
+/**
+ * Carries a choice made under the old key over to the new one, once, before the first render (the provider reads storage in its
+ * state initializer, so a returning Light visitor never sees a flash of the default). The old key is deleted either way. Storage can
+ * throw (private browsing, a blocking extension or policy), which would otherwise crash the app before it renders.
+ */
+export function migrateLegacyTheme(): void {
   try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return isAppTheme(stored) ? stored : null;
+    const legacy = localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+    if (legacy === null) return;
+    if ((legacy === 'night' || legacy === 'tidewater') && localStorage.getItem(THEME_STORAGE_KEY) === null) {
+      localStorage.setItem(THEME_STORAGE_KEY, legacy);
+    }
+    localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
   } catch {
-    return null;
+    // Not migrated: the visitor starts on System.
   }
 }
 
-// With storage blocked the toggle still works for the session; it just does not persist across reloads.
-export function storeTheme(theme: AppTheme): void {
+/** System is the absence of a stored choice, so the device decides from the next visit on too. */
+export function clearStoredTheme(): void {
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    localStorage.removeItem(THEME_STORAGE_KEY);
   } catch {
-    // Not persisted.
+    // Nothing to clear.
   }
 }

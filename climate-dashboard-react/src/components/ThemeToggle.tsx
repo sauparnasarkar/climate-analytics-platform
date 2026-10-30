@@ -1,23 +1,26 @@
 import { Button, SegmentedControl } from '@syena/ds';
-import type { AppTheme } from '../lib/theme';
+import { THEME_CHOICES, type AppTheme } from '../lib/theme';
+import { useThemeChoice } from '../lib/useThemeChoice';
 
-/** Light/Dark switch shared by the dashboard shell's header/mobile drawer and the landing layout. `compact` is one icon button, for a place with room for no more (a collapsed rail). */
-export function ThemeToggle({ theme, setTheme, compact = false }: { theme: AppTheme; setTheme: (t: AppTheme) => void; compact?: boolean }) {
+const NAMES: Record<AppTheme, string> = { system: 'System', tidewater: 'Light', night: 'Dark' };
+const ICONS = { system: 'system', tidewater: 'sun', night: 'moon' } as const;
+
+/** System / Light / Dark switch shared by the dashboard shell's rail and mobile drawer and the landing layout. `compact` is one icon button that cycles System → Light → Dark, for a place with room for no more (a collapsed rail). */
+export function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  const [choice, setChoice] = useThemeChoice();
   if (compact) {
-    const toDark = theme === 'tidewater';
-    const label = toDark ? 'Switch to dark theme' : 'Switch to light theme';
-    return <Button variant="ghost" icon={toDark ? 'moon' : 'sun'} aria-label={label} title={label} onClick={() => setTheme(toDark ? 'night' : 'tidewater')} />;
+    const index = THEME_CHOICES.findIndex((c) => c.value === choice);
+    const next = THEME_CHOICES[(index + 1) % THEME_CHOICES.length].value;
+    const label = `Theme: ${NAMES[choice]}. Switch to ${NAMES[next]}`;
+    return <Button variant="ghost" icon={ICONS[choice]} aria-label={label} title={label} onClick={() => setChoice(next)} />;
   }
   return (
     <SegmentedControl
       name="theme"
       size="small"
-      value={theme}
-      onChange={(v) => setTheme(v as AppTheme)}
-      items={[
-        { value: 'tidewater', label: 'Light' },
-        { value: 'night', label: 'Dark' },
-      ]}
+      value={choice}
+      onChange={(v) => setChoice(v as AppTheme)}
+      items={THEME_CHOICES}
     />
   );
 }

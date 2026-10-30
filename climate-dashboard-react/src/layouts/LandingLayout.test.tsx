@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
+import { SynThemeProvider } from '@syena/ds';
 import { LandingLayout } from './LandingLayout';
 
 const realMatchMedia = window.matchMedia;
@@ -16,7 +17,7 @@ function stubMedia(matching: (q: string) => boolean) {
 }
 
 const mount = () => render(
-  <MemoryRouter><Routes><Route element={<LandingLayout theme="night" setTheme={() => {}} />}><Route path="/" element={<p>page</p>} /></Route></Routes></MemoryRouter>,
+  <SynThemeProvider storageKey={null}><MemoryRouter><Routes><Route element={<LandingLayout />}><Route path="/" element={<p>page</p>} /></Route></Routes></MemoryRouter></SynThemeProvider>,
 );
 
 describe('LandingLayout header', () => {
