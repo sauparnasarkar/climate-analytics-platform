@@ -72,11 +72,19 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
   // If reduced motion turns on mid-session (the device's setting or the app's Motion choice; useReducedMotion is live-subscribed),
   // stop whatever is playing right away. An autoplay nobody asked for lands on the latest year, as it would have started; once the user
   // has pressed Play or Pause, moved the year, or opened on a year of their own, the year is left where it is (they can still scrub or press Play).
+  // When reduced motion goes away again (the Motion setting moved to Full or System) an autoplay that it stopped starts as it would on a fresh
+  // load: from the first stop. One the visitor started, paused or moved is theirs, and is left as it is.
+  const stoppedByMotion = useRef(false);
   useEffect(() => {
-    if (!reducedMotion) return;
-    setIsPlaying(false);
-    if (!userDriven.current && initialYear === undefined) setRawYear(maxYear);
-  }, [reducedMotion, maxYear, initialYear]);
+    if (reducedMotion) {
+      setIsPlaying(false);
+      if (!userDriven.current && initialYear === undefined) { setRawYear(maxYear); stoppedByMotion.current = autoplay; }
+    } else if (stoppedByMotion.current) {
+      stoppedByMotion.current = false;
+      // Where the autoplay waits for its element to scroll into view, it starts from there (the observer re-arms when reduced motion goes away).
+      if (!userDriven.current && enabled && stops.length > 1) { setRawYear(stops[0]); if (!deferAutoplay.current) setIsPlaying(true); }
+    }
+  }, [reducedMotion, maxYear, initialYear, autoplay, enabled, stops]);
 
   // Held paused while disabled. Deliberately not `userDriven`: when it is enabled again an autoplay the user never
   // touched may start/resume (the observer effect below re-arms on `enabled`).
