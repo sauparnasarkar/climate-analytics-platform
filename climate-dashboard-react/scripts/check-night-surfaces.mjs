@@ -10,7 +10,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.resolve(here, '../../../syena-design-system/package.json'));
 const { chromium } = require('playwright');
 
-const THEME_KEY = 'climate-analytics-theme';
+const THEME_KEY = 'degrees-of-carbon-theme';
 const IDS = { night: 'night', tidewater: 'tidewater' };
 const PAGES = ['/', '/overview', '/historical', '/country-profile', '/forecasts', '/scenarios', '/data-explorer', '/climate-correlation', '/about', '/ask'];
 

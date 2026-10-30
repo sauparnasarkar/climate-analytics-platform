@@ -213,8 +213,11 @@ tidewater (light) themes and the component catalog; for those, see its `FOUNDATI
 - **A design-system change is its own PR, then a pin bump.** Change `syena-design-system` in its repo, merge it, then
   bump `syena-design-system.pin` here. A PR that only bumps the pin needs no code review; one that also changes the app does.
 - **One theme, set at the shell.** `App.tsx` wraps every route in `SynThemeProvider`, which applies the night or the
-  tidewater theme; individual pages don't opt in or out. The visitor's choice is kept in `localStorage` under
-  `climate-analytics-theme` (`src/lib/theme.ts`), and Dark is the default.
+  tidewater theme; individual pages don't opt in or out. The visitor chooses System, Light or Dark (`ThemeToggle`); System,
+  the default, follows `prefers-color-scheme` live and stores nothing, Light and Dark are kept in `localStorage` under
+  `degrees-of-carbon-theme` (`src/lib/theme.ts`). The provider owns the choice; the app adds only that choosing System removes
+  the stored key, and a one-time migration (`migrateLegacyTheme`, run in `main.tsx`) carries a choice from the old
+  `climate-analytics-theme` key.
 
 ### PWA / service worker
 

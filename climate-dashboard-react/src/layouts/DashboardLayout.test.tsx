@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { PageChrome } from './PageChrome';
 import { afterEach, describe, expect, it } from 'vitest';
 import { recordResponse, resetSavedData } from '../lib/savedCopy';
+import { SynThemeProvider } from '@syena/ds';
 import { DashboardLayout } from './DashboardLayout';
 
 afterEach(() => { cleanup(); resetSavedData(); });
@@ -10,16 +11,16 @@ afterEach(() => { cleanup(); resetSavedData(); });
 function Where() { return <p data-testid="where">{useLocation().pathname}</p>; }
 
 const mount = (path = '/overview') => render(
-  <MemoryRouter initialEntries={[path]}>
+  <SynThemeProvider storageKey={null}><MemoryRouter initialEntries={[path]}>
     <Routes>
-      <Route element={<DashboardLayout theme="night" setTheme={() => {}} />}>
+      <Route element={<DashboardLayout />}>
         <Route path="/overview" element={<Where />} />
         <Route path="/" element={<Where />} />
         <Route path="/ask" element={<Where />} />
         <Route path="/about" element={<Where />} />
       </Route>
     </Routes>
-  </MemoryRouter>,
+  </MemoryRouter></SynThemeProvider>,
 );
 
 describe('DashboardLayout rail brand', () => {
@@ -71,13 +72,13 @@ describe('DashboardLayout page description on a phone', () => {
   const phone = (compact: boolean) => { window.matchMedia = ((q: string) => ({ matches: compact && /max-width/.test(q), media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
   const PURPOSE = 'Where emissions are and how they moved.';
   const mountPage = (chrome: { title: string; purpose?: string; ownsPurpose?: boolean }) => render(
-    <MemoryRouter initialEntries={['/overview']}>
+    <SynThemeProvider storageKey={null}><MemoryRouter initialEntries={['/overview']}>
       <Routes>
-        <Route element={<DashboardLayout theme="night" setTheme={() => {}} />}>
+        <Route element={<DashboardLayout />}>
           <Route path="/overview" element={<><PageChrome {...chrome} /><p>first section</p></>} />
         </Route>
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter></SynThemeProvider>,
   );
 
   it('on a phone, writes the description as the first item of the page content, once, and not inside anything pinned', () => {

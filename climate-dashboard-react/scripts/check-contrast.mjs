@@ -20,7 +20,7 @@ for (const [theme, value] of Object.entries(stored)) {
     for (const route of routes) {
       const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: 'block', reducedMotion: 'reduce' });
       const page = await context.newPage();
-      await page.addInitScript((v) => { try { localStorage.setItem('climate-analytics-theme', v); } catch { /* storage blocked */ } }, value);
+      await page.addInitScript((v) => { try { localStorage.setItem('degrees-of-carbon-theme', v); } catch { /* storage blocked */ } }, value);
       await page.goto(base + route, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1500);
       const shown = await page.evaluate(() => document.querySelector('[data-syn-theme]')?.getAttribute('data-syn-theme'));
