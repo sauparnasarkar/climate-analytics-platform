@@ -35,6 +35,9 @@ function AskAgentButton({ collapsed, active, onAsk }: { collapsed: boolean; acti
   );
 }
 
+/** The rail the Settings button sits in: its panel opens beyond the rail's edge, not over its icons. */
+const railElement = () => document.querySelector('nav[aria-label="Primary"]');
+
 /** The dashboard shell (rail, analysis bar, source strip, footer, back-to-top) around every page under it; the landing page at '/' uses
  * LandingLayout instead. Each page names itself and draws its page-wide filters through PageChrome. Settings (theme, motion) live in App's providers, so both layouts share them. */
 export function DashboardLayout() {
@@ -84,7 +87,7 @@ export function DashboardLayout() {
             actions={(collapsed) => <AskAgentButton collapsed={collapsed} active={askActive} onAsk={() => navigate('/ask')} />}
             utilities={(collapsed) => (drawer
               ? <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><Text as="h2" type="title-sm">Settings</Text><SettingsPanel /></div>
-              : <SettingsMenu labelled={!collapsed} side="right" align="end" />)}
+              : <SettingsMenu labelled={!collapsed} side="right" align="end" clearOf={railElement} />)}
             utilitiesScroll
           />
         }

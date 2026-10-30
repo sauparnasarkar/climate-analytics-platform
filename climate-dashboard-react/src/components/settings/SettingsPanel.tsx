@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, MultiSelect, SegmentedControl, Text, useSynTheme } from '@syena/ds';
+import { Button, Icon, MultiSelect, SegmentedControl, Text, useSynTheme } from '@syena/ds';
 import { MAX_SELECTED_COUNTRIES } from '../../constants';
 import { useKnownCountries } from '../../hooks/useKnownCountries';
 import { useEffectiveDefaults } from '../../lib/DefaultCountriesProvider';
@@ -29,12 +29,15 @@ function DefaultCountries() {
 
 function DefaultCountriesControl({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   const { defaults, custom, setStored } = useEffectiveDefaults(featured, expanded);
-  // The picker keeps its own list while it is being edited: an empty list is stored as nothing (pages then use the Featured ten), but the
-  // picker itself must be able to show it empty, or Clear would snap straight back to ten countries and nothing else could be chosen.
+  // The list is edited here, in the order the visitor builds it: an empty list is stored as nothing (pages then use the Featured ten), but
+  // the editor itself must be able to show it empty, or removing the last chip would snap straight back to ten countries.
   const [draft, setDraft] = useState(defaults);
   const change = (next: string[]) => { setDraft(next); setStored(next.length === 0 ? null : next); };
-  // The list opens below the field, which is often near the bottom of the panel (or the drawer): bring it into view when it opens, so it is
-  // not left below the fold behind a scrollbar.
+  const add = (picked: string[]) => change([...draft, ...picked.filter((c) => !draft.includes(c))].slice(0, MAX_SELECTED_COUNTRIES));
+  const remove = (name: string) => change(draft.filter((c) => c !== name));
+  const full = draft.length >= MAX_SELECTED_COUNTRIES;
+  // The list of countries to add from opens below its field, often near the bottom of the panel (or the drawer): bring it into view when it
+  // opens, so it is not left below the fold behind a scrollbar.
   const fit = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const holder = fit.current;
@@ -47,22 +50,40 @@ function DefaultCountriesControl({ featured, expanded }: { featured: string[]; e
     const watch = new MutationObserver(reveal);
     watch.observe(holder, { attributes: true, attributeFilter: ['aria-expanded'], subtree: true });
     return () => watch.disconnect();
-  }, []);
+  }, [full]);
   const reset = () => { setDraft(featured); setStored(null); };
   return (
     <section aria-label="Default countries settings" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <Text as="h3" type="caption" tone="muted">Default countries</Text>
-      <Text as="p" type="caption" tone="muted">Used when a page opens without a selection. Up to 10.</Text>
-      {/* The design system gives a field a minimum width a little wider than the phone drawer's content; here it may shrink to the room it has. */}
-      <div ref={fit} className="settings-field-fit">
-        <MultiSelect
-          ariaLabel="Default countries"
-          options={expanded.map((c) => ({ value: c, label: c }))}
-          value={draft}
-          onChange={change}
-          maxSelected={MAX_SELECTED_COUNTRIES}
-        />
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <Text as="h3" type="caption" tone="muted">Default countries</Text>
+        <Text as="span" type="caption" tone="muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{draft.length} of {MAX_SELECTED_COUNTRIES}</Text>
       </div>
+      <Text as="p" type="caption" tone="muted">Used when a page opens without a selection. Up to 10.</Text>
+      {draft.length > 0 ? (
+        <ul aria-label="Your default countries" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {draft.map((name) => (
+            <li key={name} className="settings-chip">
+              <span>{name}</span>
+              <button type="button" aria-label={`Remove ${name}`} onClick={() => remove(name)}><Icon name="close" size="small" /></button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {full ? (
+        <Text as="p" type="caption" tone="muted">Ten is the most a chart can show. Remove one to add another.</Text>
+      ) : (
+        /* The design system gives a field a minimum width a little wider than the phone drawer's content; here it may shrink to the room it has. */
+        <div ref={fit} className="settings-field-fit">
+          <MultiSelect
+            ariaLabel="Add a country"
+            placeholder="Add a country"
+            options={expanded.filter((c) => !draft.includes(c)).map((c) => ({ value: c, label: c }))}
+            value={[]}
+            onChange={add}
+            maxSelected={MAX_SELECTED_COUNTRIES - draft.length}
+          />
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <Text as="span" type="caption" tone="muted">{custom ? 'Your own list.' : draft.length === 0 ? 'None chosen: pages use the Featured ten.' : 'The 10 Featured countries.'}</Text>
         <Button variant="secondary" size="small" disabled={!custom && draft.length === featured.length} onClick={reset}>Reset to featured</Button>

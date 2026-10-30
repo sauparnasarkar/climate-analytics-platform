@@ -10,7 +10,7 @@ const RAIL_ROW = { width: '100%', justifyContent: 'flex-start', paddingInline: '
  * otherwise it is an icon button named "Settings" (the header, and the collapsed rail). The panel closes when the page changes or
  * the rail is expanded or collapsed, since its trigger has moved.
  */
-export function SettingsMenu({ labelled = false, side = 'bottom', align = 'end' }: { labelled?: boolean } & Pick<PopoverProps, 'side' | 'align'>) {
+export function SettingsMenu({ labelled = false, side = 'bottom', align = 'end', clearOf }: { labelled?: boolean } & Pick<PopoverProps, 'side' | 'align' | 'clearOf'>) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const where = `${pathname}|${labelled}`;
@@ -24,6 +24,7 @@ export function SettingsMenu({ labelled = false, side = 'bottom', align = 'end' 
       title="Settings"
       side={side}
       align={align}
+      clearOf={clearOf}
       open={open}
       onOpenChange={setOpen}
       trigger={(props) => (labelled

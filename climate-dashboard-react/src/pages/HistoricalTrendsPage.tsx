@@ -9,6 +9,7 @@ import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useEffectiveDefaults } from '../lib/DefaultCountriesProvider';
+import { sameSelection } from '../lib/defaultCountries';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useLayoutSettled } from '../hooks/useLayoutSettled';
 import { useCountingFrom } from '../hooks/useCountingFrom';
@@ -141,7 +142,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
               onChange={setSelectedCountries}
               maxSelected={MAX_SELECTED_COUNTRIES}
             />
-            <Button variant="ghost" onClick={() => setSelectedCountries(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
+            <Button variant="ghost" disabled={sameSelection(selectedCountries, defaults)} onClick={() => setSelectedCountries(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
           </>
         }
       />

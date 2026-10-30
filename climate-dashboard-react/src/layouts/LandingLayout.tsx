@@ -129,8 +129,9 @@ export function LandingLayout() {
           <>
             <nav aria-label="Primary" className="landing-nav">{navLinks}</nav>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <SettingsMenu />
               {askLink}
+              {/* After Ask the Agent, at the far right: the panel is right-aligned to it, and Tab goes through the nav, Ask the Agent, then Settings. */}
+              <SettingsMenu />
             </div>
           </>
         )}

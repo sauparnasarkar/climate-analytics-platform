@@ -29,6 +29,7 @@ import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useEffectiveDefaults } from '../lib/DefaultCountriesProvider';
+import { sameSelection } from '../lib/defaultCountries';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
 import { BASELINE_YEAR, CLIMATE_SERIES_START_YEAR, MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR, SECTION_GAP } from '../constants';
 import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
@@ -530,7 +531,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
               onChange={setSelected}
               maxSelected={MAX_SELECTED_COUNTRIES}
             />
-            <Button variant="ghost" onClick={() => setSelected(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
+            <Button variant="ghost" disabled={sameSelection(selected, defaults)} onClick={() => setSelected(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
           </>
         }
       />

@@ -54,6 +54,17 @@ describe('LandingLayout header', () => {
     expect(screen.queryByRole('button', { name: /menu/i })).not.toBeInTheDocument();
   });
 
+  it('puts Settings at the far right, after Ask the Agent, so the visual order and the Tab order agree: nav, Ask the Agent, Settings', () => {
+    stubMedia(() => false);
+    mount();
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const ask = screen.getByRole('link', { name: 'Ask the Agent' });
+    const settings = screen.getByRole('button', { name: 'Settings' });
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(nav, ask)).toBe(true);
+    expect(follows(ask, settings)).toBe(true);
+  });
+
   it('on a narrow phone (portrait) shows the Menu button instead of the link row', () => {
     stubMedia(isCompactQuery);
     mount();

@@ -418,6 +418,14 @@ describe('HistoricalTrendsPage', () => {
 });
 
 describe('HistoricalTrendsPage: the visitor\'s own default countries', () => {
+  it('the reset button is disabled while the selection is the defaults', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    render(<DefaultCountriesProvider><MemoryRouter><HistoricalTrendsPage /></MemoryRouter></DefaultCountriesProvider>);
+    expect(await screen.findByRole('button', { name: 'Reset to default' })).toBeDisabled();
+  });
+
   afterEach(() => localStorage.removeItem(DEFAULT_COUNTRIES_STORAGE_KEY));
 
   it('opens on the stored list, drops names that are no longer Expanded, and "Reset to my defaults" returns to it', async () => {
