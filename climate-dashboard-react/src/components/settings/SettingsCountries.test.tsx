@@ -98,6 +98,25 @@ describe('Settings: default countries', () => {
     }
   });
 
+  it('an original request that succeeds after Try again still fills the panel', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let answerFirst: (value: { featured: string[]; expanded: string[] }) => void = () => {};
+      vi.mocked(api.listCountries)
+        .mockReturnValueOnce(new Promise((resolve) => { answerFirst = resolve; }))
+        .mockReturnValueOnce(new Promise(() => {}));
+      mount();
+      await act(async () => { vi.advanceTimersByTime(8100); });
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(vi.mocked(api.listCountries)).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('Loading countries…')).toBeInTheDocument();
+      await act(async () => { answerFirst({ featured: FEATURED, expanded: [...FEATURED, 'Vietnam'] }); });
+      expect(await field()).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('says so when the countries cannot be loaded, and keeps the other sections', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('offline'));
     mount();

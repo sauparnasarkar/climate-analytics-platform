@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import type { CountriesResponse } from '../api/types';
 
@@ -40,16 +40,23 @@ export function useKnownCountries(): KnownCountries {
   const [status, setStatus] = useState<'loading' | 'slow' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => { inflight = null; setStatus('loading'); setAttempt((n) => n + 1); }, []);
+  // Any request that succeeds fills the panel, even one that Try again has since overtaken; only the latest one's failure is reported.
+  const mounted = useRef(true);
+  const latest = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     if (data) return undefined;
-    let cancelled = false;
-    const slow = window.setTimeout(() => { if (!cancelled) setStatus((s) => (s === 'loading' ? 'slow' : s)); }, SLOW_MS);
+    latest.current = attempt;
+    const slow = window.setTimeout(() => { if (mounted.current && latest.current === attempt) setStatus((s) => (s === 'loading' ? 'slow' : s)); }, SLOW_MS);
     load().then(
-      (loaded) => { if (!cancelled) setData(loaded); },
-      () => { if (!cancelled) setStatus('error'); },
+      (loaded) => { if (mounted.current) setData(loaded); },
+      () => { if (mounted.current && latest.current === attempt) setStatus('error'); },
     );
-    return () => { cancelled = true; window.clearTimeout(slow); };
+    return () => { window.clearTimeout(slow); };
   }, [data, attempt]);
 
   return data ? { status: 'ready', data } : { status, data: null, retry };
