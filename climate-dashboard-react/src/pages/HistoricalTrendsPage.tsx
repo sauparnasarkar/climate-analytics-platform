@@ -73,7 +73,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
   // Opens on the visitor's own default countries (Settings) where they have set some, else the Featured ten.
   const { defaults, custom } = useEffectiveDefaults(featured, expanded);
-  const [selectedCountries, setSelectedCountries] = useSelectedCountries(defaults, expanded, featured);
+  const [selectedCountries, setSelectedCountries, followingDefaults] = useSelectedCountries(defaults, expanded, featured);
   // URL-backed too (?gas=methane), so "Open in Historical Trends" from the Ask page lands on the same gas.
   const [gas, setGas] = useUrlChoice('gas', GAS_KEYS, 'co2');
   const [moversYear, setMoversYear] = useUrlChoice('year', MOVERS_YEAR_KEYS, 'latest');
@@ -142,7 +142,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
               onChange={setSelectedCountries}
               maxSelected={MAX_SELECTED_COUNTRIES}
             />
-            <Button variant="ghost" disabled={sameSelection(selectedCountries, defaults)} onClick={() => setSelectedCountries(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
+            <Button variant="ghost" disabled={sameSelection(selectedCountries, defaults) && followingDefaults} onClick={() => setSelectedCountries(defaults)}>{custom ? 'Reset to my defaults' : 'Reset to default'}</Button>
           </>
         }
       />

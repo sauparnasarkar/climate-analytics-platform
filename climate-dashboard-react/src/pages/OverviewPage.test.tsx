@@ -1237,6 +1237,20 @@ describe('OverviewPage: the visitor\'s own default countries', () => {
     expect(await screen.findByRole('button', { name: 'Reset to my defaults' })).toBeEnabled();
   });
 
+  it('lets an explicit URL selection matching the defaults reset to following defaults', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const query = FEATURED.map((country) => `countries=${encodeURIComponent(country)}`).join('&');
+    render(<MemoryRouter initialEntries={[`/overview?${query}`]}><OverviewPage /></MemoryRouter>);
+    const reset = await screen.findByRole('button', { name: 'Reset to default' });
+    expect(reset).toBeEnabled();
+    await user.click(reset);
+    expect(await screen.findByRole('button', { name: 'Reset to default' })).toBeDisabled();
+  });
+
   it('a ?countries= in the address always wins over the stored list', async () => {
     localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam']));
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
