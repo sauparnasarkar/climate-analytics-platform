@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MAX_SELECTED_COUNTRIES } from '../constants';
 
@@ -52,7 +52,7 @@ export function useSelectedCountries(defaults: string[], expanded: string[], fea
     return valid.length > 0 ? valid : defaults;
   }, [search, defaults, expanded]);
 
-  const setSelected = useCallback(
+  const write = useCallback(
     (next: string[]) => {
       const params = new URLSearchParams(search);
       params.delete(MULTI_PARAM);
@@ -64,6 +64,12 @@ export function useSelectedCountries(defaults: string[], expanded: string[], fea
     [search, hash, pathname, featured, ownDefaults, navigate],
   );
 
+  // Whether the page is showing the defaults rather than a selection of its own: so when they change in Settings it follows them. True
+  // when it opened without the parameter, or the visitor chose exactly the defaults (Reset); false once they chose something else, and
+  // for an address that arrived naming countries, even if they happen to be the defaults (that is the sender's selection).
+  const following = useRef(new URLSearchParams(search).getAll(MULTI_PARAM).length === 0);
+  const setSelected = useCallback((next: string[]) => { following.current = sameList(next, defaults); write(next); }, [write, defaults]);
+
   // The visitor's own defaults are in use but the address does not say so: write them in, once.
   const bare = new URLSearchParams(search).getAll(MULTI_PARAM).length === 0;
   useEffect(() => {
@@ -72,6 +78,19 @@ export function useSelectedCountries(defaults: string[], expanded: string[], fea
     defaults.forEach((c) => params.append(MULTI_PARAM, c));
     navigate({ pathname, search: `?${params.toString()}`, hash }, { replace: true });
   }, [ownDefaults, bare, defaults, search, pathname, hash, navigate]);
+
+  // The defaults changed (Settings) while this page was showing them: follow them. A selection the visitor made on the page, or one that
+  // came in the address, is left alone. The address may by now name the old defaults outright (written in above), which is why this
+  // compares with them rather than looking for a bare address.
+  const before = useRef(defaults);
+  const latest = useRef({ selected, write });
+  latest.current = { selected, write };
+  useEffect(() => {
+    const previous = before.current;
+    before.current = defaults;
+    if (previous === defaults) return;
+    if (following.current && sameList(latest.current.selected, previous)) latest.current.write(defaults);
+  }, [defaults]);
 
   return [selected, setSelected];
 }
@@ -87,7 +106,7 @@ export function useSelectedCountry(fallback: string, expanded: string[], feature
     return (raw && canonicalCountries([raw], expanded, 1)[0]) || fallback;
   }, [search, fallback, expanded]);
 
-  const setCountry = useCallback(
+  const write = useCallback(
     (next: string) => {
       const params = new URLSearchParams(search);
       params.delete(SINGLE_PARAM);
@@ -99,6 +118,10 @@ export function useSelectedCountry(fallback: string, expanded: string[], feature
     [search, hash, pathname, featuredFirst, ownFallback, navigate],
   );
 
+  // As in useSelectedCountries: whether the page is showing the default rather than a country of its own.
+  const following = useRef(!new URLSearchParams(search).has(SINGLE_PARAM));
+  const setCountry = useCallback((next: string) => { following.current = next === fallback; write(next); }, [write, fallback]);
+
   const bare = !new URLSearchParams(search).has(SINGLE_PARAM);
   useEffect(() => {
     if (!ownFallback || !bare) return;
@@ -106,6 +129,17 @@ export function useSelectedCountry(fallback: string, expanded: string[], feature
     params.set(SINGLE_PARAM, fallback);
     navigate({ pathname, search: `?${params.toString()}`, hash }, { replace: true });
   }, [ownFallback, bare, fallback, search, pathname, hash, navigate]);
+
+  // The default changed (Settings) while this page was showing it: follow it, as the multi-country selection does.
+  const before = useRef(fallback);
+  const latest = useRef({ country, write });
+  latest.current = { country, write };
+  useEffect(() => {
+    const previous = before.current;
+    before.current = fallback;
+    if (previous === fallback) return;
+    if (following.current && latest.current.country === previous) latest.current.write(fallback);
+  }, [fallback]);
 
   return [country, setCountry];
 }
