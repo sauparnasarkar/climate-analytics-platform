@@ -1,11 +1,10 @@
-import { Link } from '@syena/ds';
 import { api } from '../../api/client';
 import type { CorrelationEmissionsTemperatureResponse } from '../../api/correlationTypes';
 import { useAsync } from '../../hooks/useAsync';
 import { AR6_TCRE } from '../../lib/climateCopy';
 import { countWord, headlineFacts } from '../../lib/aboutProject';
 import { READING_MEASURE } from '../../lib/readingMeasure';
-import { BASELINE_YEAR, REPO_URL } from '../../constants';
+import { BASELINE_YEAR } from '../../constants';
 import { FOOTER_COPYRIGHT, PRODUCT_NAME } from '../../navigation';
 
 const prose = { margin: 0, maxWidth: READING_MEASURE } as const;
@@ -53,7 +52,7 @@ export function AboutProject({ headline, featured }: { headline: CorrelationEmis
         <li>ask questions in plain language and get answers drawn from the same data.</li>
       </ul>
       <p className="syn-text-md" style={prose}>
-        Every figure is computed from open sources by a pipeline that can be <Link href={REPO_URL} target="_blank" rel="noopener noreferrer">re-run from scratch</Link>, and the forecasts are tested against years held back from training.
+        Every figure is computed from open sources by a pipeline that can be re-run from scratch, and the forecasts are tested against years held back from training.
       </p>
       <p className="syn-caption" style={{ ...prose, color: 'var(--syn-color-text-muted)' }}><em>{FOOTER_COPYRIGHT}</em></p>
       <p className="syn-caption" style={{ ...prose, color: 'var(--syn-color-text-muted)' }}>
