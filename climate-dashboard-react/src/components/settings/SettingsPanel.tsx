@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, MultiSelect, SegmentedControl, Text, useSynTheme } from '@syena/ds';
 import { MAX_SELECTED_COUNTRIES } from '../../constants';
-import { useCountries } from '../../hooks/useCountries';
+import { useKnownCountries } from '../../hooks/useKnownCountries';
 import { useEffectiveDefaults } from '../../lib/DefaultCountriesProvider';
 import { THEME_CHOICES, type AppTheme } from '../../lib/theme';
 import { useThemeChoice } from '../../lib/useThemeChoice';
@@ -12,9 +12,17 @@ const rule = { border: 0, borderTop: '1px solid var(--syn-color-border-default)'
 
 /** Settings → Default countries: the selection a page opens with when its address names none. Up to ten of the Expanded countries; Reset goes back to the Featured ten. */
 function DefaultCountries() {
-  const countries = useCountries();
-  if (!countries.data) {
-    return <Text as="p" type="caption" tone="muted">{countries.error ? 'The countries could not be loaded right now.' : 'Loading countries…'}</Text>;
+  const countries = useKnownCountries();
+  if (countries.status !== 'ready') {
+    return (
+      <section aria-label="Default countries settings" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Text as="h3" type="caption" tone="muted">Default countries</Text>
+        <Text as="p" type="caption" tone="muted" role="status">
+          {countries.status === 'error' ? 'The countries could not be loaded right now.' : countries.status === 'slow' ? 'Still loading the countries…' : 'Loading countries…'}
+        </Text>
+        {countries.status !== 'loading' ? <div><Button variant="secondary" size="small" onClick={countries.retry}>Try again</Button></div> : null}
+      </section>
+    );
   }
   return <DefaultCountriesControl featured={countries.data.featured} expanded={countries.data.expanded} />;
 }

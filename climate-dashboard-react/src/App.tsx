@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { prefetchCountries } from './hooks/useKnownCountries';
 
 import { SynThemeProvider } from '@syena/ds';
 import { DefaultCountriesProvider } from './lib/DefaultCountriesProvider';
@@ -20,6 +22,8 @@ import { AskThreadProvider } from './agent/AskThreadProvider';
 import ClimateCorrelationPage from './pages/ClimateCorrelationPage';
 
 function App() {
+  // The Settings panel's country list, asked for once now so it is there when the panel opens.
+  useEffect(() => { prefetchCountries(); }, []);
   return (
     <SynThemeProvider defaultChoice="system" storageKey={THEME_STORAGE_KEY}>
     <MotionChoiceProvider>
