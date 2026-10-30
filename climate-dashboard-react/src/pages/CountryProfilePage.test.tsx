@@ -5,6 +5,8 @@ import { Themed } from '../test/Themed';
 import { api } from '../api/client';
 import type { CountriesResponse, CountryCumulativeResponse, CountryProfileResponse } from '../api/types';
 import CountryProfilePage from './CountryProfilePage';
+import { DefaultCountriesProvider } from '../lib/DefaultCountriesProvider';
+import { DEFAULT_COUNTRIES_STORAGE_KEY } from '../lib/defaultCountries';
 
 // JumpLinks (SPEC.md §5.19) calls the design system's useReducedMotion during render -- jsdom has
 // no window.matchMedia at all, so every test needs this stub. Same pattern as useCountUp.test.ts.
@@ -289,5 +291,23 @@ describe('CountryProfilePage', () => {
       render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
       expect(await screen.findByText('—')).toBeInTheDocument();
     });
+  });
+});
+
+describe('CountryProfilePage: the visitor\'s own default countries', () => {
+  afterEach(() => localStorage.removeItem(DEFAULT_COUNTRIES_STORAGE_KEY));
+
+  it('opens on the first of the stored list, and a ?country= still wins', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Atlantis', 'India', 'China']));
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
+    const first = render(<Themed><DefaultCountriesProvider><MemoryRouter><CountryProfilePage /></MemoryRouter></DefaultCountriesProvider></Themed>);
+    await waitFor(() => expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('India'));
+    expect(vi.mocked(api.countryProfile)).not.toHaveBeenCalledWith('China');
+    first.unmount();
+    vi.mocked(api.countryProfile).mockClear();
+    render(<Themed><DefaultCountriesProvider><MemoryRouter initialEntries={['/country-profile?country=Vietnam']}><CountryProfilePage /></MemoryRouter></DefaultCountriesProvider></Themed>);
+    await waitFor(() => expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('Vietnam'));
+    expect(vi.mocked(api.countryProfile)).not.toHaveBeenCalledWith('India');
   });
 });

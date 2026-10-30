@@ -30,3 +30,6 @@
 .area2-link, .area2-link:visited { color: var(--area2-link, inherit); }
 /* A link inside a chart panel, which stays dark in both themes: the page's link colour (dark blue in the light theme) would not read there, so it takes the panel's own text colour. */
 .area2-link--on-panel, .area2-link--on-panel:visited { color: var(--syn-data-text, #c1deeb); text-decoration: underline; }
+
+/* Settings -> Default countries: the field may be narrower than the design system's field minimum, so it fits the phone drawer (SettingsPanel). */
+div.settings-field-fit > * { min-width: 0; }

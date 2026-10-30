@@ -7,6 +7,7 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountry } from '../hooks/useCountrySelection';
+import { useEffectiveDefaults } from '../lib/DefaultCountriesProvider';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { CountryCumulativeResponse } from '../api/types';
 import { fmtGt } from '../lib/cumulative';
@@ -39,7 +40,9 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 // an undefined country before GET /api/countries resolves.
 function CountryProfileContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?country=…, SPEC.md §5.25) so links can open a specific country's profile.
-  const [country, setCountry] = useSelectedCountry(featured[0], expanded);
+  // Opens on the first of the visitor's own default countries (Settings) where they have set some, else the first Featured country.
+  const { defaults } = useEffectiveDefaults(featured, expanded);
+  const [country, setCountry] = useSelectedCountry(defaults[0], expanded, featured[0]);
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
   // Its own request, so a slow or failed cumulative fetch never blanks the sections above it (SPEC.md §5.28).
   const [from, setFrom] = useCountingFrom();

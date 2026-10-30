@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MAX_SELECTED_COUNTRIES } from '../constants';
 
@@ -34,11 +34,15 @@ const sameList = (a: string[], b: string[]) => a.length === b.length && a.every(
  *   instead of silently flipping back to the defaults)
  * - otherwise the recognised names, deduplicated and capped at MAX_SELECTED_COUNTRIES
  * The setter rewrites only this param (replace, not push -- picker tweaks shouldn't fill the back
- * stack), keeps the hash, and drops the param entirely when the selection equals `defaults`.
+ * stack), keeps the hash, and drops the param only when the selection is the platform's `featured` list AND `defaults` is that list
+ * too. `defaults` may be the visitor's own (Settings → Default countries): then a URL without the param means *their* defaults, so a
+ * link must say its countries outright, or the person who opens it would see theirs. For the same reason a page that opens without
+ * the param, for a visitor with their own defaults, gets the param written into its address (a replace, once), so the address is shareable.
  */
-export function useSelectedCountries(defaults: string[], expanded: string[]): [string[], (next: string[]) => void] {
+export function useSelectedCountries(defaults: string[], expanded: string[], featured: string[] = defaults): [string[], (next: string[]) => void] {
   const { search, hash, pathname } = useLocation();
   const navigate = useNavigate();
+  const ownDefaults = !sameList(defaults, featured);
 
   const selected = useMemo(() => {
     const raw = new URLSearchParams(search).getAll(MULTI_PARAM);
@@ -53,20 +57,30 @@ export function useSelectedCountries(defaults: string[], expanded: string[]): [s
       const params = new URLSearchParams(search);
       params.delete(MULTI_PARAM);
       if (next.length === 0) params.append(MULTI_PARAM, '');
-      else if (!sameList(next, defaults)) next.forEach((c) => params.append(MULTI_PARAM, c));
+      else if (ownDefaults || !sameList(next, featured)) next.forEach((c) => params.append(MULTI_PARAM, c));
       const qs = params.toString();
       navigate({ pathname, search: qs ? `?${qs}` : '', hash }, { replace: true });
     },
-    [search, hash, pathname, defaults, navigate],
+    [search, hash, pathname, featured, ownDefaults, navigate],
   );
+
+  // The visitor's own defaults are in use but the address does not say so: write them in, once.
+  const bare = new URLSearchParams(search).getAll(MULTI_PARAM).length === 0;
+  useEffect(() => {
+    if (!ownDefaults || !bare) return;
+    const params = new URLSearchParams(search);
+    defaults.forEach((c) => params.append(MULTI_PARAM, c));
+    navigate({ pathname, search: `?${params.toString()}`, hash }, { replace: true });
+  }, [ownDefaults, bare, defaults, search, pathname, hash, navigate]);
 
   return [selected, setSelected];
 }
 
 /** Single-country selection backed by `?country=`; unknown/absent -> `fallback`. */
-export function useSelectedCountry(fallback: string, expanded: string[]): [string, (next: string) => void] {
+export function useSelectedCountry(fallback: string, expanded: string[], featuredFirst: string = fallback): [string, (next: string) => void] {
   const { search, hash, pathname } = useLocation();
   const navigate = useNavigate();
+  const ownFallback = fallback !== featuredFirst;
 
   const country = useMemo(() => {
     const raw = new URLSearchParams(search).get(SINGLE_PARAM);
@@ -77,12 +91,21 @@ export function useSelectedCountry(fallback: string, expanded: string[]): [strin
     (next: string) => {
       const params = new URLSearchParams(search);
       params.delete(SINGLE_PARAM);
-      if (next !== fallback) params.set(SINGLE_PARAM, next);
+      // Dropped only for the platform's own default, and only where that is the page's default too (see useSelectedCountries).
+      if (ownFallback || next !== featuredFirst) params.set(SINGLE_PARAM, next);
       const qs = params.toString();
       navigate({ pathname, search: qs ? `?${qs}` : '', hash }, { replace: true });
     },
-    [search, hash, pathname, fallback, navigate],
+    [search, hash, pathname, featuredFirst, ownFallback, navigate],
   );
+
+  const bare = !new URLSearchParams(search).has(SINGLE_PARAM);
+  useEffect(() => {
+    if (!ownFallback || !bare) return;
+    const params = new URLSearchParams(search);
+    params.set(SINGLE_PARAM, fallback);
+    navigate({ pathname, search: `?${params.toString()}`, hash }, { replace: true });
+  }, [ownFallback, bare, fallback, search, pathname, hash, navigate]);
 
   return [country, setCountry];
 }

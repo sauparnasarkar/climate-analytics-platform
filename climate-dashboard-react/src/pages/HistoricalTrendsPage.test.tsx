@@ -10,6 +10,8 @@ import type {
   HistoricalTimeseriesResponse,
 } from '../api/types';
 import HistoricalTrendsPage from './HistoricalTrendsPage';
+import { DefaultCountriesProvider } from '../lib/DefaultCountriesProvider';
+import { DEFAULT_COUNTRIES_STORAGE_KEY } from '../lib/defaultCountries';
 
 // JumpLinks (SPEC.md §5.19) calls the design system's useReducedMotion during render -- jsdom has
 // no window.matchMedia at all, so every test needs this stub. Same pattern as useCountUp.test.ts.
@@ -412,5 +414,30 @@ describe('HistoricalTrendsPage', () => {
     unmount();
     render(<MemoryRouter initialEntries={['/historical?year=2010']}><HistoricalTrendsPage /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 2, name: 'Top Movers, 1990 → 2024' })).toBeInTheDocument();
+  });
+});
+
+describe('HistoricalTrendsPage: the visitor\'s own default countries', () => {
+  afterEach(() => localStorage.removeItem(DEFAULT_COUNTRIES_STORAGE_KEY));
+
+  it('opens on the stored list, drops names that are no longer Expanded, and "Reset to my defaults" returns to it', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam', 'Atlantis', 'China']));
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<DefaultCountriesProvider><MemoryRouter><HistoricalTrendsPage /></MemoryRouter></DefaultCountriesProvider>);
+    await screen.findByText('CO₂ Emissions by Country');
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(['Vietnam', 'China'], 'co2');
+
+    await user.click(screen.getByRole('combobox', { name: /^Select countries/ }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    await screen.findAllByText('Select at least one country.');
+    vi.mocked(api.historicalTimeseries).mockClear();
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    await user.click(screen.getByRole('button', { name: 'Reset to my defaults' }));
+    await screen.findByText('CO₂ Emissions by Country');
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(['Vietnam', 'China'], 'co2');
   });
 });

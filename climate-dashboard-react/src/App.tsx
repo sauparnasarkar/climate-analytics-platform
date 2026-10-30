@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { prefetchCountries } from './hooks/useKnownCountries';
 
 import { SynThemeProvider } from '@syena/ds';
+import { DefaultCountriesProvider } from './lib/DefaultCountriesProvider';
 import { MotionChoiceProvider } from './lib/MotionChoiceProvider';
 import { THEME_STORAGE_KEY } from './lib/theme';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -19,9 +22,12 @@ import { AskThreadProvider } from './agent/AskThreadProvider';
 import ClimateCorrelationPage from './pages/ClimateCorrelationPage';
 
 function App() {
+  // The Settings panel's country list, asked for once now so it is there when the panel opens.
+  useEffect(() => { prefetchCountries(); }, []);
   return (
     <SynThemeProvider defaultChoice="system" storageKey={THEME_STORAGE_KEY}>
     <MotionChoiceProvider>
+    <DefaultCountriesProvider>
       {/* Above every layout, so the Ask page's thread outlives navigating to any other page (including Home) and back. */}
       <AskThreadProvider>
       <Routes>
@@ -56,6 +62,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </AskThreadProvider>
+    </DefaultCountriesProvider>
     </MotionChoiceProvider>
     </SynThemeProvider>
   );

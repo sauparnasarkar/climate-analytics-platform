@@ -7,6 +7,8 @@ import type { CountriesResponse, ScenarioCompareResponse, ScenarioCumulativeResp
 import { PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import { SCENARIO_TEMPERATURE } from '../test/scenarioFixtures';
 import ScenarioComparisonPage from './ScenarioComparisonPage';
+import { DefaultCountriesProvider } from '../lib/DefaultCountriesProvider';
+import { DEFAULT_COUNTRIES_STORAGE_KEY } from '../lib/defaultCountries';
 
 // JumpLinks (SPEC.md §5.19) calls the design system's useReducedMotion during render -- jsdom has
 // no window.matchMedia at all, so every test needs this stub. Same pattern as useCountUp.test.ts.
@@ -484,5 +486,25 @@ describe('ScenarioComparisonPage', () => {
     const nav = screen.getByRole('navigation', { name: 'On this page' });
     expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#implied-temperature', '#reduction-map', '#country-comparison', '#cumulative-impact']);
     expect(screen.getByRole('link', { name: 'Method →' })).toHaveAttribute('href', '/about#scenarios');
+  });
+});
+
+describe('ScenarioComparisonPage: the visitor\'s own default countries', () => {
+  afterEach(() => localStorage.removeItem(DEFAULT_COUNTRIES_STORAGE_KEY));
+
+  it('opens on the stored list instead of the Featured ten, and a ?countries= still wins', async () => {
+    localStorage.setItem(DEFAULT_COUNTRIES_STORAGE_KEY, JSON.stringify(['Vietnam', 'Atlantis']));
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    const first = render(<Themed><DefaultCountriesProvider><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></DefaultCountriesProvider></Themed>);
+    await screen.findByRole('heading', { name: 'BAU' });
+    expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['Vietnam']);
+    first.unmount();
+    vi.mocked(api.scenarioCompare).mockClear();
+    render(<Themed><DefaultCountriesProvider><MemoryRouter initialEntries={['/scenarios?countries=China']}><ScenarioComparisonPage /></MemoryRouter></DefaultCountriesProvider></Themed>);
+    await screen.findByRole('heading', { name: 'BAU' });
+    expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['China']);
+    expect(vi.mocked(api.scenarioCompare)).not.toHaveBeenCalledWith(['Vietnam']);
   });
 });

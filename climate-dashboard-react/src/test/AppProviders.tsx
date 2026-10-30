@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { SynThemeProvider } from '@syena/ds';
+import { DefaultCountriesProvider } from '../lib/DefaultCountriesProvider';
 import { MotionChoiceProvider } from '../lib/MotionChoiceProvider';
 import { THEME_STORAGE_KEY } from '../lib/theme';
 
@@ -7,7 +8,7 @@ import { THEME_STORAGE_KEY } from '../lib/theme';
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <SynThemeProvider defaultChoice="system" storageKey={THEME_STORAGE_KEY}>
-      <MotionChoiceProvider>{children}</MotionChoiceProvider>
+      <MotionChoiceProvider><DefaultCountriesProvider>{children}</DefaultCountriesProvider></MotionChoiceProvider>
     </SynThemeProvider>
   );
 }

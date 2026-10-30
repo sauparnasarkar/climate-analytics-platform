@@ -1,4 +1,8 @@
-import { SegmentedControl, Text, useSynTheme } from '@syena/ds';
+import { useEffect, useRef, useState } from 'react';
+import { Button, MultiSelect, SegmentedControl, Text, useSynTheme } from '@syena/ds';
+import { MAX_SELECTED_COUNTRIES } from '../../constants';
+import { useKnownCountries } from '../../hooks/useKnownCountries';
+import { useEffectiveDefaults } from '../../lib/DefaultCountriesProvider';
 import { THEME_CHOICES, type AppTheme } from '../../lib/theme';
 import { useThemeChoice } from '../../lib/useThemeChoice';
 import { MOTION_CHOICES } from '../../lib/motion';
@@ -6,8 +10,69 @@ import { useMotionChoice } from '../../lib/MotionChoiceProvider';
 
 const rule = { border: 0, borderTop: '1px solid var(--syn-color-border-default)', margin: 0, width: '100%' } as const;
 
+/** Settings → Default countries: the selection a page opens with when its address names none. Up to ten of the Expanded countries; Reset goes back to the Featured ten. */
+function DefaultCountries() {
+  const countries = useKnownCountries();
+  if (countries.status !== 'ready') {
+    return (
+      <section aria-label="Default countries settings" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Text as="h3" type="caption" tone="muted">Default countries</Text>
+        <Text as="p" type="caption" tone="muted" role="status">
+          {countries.status === 'error' ? 'The countries could not be loaded right now.' : countries.status === 'slow' ? 'Still loading the countries…' : 'Loading countries…'}
+        </Text>
+        {countries.status !== 'loading' ? <div><Button variant="secondary" size="small" onClick={countries.retry}>Try again</Button></div> : null}
+      </section>
+    );
+  }
+  return <DefaultCountriesControl featured={countries.data.featured} expanded={countries.data.expanded} />;
+}
+
+function DefaultCountriesControl({ featured, expanded }: { featured: string[]; expanded: string[] }) {
+  const { defaults, custom, setStored } = useEffectiveDefaults(featured, expanded);
+  // The picker keeps its own list while it is being edited: an empty list is stored as nothing (pages then use the Featured ten), but the
+  // picker itself must be able to show it empty, or Clear would snap straight back to ten countries and nothing else could be chosen.
+  const [draft, setDraft] = useState(defaults);
+  const change = (next: string[]) => { setDraft(next); setStored(next.length === 0 ? null : next); };
+  // The list opens below the field, which is often near the bottom of the panel (or the drawer): bring it into view when it opens, so it is
+  // not left below the fold behind a scrollbar.
+  const fit = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const holder = fit.current;
+    if (!holder) return undefined;
+    const reveal = () => {
+      const field = holder.querySelector('[role="combobox"]');
+      if (field?.getAttribute('aria-expanded') !== 'true') return;
+      holder.querySelector('[role="listbox"]')?.parentElement?.scrollIntoView?.({ block: 'nearest' });
+    };
+    const watch = new MutationObserver(reveal);
+    watch.observe(holder, { attributes: true, attributeFilter: ['aria-expanded'], subtree: true });
+    return () => watch.disconnect();
+  }, []);
+  const reset = () => { setDraft(featured); setStored(null); };
+  return (
+    <section aria-label="Default countries settings" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <Text as="h3" type="caption" tone="muted">Default countries</Text>
+      <Text as="p" type="caption" tone="muted">Used when a page opens without a selection. Up to 10.</Text>
+      {/* The design system gives a field a minimum width a little wider than the phone drawer's content; here it may shrink to the room it has. */}
+      <div ref={fit} className="settings-field-fit">
+        <MultiSelect
+          ariaLabel="Default countries"
+          options={expanded.map((c) => ({ value: c, label: c }))}
+          value={draft}
+          onChange={change}
+          maxSelected={MAX_SELECTED_COUNTRIES}
+        />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <Text as="span" type="caption" tone="muted">{custom ? 'Your own list.' : draft.length === 0 ? 'None chosen: pages use the Featured ten.' : 'The 10 Featured countries.'}</Text>
+        <Button variant="secondary" size="small" disabled={!custom && draft.length === featured.length} onClick={reset}>Reset to featured</Button>
+      </div>
+    </section>
+  );
+}
+
 /**
- * The sections of the Settings menu, in order: Theme, Motion. Changes apply at once; there is no Save. The same sections fill the
+ * The sections of the Settings menu, in order: Theme, Motion, Default countries. Changes apply at once; there is no Save. The same sections fill the
  * popover on a wide screen and sit inline in the phone drawer and the phone menu, which is why this is not tied to the popover.
  */
 export function SettingsPanel() {
@@ -27,6 +92,8 @@ export function SettingsPanel() {
         <SegmentedControl name="settings-motion" label="Motion" items={MOTION_CHOICES} value={motion} onChange={(v) => setMotion(v as typeof motion)} />
         <Text as="p" type="caption" tone="muted">Stops movement that starts on its own. Play buttons still work.</Text>
       </section>
+      <hr style={rule} />
+      <DefaultCountries />
     </>
   );
 }
