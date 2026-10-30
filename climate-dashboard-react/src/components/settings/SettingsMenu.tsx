@@ -3,6 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { Button, Popover, type PopoverProps } from '@syena/ds';
 import { SettingsPanel } from './SettingsPanel';
 
+const RAIL_ROW = { width: '100%', justifyContent: 'flex-start', paddingInline: 'calc(var(--syn-space-2) - var(--syn-space-1) - var(--syn-layout-border-hairline))', gap: 'var(--syn-space-3)' } as const;
+
 /**
  * The Settings trigger and its popover panel. `labelled` writes "Settings" beside the gear (the expanded rail, which has the room);
  * otherwise it is an icon button named "Settings" (the header, and the collapsed rail). The panel closes when the page changes or
@@ -25,7 +27,8 @@ export function SettingsMenu({ labelled = false, side = 'bottom', align = 'end' 
       open={open}
       onOpenChange={setOpen}
       trigger={(props) => (labelled
-        ? <Button variant="ghost" icon="settings" {...props}>Settings</Button>
+        // Left-aligned like the destinations and the Collapse row: icon and word start where theirs do (the rail pads the utilities a little less than its rows).
+        ? <Button variant="ghost" icon="settings" style={RAIL_ROW} {...props}>Settings</Button>
         : <Button variant="ghost" icon="settings" aria-label="Settings" title="Settings" {...props} />)}
     >
       <SettingsPanel />
