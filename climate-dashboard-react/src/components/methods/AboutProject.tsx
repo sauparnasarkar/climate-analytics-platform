@@ -5,7 +5,7 @@ import { AR6_TCRE } from '../../lib/climateCopy';
 import { countWord, headlineFacts } from '../../lib/aboutProject';
 import { READING_MEASURE } from '../../lib/readingMeasure';
 import { BASELINE_YEAR } from '../../constants';
-import { FOOTER_COPYRIGHT, PRODUCT_NAME } from '../../navigation';
+import { PRODUCT_NAME } from '../../navigation';
 
 const prose = { margin: 0, maxWidth: READING_MEASURE } as const;
 
@@ -45,19 +45,21 @@ export function AboutProject({ headline, featured }: { headline: CorrelationEmis
         </p>
       )}
       <p className="syn-text-md" style={{ ...prose }}>With it you can:</p>
-      <ul className="syn-text-md" style={{ ...prose, paddingLeft: 20, lineHeight: 1.7 }}>
+      <ul className="syn-text-md" style={{ ...prose, paddingLeft: 20, listStyle: 'disc', lineHeight: 1.7 }}>
         <li>see who emits, how that has changed since {BASELINE_YEAR}, and who emitted the stock{allCountries !== null ? `, across ${allCountries} countries` : ''};</li>
         <li>follow emissions through atmospheric concentration to temperature, and see how closely they move together;</li>
         <li>{forecasts}{temperature ? `, and ${temperature}` : ''};</li>
         <li>ask questions in plain language and get answers drawn from the same data.</li>
       </ul>
       <p className="syn-text-md" style={prose}>
-        Every figure is computed from open sources by a pipeline that can be re-run from scratch, and the forecasts are tested against years held back from training.
+        Every figure is computed from open sources by a documented, repeatable pipeline, and the forecasts are tested against years held back from training.
       </p>
-      <p className="syn-caption" style={{ ...prose, color: 'var(--syn-color-text-muted)' }}><em>{FOOTER_COPYRIGHT}</em></p>
-      <p className="syn-caption" style={{ ...prose, color: 'var(--syn-color-text-muted)' }}>
-        <strong>Coming next:</strong> what drives emissions, sector by sector, and scenarios you can adjust yourself to see how each choice changes the warming.
-      </p>
+      {/* The width is set on a wrapper in the body size, so this smaller muted line wraps where the paragraphs above do (100ch is a width in its own font). */}
+      <div className="syn-text-md" style={prose}>
+        <p className="syn-caption" style={{ margin: 0, color: 'var(--syn-color-text-muted)' }}>
+          <strong>Coming next:</strong> what drives emissions, sector by sector, and scenarios you can adjust yourself to see how each choice changes the warming.
+        </p>
+      </div>
     </>
   );
 }

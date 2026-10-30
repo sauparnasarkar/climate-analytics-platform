@@ -29,7 +29,7 @@ describe('AboutProject — figures follow the API', () => {
     expect(text()).toContain('Across 180 years of records, warming has tracked the total CO₂ emitted: about 0.49 °C for every 1,000 billion tonnes');
     expect(text()).toContain('since 1990');
     expect(text()).toContain('forecasts to 2043 for 40 countries, and what three pathways would imply for temperature');
-    expect(text()).toContain('a pipeline that can be re-run from scratch, and the forecasts');
+    expect(text()).toContain('a documented, repeatable pipeline, and the forecasts');
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
@@ -47,7 +47,10 @@ describe('AboutProject — figures follow the API', () => {
     const line = (await screen.findByText('Coming next:')).closest('p')!;
     expect(line).toHaveTextContent('Coming next: what drives emissions, sector by sector, and scenarios you can adjust yourself to see how each choice changes the warming.');
     expect(line.style.color).toContain('muted');
-    expect(text()).not.toMatch(/7-week|began as/);
+    expect(line.parentElement!.style.maxWidth).toBe('100ch');
+    expect(text()).not.toMatch(/7-week|began as|A Syena project|re-run from scratch/);
+    expect(screen.getAllByRole('listitem')).toHaveLength(4);
+    expect(screen.getByRole('list')).toHaveStyle({ listStyleType: 'disc', paddingLeft: '20px' });
   });
 });
 
