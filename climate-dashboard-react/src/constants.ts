@@ -57,3 +57,6 @@ export const SCENARIO_END_YEAR = 2040;
 
 /** The one vertical gap between the page sections of a dashboard page (px). */
 export const SECTION_GAP = 16;
+
+// The public repository, linked from Methods & data §1 ("a pipeline that can be re-run from scratch").
+export const REPO_URL = 'https://github.com/sauparnasarkar/climate-analytics-platform';

@@ -8,7 +8,7 @@ import { READING_MEASURE } from '../lib/readingMeasure';
 import AboutPage from './AboutPage';
 
 vi.mock('../api/client', () => ({
-  api: { listCountries: vi.fn(), correlationMeta: vi.fn(), correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn() },
+  api: { overview: vi.fn().mockRejectedValue(new Error('n/a')), scenarioTimeseries: vi.fn().mockRejectedValue(new Error('n/a')), forecast: vi.fn().mockRejectedValue(new Error('n/a')), listCountries: vi.fn(), correlationMeta: vi.fn(), correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn() },
 }));
 const scrollSpy = vi.hoisted(() => vi.fn());
 vi.mock('@syena/ds', async (orig) => ({ ...(await orig<typeof import('@syena/ds')>()), scrollToJumpTarget: (id: string) => scrollSpy(id) }));
@@ -39,7 +39,7 @@ describe('AboutPage — Methods & data', () => {
   it('opens the first section with what the product shows, by its name', async () => {
     mount();
     const project = (await screen.findByRole('heading', { level: 2, name: 'About the project' })).closest('section')!;
-    expect(within(project).getAllByText(/./, { selector: 'p' })[0]).toHaveTextContent('Degrees of Carbon traces how CO₂ emissions become warming.');
+    expect(within(project).getAllByText(/./, { selector: 'p' })[0]).toHaveTextContent('Degrees of Carbon shows how emissions add up to warming.');
     expect(screen.getByRole('heading', { level: 1, name: 'Methods & data' })).toBeInTheDocument();
   });
 
@@ -144,7 +144,7 @@ describe('AboutPage — Methods & data', () => {
 
   it('keeps body text to one reading width, the same as the derivation\'s step text, however wide the page', async () => {
     mount();
-    const intro = (await screen.findByText(/The data pipeline and machine-learning models began as a 7-week data science project/)) as HTMLElement;
+    const intro = (await screen.findByText(/using published observations rather than a climate model/)) as HTMLElement;
     expect(intro.style.maxWidth).toBe(READING_MEASURE);
     expect(READING_MEASURE).toBe('100ch');
   });
