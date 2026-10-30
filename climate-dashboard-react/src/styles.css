@@ -32,4 +32,4 @@
 .area2-link--on-panel, .area2-link--on-panel:visited { color: var(--syn-data-text, #c1deeb); text-decoration: underline; }
 
 /* Settings -> Default countries: the field may be narrower than the design system's field minimum, so it fits the phone drawer (SettingsPanel). */
-.settings-field-fit > * { min-width: 0; }
+div.settings-field-fit > * { min-width: 0; }
