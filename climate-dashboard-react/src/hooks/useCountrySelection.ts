@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MAX_SELECTED_COUNTRIES } from '../constants';
 
@@ -73,6 +73,19 @@ export function useSelectedCountries(defaults: string[], expanded: string[], fea
     navigate({ pathname, search: `?${params.toString()}`, hash }, { replace: true });
   }, [ownDefaults, bare, defaults, search, pathname, hash, navigate]);
 
+  // The defaults changed (Settings) while this page was showing them: follow them. Only a selection the visitor made on the page itself,
+  // which is not the defaults it replaced, is left alone. The address may by now name the old defaults outright (written in above), which
+  // is why this compares with them rather than looking for a bare address.
+  const before = useRef(defaults);
+  const latest = useRef({ selected, setSelected });
+  latest.current = { selected, setSelected };
+  useEffect(() => {
+    const previous = before.current;
+    before.current = defaults;
+    if (previous === defaults) return;
+    if (sameList(latest.current.selected, previous)) latest.current.setSelected(defaults);
+  }, [defaults]);
+
   return [selected, setSelected];
 }
 
@@ -106,6 +119,17 @@ export function useSelectedCountry(fallback: string, expanded: string[], feature
     params.set(SINGLE_PARAM, fallback);
     navigate({ pathname, search: `?${params.toString()}`, hash }, { replace: true });
   }, [ownFallback, bare, fallback, search, pathname, hash, navigate]);
+
+  // The default changed (Settings) while this page was showing it: follow it, as the multi-country selection does.
+  const before = useRef(fallback);
+  const latest = useRef({ country, setCountry });
+  latest.current = { country, setCountry };
+  useEffect(() => {
+    const previous = before.current;
+    before.current = fallback;
+    if (previous === fallback) return;
+    if (latest.current.country === previous) latest.current.setCountry(fallback);
+  }, [fallback]);
 
   return [country, setCountry];
 }

@@ -12,15 +12,17 @@ const CUSTOM = ['India', 'Brazil', 'Indonesia'];
 let setMany: (next: string[]) => void;
 let setOne: (next: string) => void;
 let reset: () => void;
+let changeDefaults: (list: string[] | null) => void;
 
 function Probe() {
-  const { defaults, custom } = useEffectiveDefaults(FEATURED, EXPANDED);
+  const { defaults, custom, setStored } = useEffectiveDefaults(FEATURED, EXPANDED);
   const [many, setManyState] = useSelectedCountries(defaults, EXPANDED, FEATURED);
   const [one, setOneState] = useSelectedCountry(defaults[0], EXPANDED, FEATURED[0]);
   const { search, hash } = useLocation();
   setMany = setManyState;
   setOne = setOneState;
   reset = () => setManyState(defaults);
+  changeDefaults = setStored;
   return (
     <>
       <output aria-label="many">{many.join('|')}</output>
@@ -30,6 +32,30 @@ function Probe() {
     </>
   );
 }
+
+// The pages use one selection hook each, never both; these probes do the same (two hooks on one page would race on the address).
+function ProbeMany() {
+  const { defaults } = useEffectiveDefaults(FEATURED, EXPANDED);
+  const [many, setManyState] = useSelectedCountries(defaults, EXPANDED, FEATURED);
+  const { search } = useLocation();
+  setMany = setManyState;
+  return (<><output aria-label="many">{many.join('|')}</output><output aria-label="url">{search}</output></>);
+}
+function ProbeOne() {
+  const { defaults } = useEffectiveDefaults(FEATURED, EXPANDED);
+  const [one, setOneState] = useSelectedCountry(defaults[0], EXPANDED, FEATURED[0]);
+  const { search } = useLocation();
+  setOne = setOneState;
+  return (<><output aria-label="one">{one}</output><output aria-label="url">{search}</output></>);
+}
+function Defaults() {
+  const { setStored } = useEffectiveDefaults(FEATURED, EXPANDED);
+  changeDefaults = setStored;
+  return null;
+}
+const mountSolo = (which: 'many' | 'one', entry = '/p') => render(
+  <DefaultCountriesProvider><MemoryRouter initialEntries={[entry]}><Defaults />{which === 'many' ? <ProbeMany /> : <ProbeOne />}</MemoryRouter></DefaultCountriesProvider>,
+);
 
 const mount = (entry = '/p') => render(<DefaultCountriesProvider><MemoryRouter initialEntries={[entry]}><Probe /></MemoryRouter></DefaultCountriesProvider>);
 const text = (name: string) => screen.getByLabelText(name).textContent;
@@ -143,5 +169,60 @@ describe('default countries: the pages\' selection', () => {
     expect(text('many')).toBe(FEATURED.join('|'));
     expect(text('custom')).toBe('false');
     expect(text('url')).toBe('');
+  });
+});
+
+describe('default countries: changing them while a page is open', () => {
+  it('a page showing the defaults follows them, even once its address names them outright', () => {
+    storeDefaultCountries(['India', 'Brazil', 'China']);
+    mountSolo('many');
+    expect(text('many')).toBe('India|Brazil|China');
+    expect(query(text('url')!).getAll('countries')).toEqual(['India', 'Brazil', 'China']); // written in
+    act(() => changeDefaults(['India', 'Brazil']));
+    expect(text('many')).toBe('India|Brazil');
+    expect(query(text('url')!).getAll('countries')).toEqual(['India', 'Brazil']);
+    act(() => changeDefaults(['India', 'Brazil', 'Indonesia']));
+    expect(text('many')).toBe('India|Brazil|Indonesia');
+  });
+
+  it('a page showing the Featured ten follows the first change to defaults of their own, and a reset back', () => {
+    mountSolo('many');
+    expect(text('url')).toBe('');
+    act(() => changeDefaults(['Vietnam', 'India']));
+    expect(text('many')).toBe('Vietnam|India');
+    act(() => changeDefaults(null));
+    expect(text('many')).toBe(FEATURED.join('|'));
+    expect(text('url')).toBe('');
+  });
+
+  it('the single-country page follows its default the same way', () => {
+    mountSolo('one');
+    act(() => changeDefaults(['Vietnam', 'India']));
+    expect(text('one')).toBe('Vietnam');
+    act(() => changeDefaults(['Indonesia']));
+    expect(text('one')).toBe('Indonesia');
+    act(() => changeDefaults(null));
+    expect(text('one')).toBe('China');
+    expect(text('url')).toBe('');
+  });
+
+  it('a selection the visitor made on the page itself stays, whatever the defaults do', () => {
+    storeDefaultCountries(['India', 'Brazil']);
+    mountSolo('many');
+    act(() => setMany(['Japan', 'Germany']));
+    act(() => changeDefaults(['Vietnam']));
+    expect(text('many')).toBe('Japan|Germany');
+    cleanup();
+    mountSolo('one');
+    act(() => setOne('Japan'));
+    act(() => changeDefaults(['Indonesia']));
+    expect(text('one')).toBe('Japan');
+  });
+
+  it('an address that came with its own countries is not rewritten by a change of defaults', () => {
+    storeDefaultCountries(['India', 'Brazil']);
+    mountSolo('many', '/p?countries=China&countries=Japan');
+    act(() => changeDefaults(['Indonesia']));
+    expect(text('many')).toBe('China|Japan');
   });
 });
