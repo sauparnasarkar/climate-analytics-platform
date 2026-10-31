@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32 16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#121e35" />
     <!-- iOS Safari ignores the web manifest's display: standalone and keys off these tags
@@ -14,20 +15,22 @@
     <meta name="apple-mobile-web-app-title" content="Degrees of Carbon" />
     <meta name="description" content="How emissions add up to warming. See who emits CO₂, how it builds up in the atmosphere, and where today's pathways lead." />
     <!-- Link previews (iMessage, Slack, WhatsApp, LinkedIn, ...): without these a scraper falls back to apple-touch-icon / the host's
-         own logo. Absolute URLs are required; the square app icon is the share image. -->
+         own logo. Absolute URLs are required; the share image is the 1200x630 card (brand/og-card.html). A preview build rewrites the origin to its own host
+         (SITE_ORIGIN, vite.config.ts). -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Degrees of Carbon" />
     <meta property="og:title" content="Degrees of Carbon: how emissions add up to warming" />
     <meta property="og:description" content="How emissions add up to warming. See who emits CO₂, how it builds up in the atmosphere, and where today's pathways lead." />
     <meta property="og:url" content="https://degreesofcarbon.syena.io/" />
-    <meta property="og:image" content="https://degreesofcarbon.syena.io/icon-512.png" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
-    <meta property="og:image:alt" content="Degrees of Carbon app icon: a globe" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://degreesofcarbon.syena.io/og-card.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Degrees of Carbon — how emissions add up to warming" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Degrees of Carbon: how emissions add up to warming" />
     <meta name="twitter:description" content="How emissions add up to warming. See who emits CO₂, how it builds up in the atmosphere, and where today's pathways lead." />
-    <meta name="twitter:image" content="https://degreesofcarbon.syena.io/icon-512.png" />
+    <meta name="twitter:image" content="https://degreesofcarbon.syena.io/og-card.png" />
     <title>Degrees of Carbon: how emissions add up to warming</title>
   </head>
   <body>

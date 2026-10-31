@@ -97,11 +97,20 @@ const agentProxy = {
 
 const agentProxyEntry = { [backendProxyKey(base, 'agent')]: agentProxy }
 
-// PWA manifest colors match the app shell's own background tokens
-// (the night theme's --syn-color-surface-base) — not redeclared here since the
-// theme CSS isn't parsed at build time, so keep these two in sync by hand if
-// that token ever changes.
-const APP_BACKGROUND = '#121e35'
+// PWA manifest colors are the icon's own ground (public/favicon.svg), so the installed app's splash screen and title bar match its icon tile. The page's
+// <meta name="theme-color"> in index.html is the app shell's night surface (--syn-color-surface-base, #121e35) and is a separate, hand-synced value.
+const MANIFEST_COLOR = '#0b1a2e'
+
+// The absolute URLs in index.html (og:url, og:image, twitter:image) name the production origin. A build for another host (the preview) sets SITE_ORIGIN, and
+// its pages then point at their own address, so a link preview shows that host's card rather than production's.
+const PRODUCTION_ORIGIN = 'https://degreesofcarbon.syena.io'
+function siteOriginPlugin(): Plugin {
+  const origin = (process.env.SITE_ORIGIN ?? PRODUCTION_ORIGIN).replace(/\/+$/, '')
+  return {
+    name: 'site-origin',
+    transformIndexHtml: (html) => (origin === PRODUCTION_ORIGIN ? html : html.split(PRODUCTION_ORIGIN).join(origin)),
+  }
+}
 
 // A non-production preview sets PREVIEW_NOINDEX=1 when it starts; every response it serves (pages, assets and proxied calls) then says not to index it.
 // Without the variable (the production server) nothing is added.
@@ -168,6 +177,7 @@ export default defineConfig({
     redirectBareBasePlugin(),
     retiredOriginPlugin(),
     previewNoindexPlugin(),
+    siteOriginPlugin(),
     workerNoStorePlugin(),
     VitePWA({
       // A new worker waits until the page offers a reload (src/pwa, the UpdatePrompt) and is activated on request: 'autoUpdate' swapped the
@@ -175,23 +185,20 @@ export default defineConfig({
       // the worker itself (src/pwa/register.ts), so the plain registration script is not injected.
       registerType: 'prompt',
       injectRegister: false,
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Degrees of Carbon',
         short_name: 'Degrees',
         description: "How emissions add up to warming. See who emits CO₂, how it builds up in the atmosphere, and where today's pathways lead.",
-        theme_color: APP_BACKGROUND,
-        background_color: APP_BACKGROUND,
+        theme_color: MANIFEST_COLOR,
+        background_color: MANIFEST_COLOR,
         display: 'standalone',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          // Same source image reused for the maskable slot — it already has generous
-          // padding around the mark, so it clears Android's 80% safe-zone circle
-          // without needing a separately-authored asset. Without at least one
-          // maskable icon, Android's adaptive-icon shell adds its own default
-          // background, clashing with the dark #121e35 shell.
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          // Authored full-bleed (public/icon-maskable-512.png): the background fills the square and every mark sits inside the central 80% circle,
+          // so Android's adaptive-icon masks (circle, squircle) crop only background.
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
@@ -200,6 +207,8 @@ export default defineConfig({
         // Workbox's 2MB default precache ceiling. Raised with headroom rather
         // than blocking PWA support on an unrelated bundle-splitting project.
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // The share card is only for link scrapers; no visitor's browser needs it offline.
+        globIgnores: ['og-card.png'],
         // Without this, Workbox's default NavigationRoute intercepts *every* top-level
         // navigation (mode: 'navigate') -- including a target="_blank" click on a plain
         // <a href> to a static asset such as a PDF in public/ -- and serves the SPA
