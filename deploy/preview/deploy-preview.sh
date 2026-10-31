@@ -11,6 +11,8 @@
 # Settings (environment):
 #   PREVIEW_PORT       port to listen on, 4273 by default; 4173 is the production front end's and is refused
 #   PREVIEW_STATE_DIR  where the pid file and the build and server logs go, $HOME/.climate-preview by default
+#   SITE_ORIGIN        the preview's own public origin, https://degreesofcarbon-preview.syena.io by default: the build writes it into the page's
+#                      og:url, og:image and twitter:image, so a link to the preview shows the preview's own card
 #   NODE_BIN_DIR       a folder with node and npm, put first on PATH when set
 #   NO_PULL=1          skip the git step (deploy what is checked out)
 #   SYN_DS_PATH        where the design system checkout lives; read by the setup script, vite (the build and the dev server) and vitest.
@@ -26,6 +28,7 @@ app="$repo/climate-dashboard-react"
 port="${PREVIEW_PORT:-4273}"
 state="${PREVIEW_STATE_DIR:-$HOME/.climate-preview}"
 dry="${DRY_RUN:-0}"
+site_origin="${SITE_ORIGIN:-https://degreesofcarbon-preview.syena.io}"
 
 if [[ "$port" == "4173" ]]; then
   echo "refusing: port 4173 is the production front end's; set PREVIEW_PORT to another port" >&2
@@ -56,9 +59,9 @@ run "$app/scripts/setup-design-system.sh"
 (cd "$app" && run npm ci)
 [[ "$dry" == 1 ]] || mkdir -p "$state"
 if [[ "$dry" == 1 ]]; then
-  (cd "$app" && run env DEPLOY_BASE_PATH=/ npm run build)
+  (cd "$app" && run env DEPLOY_BASE_PATH=/ SITE_ORIGIN="$site_origin" npm run build)
 else
-  (cd "$app" && DEPLOY_BASE_PATH=/ npm run build) > "$state/build.log" 2>&1 || { echo "build failed; see $state/build.log" >&2; exit 1; }
+  (cd "$app" && DEPLOY_BASE_PATH=/ SITE_ORIGIN="$site_origin" npm run build) > "$state/build.log" 2>&1 || { echo "build failed; see $state/build.log" >&2; exit 1; }
   echo "build ok"
 fi
 
