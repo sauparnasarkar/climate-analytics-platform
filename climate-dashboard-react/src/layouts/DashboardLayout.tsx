@@ -11,7 +11,7 @@ import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { FOOTER_COPYRIGHT, HOME_ITEM, NAV_ITEMS, PRODUCT_NAME, RAIL_PRODUCT_NAME, type AppNavItem } from '../navigation';
 import { PageChromeContext, type PageChromeState } from './PageChrome';
 
-const PRODUCT_MARK = { src: '/app-icon.svg', name: PRODUCT_NAME };
+const PRODUCT_MARK = { src: '/favicon.svg', name: PRODUCT_NAME };
 const ALL_ITEMS: AppNavItem[] = [HOME_ITEM, ...NAV_ITEMS];
 /** The Methods & data page: where the source strip's link leads. */
 const METHODS_ITEM = NAV_ITEMS.find((item) => item.id === 'about')!;

@@ -44,7 +44,9 @@ describe('LandingLayout header', () => {
     mount();
     const home = screen.getByRole('link', { name: 'Degrees of Carbon' });
     expect(home).toHaveAttribute('title', 'Degrees of Carbon');
-    expect(home).toHaveTextContent(/^🌍\s*Degrees of Carbon$/);
+    expect(home).toHaveTextContent(/^Degrees of Carbon$/);
+    expect(home.querySelector('img')).toHaveAttribute('src', '/favicon.svg'); // the mark, decorative beside the name
+    expect(home.querySelector('img')).toHaveAttribute('alt', '');
   });
 
   it('on a desktop-sized screen shows the link row in the header, not a Menu button', () => {

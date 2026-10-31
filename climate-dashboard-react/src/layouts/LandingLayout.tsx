@@ -96,7 +96,7 @@ export function LandingLayout() {
             the Menu button 28px off-screen and give the page a horizontal scrollbar (WCAG 1.4.10). The name now shrinks and truncates instead, as the dashboard header's already does. Compact
             header only. The wordmark is the short name everywhere; the full name stays the link's accessible name and its tooltip. */}
         <Link to="/" aria-label={PRODUCT_NAME} title={PRODUCT_NAME} style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 10, minWidth: isMobile ? 0 : undefined, flexShrink: isMobile ? 1 : 0, fontWeight: 600, fontSize: 'clamp(0.875rem, 3.9vw, 1.0625rem)', whiteSpace: 'nowrap' }}>
-          <span aria-hidden="true">🌍</span>
+          <img src="/favicon.svg" alt="" width={28} height={28} style={{ display: 'block', flexShrink: 0 }} />
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{RAIL_PRODUCT_NAME}</span>
         </Link>
         {isMobile ? (
