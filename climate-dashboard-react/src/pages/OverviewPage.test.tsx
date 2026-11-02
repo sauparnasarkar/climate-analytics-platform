@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -226,38 +226,31 @@ afterEach(() => {
 });
 
 describe('OverviewPage', () => {
-  it('shows a loading state, then renders all three KPI rows from the API response', async () => {
+  it('shows a loading state, then renders the summary and the Your countries table from the API response', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument();
-    // The picker's hint is computed from the selection and the expanded list, not typed in.
-    expect(screen.getByText('10 of 10 max · from the 11 Expanded countries · drives the Selected tier and every chart below')).toBeInTheDocument();
+    // The picker's hint is computed from the selection and the expanded list, and says what Expanded means.
+    expect(screen.getByText('10 of 10 max · from the 11 Expanded countries (coverage countries plus any country emitting ≥100 Mt) · drives the Your countries table and every chart below')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /^Select countries \(up to 10\/11\)/ })).toBeInTheDocument();
     // The map and the Selected-tier bar chart no longer share a title: the map is "Where emissions are", the bar chart keeps "CO₂ Emissions by Country".
     expect(screen.getByText('Where emissions come from, 2024')).toBeInTheDocument();
     expect(screen.getAllByText('CO₂ Emissions by Country (2024)')).toHaveLength(1);
-    expect(screen.getAllByText('All Countries')).toHaveLength(1); // the jump link to its section (the tier is a row of the table below)
-    // One table with one header row, and a row per tier: name and count in the row header.
-    expect(within(tierTable()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Tier', 'CO₂ 2024', 'Since 1990']);
-    expect(tierRowsData().map((r) => r[0])).toEqual(['All countries · 195', 'Expanded · 40', 'Selected · 10']);
-    // Tier numbers snap directly to their value (no CountUpText/aria-hidden duplication --
-    // these change every autoplay tick, unlike the one-time KpiStat count-ups below).
-    // All Countries and Expanded are summed from the series (the API sends no per-year tier totals): China 25,324 + Vietnam 370, in both tiers here.
-    expect(screen.getAllByText('25,694 MtCO₂')).toHaveLength(2);
-    // Selected's CO2 total is now computed client-side from WORLD_MAP_SERIES (25324 at
-    // index 1), not read from RESPONSE.selected.latest_co2_total directly.
-    expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
-    // (25324 - 14350) / 14350 * 100 = 76.47...% -> "+76.5%", same figure the old
-    // server-computed RESPONSE.selected.pct_change_since_1990 fixture used to assert,
-    // now independently reproduced by the client-side computation.
-    expect(screen.getAllByText('+76.5%').length).toBeGreaterThanOrEqual(1); // the Selected tier (Top Movers' Fastest/Largest cards moved to Historical Trends)
+    expect(screen.getAllByText('All Countries')).toHaveLength(1); // the jump link to its section
+    expect(screen.getByRole('heading', { name: 'Your countries · 2024' })).toBeInTheDocument();
+    expect(yourHeads()).toEqual(['Country', 'MtCO₂', 'Share of world', 'Band since 1990']);
+    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 10', 'All countries · 195']);
+    // The footer totals snap directly to their value: All countries is summed from the series (the API sends no per-year totals), Selected from the chosen countries.
+    expect(yourFoot()[1][1]).toBe('25,694');
+    expect(yourFoot()[0][1]).toBe('25,324');
+    // (25324 - 14350) / 14350 * 100 = 76.47...% -> "+76.5%", reproduced client-side from the series.
+    expect(yourFoot()[0][3]).toBe('+76.5% since 1990');
     expect(screen.queryByRole('heading', { name: /^Top Movers/ })).not.toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
   });
-
   it("hands the map the year's values by ISO code, labelled in MtCO₂ (the map's own colours are the design system's)", async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
@@ -354,7 +347,7 @@ describe('OverviewPage', () => {
     expect(screen.getByRole('slider')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('suppresses "% Change since 1990" on the animation\'s first frame instead of showing a misleading +0.0%', async () => {
+  it('suppresses the change since 1990 on the animation\'s first frame instead of showing a misleading +0.0%', async () => {
     vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: 2023 });
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
@@ -362,11 +355,10 @@ describe('OverviewPage', () => {
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
-    // All Countries, Expanded, and Selected each suppress their own pct-change row.
-    expect(screen.getAllByText('—')).toHaveLength(3);
-    expect(screen.queryByText('+0.0%')).not.toBeInTheDocument();
+    // Both footer rows suppress their own change.
+    expect(tierChanges()).toEqual(['—', '—']);
+    expect(screen.queryByText('+0.0% since 1990')).not.toBeInTheDocument();
   });
-
   it('blocks selecting an 11th country beyond the 10-selection cap', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
@@ -384,7 +376,7 @@ describe('OverviewPage', () => {
     expect(vi.mocked(api.overview)).not.toHaveBeenCalledWith(expect.arrayContaining(['Vietnam']));
   });
 
-  it('refetches and updates the Selected row and chart when the selection changes', async () => {
+  it('refetches and updates the chosen countries\' row and chart when the selection changes', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
@@ -407,14 +399,13 @@ describe('OverviewPage', () => {
     await user.click(screen.getByRole('button', { name: 'Clear' }));
     await user.click(screen.getByRole('option', { name: 'Vietnam' }));
 
-    // 370 MtCO₂ now comes from WORLD_MAP_SERIES' Vietnam entry at the current frame (index 1,
-    // year 2024), summed client-side over the new ['Vietnam']-only selection -- the same
-    // number the old server-computed RESPONSE.selected.latest_co2_total fixture used to carry.
-    expect(await screen.findByText('370 MtCO₂')).toBeInTheDocument();
+    // 370 MtCO₂ now comes from WORLD_MAP_SERIES' Vietnam entry at the current frame (year 2024), the only row of the table.
+    await waitFor(() => expect(yourBody().map((r) => r[0])).toEqual(['Vietnam']));
+    expect(yourBody()[0][1]).toBe('370');
+    expect(yourFoot()[0].slice(0, 2)).toEqual(['Selected · 1', '370']);
     expect(vi.mocked(api.overview)).toHaveBeenLastCalledWith(['Vietnam']);
   });
-
-  it('shows a warning in place of the Selected tier/charts when deselecting to 0, while the top two tiers stay visible', async () => {
+  it('shows a warning in place of the charts when deselecting to 0, and the table keeps its footer rows with a prompt to select countries', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
@@ -428,20 +419,16 @@ describe('OverviewPage', () => {
 
     // The heading sits outside the selected.length guard (SPEC.md §5.19, so #by-country is always a real jump target), so By Country renders its own InlineAlert.
     expect(await screen.findAllByText('Select at least one country.')).toHaveLength(1);
-    expect(screen.queryByRole('rowheader', { name: /^Selected · / })).not.toBeInTheDocument(); // the row is hidden at 0 selected
-    // All Countries/Expanded stay rendered regardless of the (now empty) selection.
-    expect(tierRowsData().map((r) => r[0])).toEqual(['All countries · 195', 'Expanded · 40']); // the Selected row is hidden at 0 selected
-    // headline_movers (SPEC.md §5.18.5) is a fixed top-10-emitters set from the server,
-    // completely independent of `selected` -- unlike the old top_movers-backed headline, it
-    // must stay visible even when every country has been deselected from the picker.
+    // 0 selected: no country rows, the prompt in their place, and both footer rows still there (the chosen group at 0).
+    expect(within(yourTable()).getByText('Select countries to compare them here.')).toBeInTheDocument();
+    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 0', 'All countries · 195']);
+    expect(yourBody()).toHaveLength(1); // the prompt's row only
+    // headline_movers (SPEC.md §5.18.5) is a fixed top-10-emitters set from the server, completely independent of `selected`: it stays visible.
     expect(await screen.findByText('Since 1990')).toBeInTheDocument();
-    // #by-country and the old #pct-change/#percent-change anchors (SPEC.md §5.19) stay real, jumpable DOM targets even with 0
-    // selected -- previously this whole block was one InlineAlert-or-fragment ternary with no
-    // persistent element for a jump-nav link to land on.
+    // #by-country and the old #pct-change/#percent-change anchors (SPEC.md §5.19) stay real, jumpable DOM targets even with 0 selected.
     expect(document.getElementById('by-country')).not.toBeNull();
     expect(document.getElementById('pct-change')).not.toBeNull();
   });
-
   it('renders a Jump To nav under the h1 linking to all three sections', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
@@ -841,12 +828,15 @@ const FULL_RESPONSE: OverviewResponse = {
 };
 // The shell's pinned bar (68px) sits outside the canvas; the page's own pinned row inside it (a stand-in for both, measured through getBoundingClientRect).
 const barOrRowHeight = (el: HTMLElement, row: number) => (el.dataset.testid === 'shell-bar' ? 68 : el.style.position === 'sticky' ? row : 0);
-// The tiers are one real table: Tier | CO₂ {year} (or Total to {year}) | Since {baseline}; a row per group, the name and count in the row header.
-const tierTable = () => screen.getByRole('table', { name: /^CO₂ by group of countries in \d{4}$/ });
-const tierRowsData = () => within(tierTable()).getAllByRole('row').slice(1).map((r) => [...r.children].map((c) => (c.textContent ?? '').replace('ⓘ', '')));
-const tierChanges = () => tierRowsData().map((r) => r[2]);
+// "Your countries" is one real table: the chosen countries (biggest first in the map's year), then two footer rows (the chosen group and all countries).
+const yourTable = () => screen.getByRole('table', { name: /^The countries you chose/ }) as HTMLTableElement;
+const cellsOf = (rows: Iterable<HTMLTableRowElement>) => [...rows].map((r) => [...r.cells].map((c) => (c.textContent ?? '').trim()));
+const yourBody = () => cellsOf(yourTable().tBodies[0].rows);
+const yourFoot = () => cellsOf(yourTable().tFoot!.rows);
+const yourHeads = () => within(yourTable()).getAllByRole('columnheader').map((h) => h.textContent);
+// The change since the baseline in each footer row (Selected, then All countries), without its "since 1990".
+const tierChanges = () => yourFoot().map((r) => r[3].replace(/ since \d{4}$/, ''));
 const mapSide = () => document.querySelector('.overview-hero-right') as HTMLElement;
-const mapColumn = () => document.querySelector('.overview-hero-left') as HTMLElement;
 
 // The all-countries snapshot at the last year before the series (1969): cumulative Mt per ISO3 country, recorded from 1750.
 const BASE_MT = { CHN: 100_000, VNM: 200 };
@@ -894,11 +884,10 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
   it('labels the "Since 1990" headline as a fixed comparison that does not follow the map\'s year, at every stop', async () => {
     mountFullRange(1980);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(within(mapColumn()).getByText('Fixed comparison, 1990 to 2024; the map and the cards beside it follow the map\'s year.')).toBeInTheDocument();
-    // while the year-dependent cards are on the historical frame
-    expect(within(tierTable()).getByRole('columnheader', { name: 'CO₂ 1980' })).toBeInTheDocument();
+    expect(within(mapSide()).getByText('Fixed comparison, 1990 to 2024; the map and the table follow the map\'s year.')).toBeInTheDocument();
+    // while the table is on the historical frame
+    expect(within(mapSide()).getByRole('heading', { name: 'Your countries · 1980' })).toBeInTheDocument();
   });
-
   it('asks for the 1970 range, plays it in decade stops (~1.75 s each) and spans 1970 to 2024', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
@@ -997,29 +986,27 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(screen.queryByText('or drag the year slider, year by year')).not.toBeInTheDocument(); // the row is stops only
   });
 
-  it('before 1990 the tiers are summed from the series itself and the "% since 1990" change is suppressed; from 1990 the API totals are used', async () => {
+  it('before 1990 the footer totals are summed from the series itself and the "since 1990" change is suppressed; from 1990 the API totals are used', async () => {
     mountFullRange(1980);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     const all1980 = chinaAt(1980) + vietnamAt(1980);
-    expect(screen.getAllByText(`${fmt0(all1980)} MtCO₂`).length).toBeGreaterThan(0); // All Countries (and Expanded: the same two countries), client-side
-    expect(screen.getByText(`${fmt0(chinaAt(1980))} MtCO₂`)).toBeInTheDocument(); // Selected = China
-    expect(tierChanges()).toEqual(['—', '—', '—']); // no change figure before the baseline, for any tier
+    expect(yourFoot()[1][1]).toBe(fmt0(all1980)); // All countries, client-side
+    expect(yourFoot()[0][1]).toBe(fmt0(chinaAt(1980))); // Selected = China
+    expect(tierChanges()).toEqual(['—', '—']); // no change figure before the baseline, for any row
   });
-
-  it('at 1990 the All Countries and Expanded tiers sum the series and the change is still suppressed (the baseline)', async () => {
-    mountFullRange(1990);
+  it('at 1990 the footer totals sum the series and the change is still suppressed (the baseline)', async () => {
+    mountFullRange(1990, '&countries=Vietnam');
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(screen.getAllByText(`${fmt0(chinaAt(1990) + vietnamAt(1990))} MtCO₂`)).toHaveLength(2); // both countries are in the Expanded list here too
-    expect(tierChanges()).toEqual(['—', '—', '—']);
+    expect(yourFoot().map((r) => r[1])).toEqual([fmt0(chinaAt(1990) + vietnamAt(1990)), fmt0(chinaAt(1990) + vietnamAt(1990))]); // both countries chosen: Selected equals All countries here
+    expect(tierChanges()).toEqual(['—', '—']);
   });
-
   it('after 1990 the change is measured against the 1990 baseline, not the 1970 start', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    // All Countries and Expanded (both countries here): the 2024 sum against the 1990 sum, not against 1970's; Selected (China) against its own 1990
+    // Selected (China) against its own 1990; All countries (both here): the 2024 sum against the 1990 sum, not against 1970's.
     const chinaChange = ((chinaAt(2024) - chinaAt(1990)) / chinaAt(1990)) * 100;
     const bothChange = (((chinaAt(2024) + vietnamAt(2024)) - (chinaAt(1990) + vietnamAt(1990))) / (chinaAt(1990) + vietnamAt(1990))) * 100;
-    expect(tierChanges()).toEqual([`+${bothChange.toFixed(1)}%`, `+${bothChange.toFixed(1)}%`, `+${chinaChange.toFixed(1)}%`]);
+    expect(tierChanges()).toEqual([`+${chinaChange.toFixed(1)}%`, `+${bothChange.toFixed(1)}%`]);
   });
 });
 
@@ -1031,37 +1018,28 @@ describe('OverviewPage — the map tab\'s columns', () => {
     expect(within(mapSide()).queryByText(/Atmospheric CO₂/)).not.toBeInTheDocument();
   });
 
-  it('keeps the page\'s order from the map down: map, the Since summary, Leading emitters, Changed band, then the tiers (this is also the stacked order on a phone)', async () => {
+  it('keeps the page\'s order from the map down: map, the Since summary, then the Your countries table (this is also the stacked order on a phone)', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     const card = document.querySelector('.overview-map-card') as HTMLElement;
     const summary = screen.getByText(/^Fixed comparison, 1990 to 2024/).closest('div') as HTMLElement;
-    const leading = screen.getByRole('region', { name: 'Leading emitters · 2024' });
-    const bands = screen.getByRole('region', { name: 'Changed band since 1990' });
-    const tiers = tierTable();
+    const table = screen.getByRole('region', { name: 'Your countries · 2024' });
     const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
     expect(follows(card, summary)).toBe(true);
-    expect(follows(summary, leading)).toBe(true);
-    expect(follows(leading, bands)).toBe(true);
-    expect(follows(bands, tiers)).toBe(true);
+    expect(follows(summary, table)).toBe(true);
+    // Leading emitters, Changed band and the tier cards are gone: the table replaces them.
+    expect(screen.queryByRole('region', { name: /^Leading emitters/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /^Changed band since/ })).not.toBeInTheDocument();
   });
-
-  it('puts the summary directly under the map card in the same column, so it is as wide as the card whatever the card\'s width', async () => {
+  it('heads the right column with the summary, then the table, and leaves the map card alone in the left', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const column = mapColumn();
-    const card = document.querySelector('.overview-map-card') as HTMLElement;
-    const summary = screen.getByText(/^Fixed comparison, 1990 to 2024/).closest('div') as HTMLElement;
-    const children = [...column.children];
-    expect(children.indexOf(card.closest('.overview-hero-left > *') as Element)).toBe(0);
-    expect(children.indexOf(summary)).toBe(1); // directly under it
-    expect(column.style.gap).toBe('16px');
-    // both columns may shrink below their content (a table with non-wrapping cells must not widen the page's single column on a 320px phone)
-    expect(column.style.minWidth).toBe('0px');
-    expect(mapSide().style.minWidth).toBe('0px');
-    // neither carries a width of its own: both take the column's (which the fit sets to the card's width)
-    expect(summary.style.width).toBe('');
-    expect((card.closest('.overview-hero-left > *') as HTMLElement).style.width).toBe('');
+    const column = mapSide();
+    const kids = [...column.children];
+    expect(kids[0].textContent).toMatch(/^Since 1990/);
+    expect(kids[1]).toBe(screen.getByRole('region', { name: 'Your countries · 2024' }));
+    expect(column.style.minWidth).toBe('0px'); // may shrink below its content (a 320px page)
+    expect(document.querySelector('.overview-hero-left')).toBeNull();
   });
 });
 
@@ -1116,11 +1094,11 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'ZZZ', 'XXX'], countries: ['China', 'Vietnam', 'Zedland', 'Nowhere'], values: [[14350, 21, 7, null], [25324, 370, 0.4, null]] });
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     const legend = await screen.findByRole('list', { name: /in 8 bands from lowest to highest/ });
-    const counts = within(legend).getAllByText(/countr(y|ies)$/).map((e) => Number(e.textContent!.match(/\d+/)![0]));
+    const counts = within(legend).getAllByText(/^\d+$/).map((e) => Number(e.textContent)); // bare numbers, one lead-in after the legend's label
     expect(counts.reduce((a, b) => a + b, 0)).toBe(3);
     expect(counts[0]).toBe(1); // Zedland, 0.4 Mt: <1
+    expect(screen.getByText(/· countries per band below$/)).toBeInTheDocument();
   });
-
   it('adds up: the bands\' counts plus the no-data count are the All Countries tier\'s countries (hidden at 0)', async () => {
     realMap.on = true;
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
@@ -1129,13 +1107,12 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'ZZZ', 'XXX', 'YYY'], countries: ['China', 'Vietnam', 'Zedland', 'Nowhere', 'Neverland'], values: [[14350, 21, 7, null, null], [25324, 370, 0.4, null, null]] });
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     const legend = await screen.findByRole('list', { name: /in 8 bands from lowest to highest/ });
-    const bands = within(legend).getAllByText(/countr(y|ies)$/).map((e) => Number(e.textContent!.match(/\d+/)![0])).reduce((a, b) => a + b, 0);
+    const bands = within(legend).getAllByText(/^\d+$/).map((e) => Number(e.textContent)).reduce((a, b) => a + b, 0);
     const noData = Number(screen.getByText(/^No data · \d+ countries$/, { selector: 'span' }).textContent!.match(/\d+/)![0]);
     expect(bands).toBe(3);
     expect(noData).toBe(2);
     expect(bands + noData).toBe(5);
   });
-
   it('passes the no-data count to the map, 0 when every country has a value', async () => {
     mountFullRange(2024);
     const map = await screen.findByTestId('choropleth');
@@ -1169,12 +1146,19 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(document.querySelector('.overview-map-card label[for]')?.textContent).toBe('Year');
   });
 
-  it('puts the map\'s controls over its corner (compact card)', async () => {
-    mountFullRange(2024);
-    const map = await screen.findByTestId('choropleth');
-    expect(map).toHaveAttribute('data-controls', 'overlay');
+  it('puts the map\'s controls over its corner from desktop width up, and under the legend on a phone or a portrait tablet', async () => {
+    const real = window.matchMedia;
+    const stub = (matches: boolean) => { window.matchMedia = ((q: string) => ({ matches: matches && q.includes('min-width: 1024px'), media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+    try {
+      stub(true);
+      mountFullRange(2024);
+      expect(await screen.findByTestId('choropleth')).toHaveAttribute('data-controls', 'overlay');
+      cleanup();
+      stub(false);
+      mountFullRange(2024);
+      expect(await screen.findByTestId('choropleth')).toHaveAttribute('data-controls', 'below');
+    } finally { window.matchMedia = real; }
   });
-
   it('makes the whole chart card body the map panel, with the map flush on it', async () => {
     mountFullRange(2024);
     const map = await screen.findByTestId('choropleth');
@@ -1206,44 +1190,19 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(cumulative).toHaveAttribute('data-band-labels', JSON.stringify(['<100', '100–1k', '1k–5k', '5k–20k', '20k–50k', '50k–100k', '100k–250k', '250k+']));
   });
 
-  it('in Cumulative the tier table reads Total to {year} and Since {baseline}: each group\'s running total in GtCO₂ and its growth since the baseline', async () => {
-    mountFullRange(2024);
+  it('in Cumulative the table reads Total to {year}, in GtCO₂, with each row\'s share of the cumulative world total and the footer\'s growth since the baseline', async () => {
+    mountFullRange(2024, '&countries=Vietnam');
     await showCumulative();
-    expect(within(tierTable()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Tier', 'Total to 2024', 'Since 1990']);
-    const world = CUM[54][0] + CUM[54][1];
+    expect(yourHeads()).toEqual(['Country', 'Total to 2024', 'Share of world', 'Band since 1990']);
     const china = CUM[54][0];
-    const rows = tierRowsData();
-    expect(rows[0][1]).toBe(`${gt(world)} GtCO₂`); // All countries
-    expect(rows[2][1]).toBe(`${gt(china)} GtCO₂`); // Selected = China
+    const vietnam = CUM[54][1];
+    const worldMt = (china + vietnam) * WORLD_OVER_COUNTRIES; // Gt
+    expect(yourBody()[0].slice(0, 3)).toEqual(['China', `${gt(china)} Gt`, `${((china / worldMt) * 100).toFixed(1)}%`]);
+    expect(yourFoot()[1][1]).toBe(`${gt(china + vietnam)} Gt`); // All countries
     const growth = (now: number, then: number) => `+${(((now - then) / then) * 100).toFixed(1)}%`;
-    expect(rows[2][2]).toBe(growth(china, CUM[20][0])); // the running total at 1990 (index 20 of the 1970-based series)
+    expect(yourFoot()[1][3]).toBe(`${growth(china + vietnam, CUM[20][0] + CUM[20][1])} since 1990`); // the running total at 1990 is index 20 of the 1970-based series
     expect(screen.queryByText('Share of world total')).not.toBeInTheDocument();
   });
-
-  it('hides the Selected row at 0 selected in both modes', async () => {
-    mountFullRange(2024);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(tierRowsData()).toHaveLength(3);
-    cleanup();
-    vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: 2024 });
-    render(<MemoryRouter initialEntries={['/overview?countries=']}><OverviewPage /></MemoryRouter>);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(tierRowsData().map((r) => r[0].split(' · ')[0])).toEqual(['All countries', 'Expanded']);
-    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
-    expect(tierRowsData().map((r) => r[0].split(' · ')[0])).toEqual(['All countries', 'Expanded']);
-  });
-
-  it('explains Expanded behind an ⓘ in its row, reachable by keyboard', async () => {
-    mountFullRange(2024);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const row = within(tierTable()).getByRole('rowheader', { name: /^Expanded · / });
-    const info = within(row).getByRole('button', { name: 'About Expanded' });
-    expect(info).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(info);
-    expect(info).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('note')).toHaveTextContent('Coverage countries plus any country emitting ≥100 Mt');
-  });
-
   it('the table view follows the mode (the running totals in MtCO₂, with a cumulative caption)', async () => {
     realMap.on = true;
     mountFullRange(2024);
@@ -1279,57 +1238,6 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     expect(screen.getByRole('radio', { name: 'Cumulative' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Absolute' })).toBeChecked();
-  });
-});
-
-describe('OverviewPage — leading emitters', () => {
-  it('ranks the top emitters of the year among all countries with their share of that year\'s total (Absolute)', async () => {
-    mountFullRange(2024);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const card = screen.getByRole('region', { name: 'Leading emitters · 2024' });
-    const rows = within(card).getAllByRole('listitem');
-    expect(rows).toHaveLength(2); // two countries in the fixture
-    expect(rows[0]).toHaveTextContent('China');
-    expect(rows[0]).toHaveTextContent(`${fmt0(chinaAt(2024))} Mt`);
-    expect(rows[0]).toHaveTextContent(`${((chinaAt(2024) / ((chinaAt(2024) + vietnamAt(2024)) * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`); // of the World total, not of the two countries
-    expect(rows[1]).toHaveTextContent('Vietnam');
-    expect(within(card).getByText('MtCO₂ in the year, and share of the world total')).toBeInTheDocument();
-  });
-
-  it('follows the map\'s year and the mode: Cumulative ranks running totals in Gt with their share of the cumulative world total', async () => {
-    mountFullRange(1980);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(screen.getByRole('region', { name: 'Leading emitters · 1980' })).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
-    const card = screen.getByRole('region', { name: 'Largest cumulative emitters, to 1980' });
-    const rows = within(card).getAllByRole('listitem');
-    expect(rows[0]).toHaveTextContent('China');
-    expect(rows[0]).toHaveTextContent(`${gt(CUM[10][0])} Gt`);
-    expect(rows[0]).toHaveTextContent(`${((CUM[10][0] / ((CUM[10][0] + CUM[10][1]) * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`);
-    expect(within(card).getByText('GtCO₂ emitted since 1750, and share of the world total')).toBeInTheDocument();
-  });
-
-  it('claims no share when the World totals are unavailable, rather than showing one against another total', async () => {
-    mountFullRange(2024);
-    vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => {
-      if (o?.countries) throw new ApiError(503, 'unavailable');
-      return SHARE_SNAPSHOT;
-    });
-    cleanup();
-    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
-    const card = await screen.findByRole('region', { name: 'Leading emitters · 2024' });
-    const rows = within(card).getAllByRole('listitem');
-    expect(rows[0]).toHaveTextContent('China');
-    expect(rows[0]).toHaveTextContent(`${fmt0(chinaAt(2024))} Mt`);
-    expect(rows[0].textContent).not.toMatch(/%/);
-    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
-    expect(mapSide().textContent).not.toMatch(/Share of world total/); // the tier table carries no share column
-  });
-
-  it('states no warming attribution anywhere on the card: it ranks emissions only', async () => {
-    mountFullRange(2024);
-    const card = await screen.findByRole('region', { name: 'Leading emitters · 2024' });
-    expect(card.textContent).not.toMatch(/warming|temperature/i);
   });
 });
 
@@ -1384,5 +1292,135 @@ describe('OverviewPage: the visitor\'s own default countries', () => {
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(['China', 'India']);
     expect(vi.mocked(api.overview)).not.toHaveBeenCalledWith(['Vietnam']);
+  });
+});
+
+// A made-up world for the "Your countries" table, 1970–2024: each country sits at its 1990 value until 1990 and moves in a straight line to its 2024 value. Chosen: Upland (up 3 bands,
+// overtakes Downland), Downland (down 1), Stayland (no change). The rest: Outup (+2,900 Mt, up 4), Outmid (+900, up 1), Outdown (−800, down 2), Outsmall (+10, up 1).
+const BAND_COUNTRIES: Array<[iso: string, name: string, v1990: number, v2024: number]> = [
+  ['UPL', 'Upland', 150, 2000], ['DWN', 'Downland', 2600, 1700], ['STY', 'Stayland', 20, 90],
+  ['OUP', 'Outup', 100, 3000], ['OMD', 'Outmid', 600, 1500], ['ODN', 'Outdown', 1100, 300], ['OSM', 'Outsmall', 5, 15],
+];
+const bandValue = (v1990: number, v2024: number, year: number) => (year <= 1990 ? v1990 : v1990 + ((v2024 - v1990) * (year - 1990)) / 34);
+const BAND_MAP: WorldMapTimeSeries = {
+  iso_codes: BAND_COUNTRIES.map((c) => c[0]),
+  countries: BAND_COUNTRIES.map((c) => c[1]),
+  years: Array.from({ length: 55 }, (_, i) => 1970 + i),
+  values: Array.from({ length: 55 }, (_, i) => BAND_COUNTRIES.map(([, , a, b]) => bandValue(a, b, 1970 + i))),
+  value_range: [5, 3000],
+};
+const BAND_WORLD = (over: number) => ({
+  ...SHARE_SNAPSHOT, mode: 'series', year: null, start_year: 1970, rows: [],
+  remainder_series: BAND_MAP.years.map((year, i) => {
+    const annual = BAND_MAP.values[i].reduce<number>((a, v) => a + (v ?? 0), 0) * over;
+    return { year, world_cumulative_mt: annual * (i + 1), world_annual_mt: annual, cumulative_mt: 0, share_pct: 0, annual_mt: 0, annual_share_pct: 0, international_transport_cumulative_mt: null, international_transport_annual_mt: null };
+  }),
+}) as unknown as CorrelationCountryShareResponse;
+
+function mountBands(year: number, chosen = ['Upland', 'Downland', 'Stayland'], world: CorrelationCountryShareResponse | Error = BAND_WORLD(1.2)) {
+  vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: year });
+  vi.mocked(api.listCountries).mockResolvedValue({ featured: ['Upland'], expanded: BAND_COUNTRIES.map((c) => c[1]) });
+  vi.mocked(api.overview).mockResolvedValue({ ...FULL_RESPONSE, all_countries: { ...FULL_RESPONSE.all_countries, countries_count: BAND_COUNTRIES.length } });
+  vi.mocked(api.worldMapSeries).mockResolvedValue(BAND_MAP);
+  vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
+  vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
+  vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
+  vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => { if (o?.countries) { if (world instanceof Error) throw world; return world; } return SHARE_SNAPSHOT; });
+  return render(<MemoryRouter initialEntries={[`/overview?${chosen.length ? chosen.map((c) => `countries=${c}`).join('&') : 'countries='}`]}><OverviewPage /></MemoryRouter>);
+}
+const alsoLine = () => screen.queryByText(/^Also changed band:/)?.textContent ?? null;
+
+describe('OverviewPage: the Your countries table', () => {
+  it('lists the chosen countries biggest first in the map\'s year, so the order follows the year', async () => {
+    mountBands(1990);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(yourBody().map((r) => r[0])).toEqual(['Downland', 'Upland', 'Stayland']); // 2,600 / 150 / 20
+    cleanup();
+    mountBands(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(yourBody().map((r) => r[0])).toEqual(['Upland', 'Downland', 'Stayland']); // 2,000 / 1,700 / 90: Upland overtook Downland
+    expect(yourBody().map((r) => r[1])).toEqual(['2,000', '1,700', '90']);
+  });
+
+  it('says in the band column how many bands each country crossed since the baseline: up, down, or unchanged (a dash), with the ranges in the tooltip and the accessible name', async () => {
+    mountBands(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const cell = (name: string) => within(yourTable()).getByRole('rowheader', { name }).closest('tr')!.cells[3];
+    expect(cell('Upland').textContent).toContain('↑3');
+    expect(within(cell('Upland')).getByRole('img')).toHaveAccessibleName('Up 3 bands: 100–250 to 1k–2.5k');
+    expect(within(cell('Upland')).getByRole('img')).toHaveAttribute('title', '100–250 → 1k–2.5k');
+    expect(cell('Downland').textContent).toContain('↓1');
+    expect(within(cell('Downland')).getByRole('img')).toHaveAccessibleName('Down 1 band: 2.5k+ to 1k–2.5k');
+    expect(cell('Stayland').textContent).toBe('–');
+    expect(cell('Stayland').querySelector('[aria-label]')).toHaveAttribute('aria-label', 'Stayed in 10–100');
+  });
+
+  it('shows no band change at the baseline year, and no "Also changed band" line', async () => {
+    mountBands(1990);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(yourBody().map((r) => r[3])).toEqual(['–', '–', '–']);
+    expect(alsoLine()).toBeNull();
+  });
+
+  it('has footer rows whose totals are the group\'s values: the chosen countries\' sum, all countries, their shares of the world and the change since the baseline', async () => {
+    mountBands(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const sum = (names: string[], year: number) => BAND_COUNTRIES.filter((c) => names.includes(c[1])).reduce((a, c) => a + bandValue(c[2], c[3], year), 0);
+    const all = BAND_COUNTRIES.map((c) => c[1]);
+    const chosen = ['Upland', 'Downland', 'Stayland'];
+    const world = sum(all, 2024) * 1.2;
+    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 3', 'All countries · 7']);
+    expect(yourFoot()[0][1]).toBe(fmt0(sum(chosen, 2024)));
+    expect(yourFoot()[1][1]).toBe(fmt0(sum(all, 2024)));
+    expect(yourFoot()[0][2]).toBe(`${((sum(chosen, 2024) / world) * 100).toFixed(1)}%`);
+    expect(yourFoot()[1][2]).toBe(`${((sum(all, 2024) / world) * 100).toFixed(1)}%`);
+    const change = (names: string[]) => (((sum(names, 2024) - sum(names, 1990)) / sum(names, 1990)) * 100).toFixed(1);
+    expect(yourFoot()[0][3]).toBe(`+${change(chosen)}% since 1990`);
+    expect(yourFoot()[1][3]).toBe(`+${change(all)}% since 1990`);
+    // the footer value is the sum of the rows above it
+    expect(yourBody().reduce((a, r) => a + Number(r[1].replace(/,/g, '')), 0)).toBeCloseTo(Number(yourFoot()[0][1].replace(/,/g, '')), 0);
+  });
+
+  it('names who else changed band, never a chosen country: the biggest changes in tonnes first, ups and downs together (top 3)', async () => {
+    mountBands(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    // Outup +2,900 Mt (↑4), Outmid +900 (↑1), Outdown −800 (↓2); Outsmall (+10) is the fourth; Upland (+1,850 Mt) is chosen, so it is not here
+    expect(alsoLine()).toBe('Also changed band: Outup ↑4, Outmid ↑1, Outdown ↓2');
+    expect(alsoLine()).not.toMatch(/Upland|Downland|Stayland/);
+    cleanup();
+    mountBands(2024, ['Outup', 'Stayland']);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(alsoLine()).toBe('Also changed band: Upland ↑3, Downland ↓1, Outmid ↑1'); // Outup is chosen now; Upland (+1,850) joins; Downland (−900) ties Outmid (+900) in tonnes and wins on the larger value now
+  });
+
+  it('in Cumulative reads Total to {year}, and the outside movers are ups only (a running total cannot fall)', async () => {
+    mountBands(2024);
+    await showCumulative();
+    expect(yourHeads()).toEqual(['Country', 'Total to 2024', 'Share of world', 'Band since 1990']);
+    expect(alsoLine()).not.toMatch(/↓/);
+    expect(alsoLine()).toMatch(/^Also changed band: /);
+  });
+
+  it('with nothing chosen shows the footer rows and the Also changed band line only, with a prompt, in both modes', async () => {
+    mountBands(2024, []);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(within(yourTable()).getByText('Select countries to compare them here.')).toBeInTheDocument();
+    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 0', 'All countries · 7']);
+    expect(alsoLine()).toBe('Also changed band: Outup ↑4, Upland ↑3, Downland ↓1'); // by tonnes: +2,900, +1,850, then Downland −900 (ties Outmid +900; the larger value now wins)
+    await showCumulative();
+    expect(within(yourTable()).getByText('Select countries to compare them here.')).toBeInTheDocument();
+  });
+
+  it('claims no share when the World totals are unavailable, rather than showing one against another total', async () => {
+    mountBands(2024, undefined, new ApiError(503, 'unavailable'));
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(yourBody().map((r) => r[2])).toEqual(['—', '—', '—']);
+    expect(yourFoot().map((r) => r[2])).toEqual(['—', '—']);
+  });
+
+  it('states no warming attribution anywhere on the table: it lists emissions only', async () => {
+    mountBands(2024);
+    const card = await screen.findByRole('region', { name: 'Your countries · 2024' });
+    expect(card.textContent).not.toMatch(/warming|temperature/i);
   });
 });

@@ -7,11 +7,10 @@ import { useClimateSignal } from '../hooks/useClimateSignal';
 import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 import { worldTotals } from '../lib/mapSeries';
 import { computeAutoplayStops } from '../lib/yearStops';
-import { LeadingEmitters, type MapMode } from '../components/overview/LeadingEmitters';
-import { BandChanges } from '../components/overview/BandChanges';
-import { MAP_BANDS, bandMoves } from '../lib/mapBands';
-import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange, worldTotalsFrom, type WorldTotals } from '../lib/cumulative';
-import { ChartCard, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, SegmentedControl, Choropleth, Text, useReducedMotion, Chart, formatFigure } from '@syena/ds';
+import { YourCountries, type CountryRow, type TotalRow } from '../components/overview/YourCountries';
+import { MAP_BANDS, bandChange, outsideMovers, type BandMode } from '../lib/mapBands';
+import { buildCumulative, cumulativeBaseFrom, positiveRange, worldTotalsFrom, type WorldTotals } from '../lib/cumulative';
+import { ChartCard, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, SegmentedControl, Choropleth, Text, useReducedMotion, Chart } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
 import { ShareSection, SHARE_ANCHOR } from '../components/overview/ShareSection';
@@ -22,8 +21,8 @@ import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { PageChrome } from '../layouts/PageChrome';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
-import { RIGHT_COLUMN_MIN_PX, useMapFit } from '../hooks/useMapFit';
-import { AlignedNote } from '../components/climate/AlignedNote';
+import { FIT_MIN_VIEWPORT_PX, RIGHT_COLUMN_MIN_PX, useMapFit } from '../hooks/useMapFit';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
 import { YearBadge } from '../components/overview/YearBadge';
 import { PathwaysSection } from '../components/overview/PathwaysSection';
@@ -71,10 +70,10 @@ const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relat
 // rather than counting up -- no separate animation duration to coordinate with this one.
 
 // The muted-text colour, shared by the many small captions and labels on this page (one place to change it).
-/** What the Expanded tier means, behind its ⓘ. */
-const EXPANDED_NOTE = 'Coverage countries plus any country emitting ≥100 Mt';
 const WEAK_TEXT: CSSProperties = { color: 'var(--syn-color-text-muted)' };
 
+
+type MapMode = BandMode;
 
 interface TierRow {
   tier: string;
@@ -87,8 +86,6 @@ interface TierRow {
   // Cumulative mode (the map's other view): GtCO₂ emitted to the selected year and the group's share of the world total.
   cumulativeGt?: number;
   sharePct?: number;
-  /** A note behind an ⓘ beside the row's name */
-  info?: string;
 }
 
 // Builds a TierRow from a per-year series and the currently-playing frame, rather than
@@ -102,58 +99,11 @@ function animatedTierRow(
   co2ByYear: number[],
   yearIdx: number,
   baseIdx = 0,
-  info?: string,
 ): TierRow {
   const co2Total = co2ByYear[yearIdx] ?? 0;
   const base = co2ByYear[baseIdx] ?? 0;
   const pctChange = base ? ((co2Total - base) / base) * 100 : 0;
-  return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx <= baseIdx, ...(info ? { info } : {}) };
-}
-
-// The tiers as one compact table: a header row (Tier | CO₂ {year}, or Total to {year} in Cumulative | Since {baseline}) and a row per group of countries, name and
-// count in the row header ("Expanded · 40", with an ⓘ saying what Expanded means), figures right-aligned in tabular numerals, the change in the direction colours.
-// A real <table> with scoped headers. No count-up animation: these figures change every autoplay tick, so they snap to the new value in step with the map.
-function TierSummaryPanel({ rows, year, baselineYear, mode = 'absolute' }: { rows: TierRow[]; year: number; baselineYear: number; mode?: MapMode }) {
-  const cumulative = mode === 'cumulative';
-  const head = { padding: '6px 12px', textAlign: 'right', fontWeight: 400, color: 'var(--syn-color-text-muted)', whiteSpace: 'nowrap' } as const;
-  const cell = { padding: '6px 12px', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const;
-  return (
-    // A categorical-colour top rule (the data colours are applied per metric, never per sentiment). Relative, so the ⓘ's note opens across the panel.
-    <div style={{ position: 'relative', background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-subtle)', borderTop: '3px solid var(--syn-data-cat-3, transparent)', borderRadius: 8 }}>
-      <style>{'@media (max-width: 480px) { .overview-tier-table th, .overview-tier-table td { padding-left: 8px !important; padding-right: 8px !important; } .overview-tier-table { font-size: 0.9em; } }'}</style>
-      {/* The table scrolls sideways on its own if it ever cannot fit (the ⓘ's note is outside this box, so it is not clipped). */}
-      <div style={{ overflowX: 'auto' }}>
-      <table className="overview-tier-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{`CO₂ by group of countries in ${year}`}</caption>
-        <thead>
-          <tr className="syn-caption">
-            <th scope="col" style={{ ...head, textAlign: 'left' }}>Tier</th>
-            <th scope="col" style={head}>{cumulative ? `Total to ${year}` : `CO₂ ${year}`}</th>
-            <th scope="col" style={head}>{`Since ${baselineYear}`}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.tier} style={{ borderTop: '1px solid var(--syn-color-border-subtle)' }}>
-              <th scope="row" className="syn-text-lg" style={{ ...cell, textAlign: 'left', fontWeight: 400, whiteSpace: 'normal' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {`${row.tier} · ${Math.round(row.countries).toLocaleString()}`}
-                  {row.info ? <AlignedNote note={row.info} label={row.tier} buttonLabel={`About ${row.tier}`} /> : null}
-                </span>
-              </th>
-              <td className="syn-text-lg" style={cell}>
-                {cumulative ? `${fmtGt(row.cumulativeGt ?? 0)} GtCO₂` : `${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
-              </td>
-              <td className="syn-text-lg" style={{ ...cell, color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-                {row.suppressPctChange ? '—' : `${formatFigure(row.pctChange, { signed: true, decimals: 1 })}%`}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </div>
-    </div>
-  );
+  return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx <= baseIdx };
 }
 
 // The Overview headline sentence (SPEC.md §5.18.1, decoupled from the picker in §5.18.5) -- a
@@ -175,7 +125,7 @@ function OverviewHeadline({ headlineMovers, scope, latestYear }: { headlineMover
       <span className="syn-caption" style={WEAK_TEXT}>{`Since ${BASELINE_YEAR}`}</span>
       {/* A fixed 1990-to-latest comparison: it does not follow the map's year (unlike the map and the cards beside it), and says so. */}
       <span className="syn-caption" style={{ display: 'block', color: 'var(--syn-color-text-muted)' }}>
-        {`Fixed comparison, ${BASELINE_YEAR} to ${latestYear}; the map and the cards beside it follow the map's year.`}
+        {`Fixed comparison, ${BASELINE_YEAR} to ${latestYear}; the map and the table follow the map's year.`}
       </span>
       <p className="syn-text-lg" style={{ margin: '4px 0 0' }}>
         {segments.map((seg, i) => {
@@ -198,9 +148,7 @@ function OverviewHeadline({ headlineMovers, scope, latestYear }: { headlineMover
 function AnimatedWorldMap({
   worldMapSeries,
   selected,
-  expanded,
   allCountriesTier,
-  expandedTier,
   headlineMovers,
   cumulative,
   world,
@@ -210,9 +158,7 @@ function AnimatedWorldMap({
   /** The 1970-based series the map plays; the tiers' API totals cover its 1990-and-later part */
   worldMapSeries: WorldMapTimeSeries;
   selected: string[];
-  expanded: string[];
   allCountriesTier: OverviewTierMetrics;
-  expandedTier: OverviewTierMetrics;
   headlineMovers: MoverRow[];
   /** Each country's cumulative CO₂ (Mt) at the last year before the series, from the all-countries snapshot; null while loading or if unavailable */
   cumulative: { byIso: Record<string, number>; from: number | null } | null;
@@ -232,6 +178,8 @@ function AnimatedWorldMap({
 
   // Absolute (annual MtCO₂) or Cumulative (running total, GtCO₂): one toggle drives the map, the tiers, the ranking and the table together.
   // Cumulative needs its base snapshot; until that arrives (or if it fails) the toggle offers only Absolute.
+  // The map's controls sit over its corner from desktop width up (a compact card that fits the window); on a phone or a portrait tablet they stay in a row under the legend.
+  const compactControls = useMediaQuery(`(min-width: ${FIT_MIN_VIEWPORT_PX}px)`);
   const [mode, setMode] = useState<MapMode>('absolute');
   const cumMatrix = useMemo(() => (cumulative ? buildCumulative(worldMapSeries, cumulative.byIso) : null), [cumulative, worldMapSeries]);
   // The map layer, table and ranking read the running totals in MtCO₂ (the unit of the annual values, and the one whose hover format shows
@@ -268,41 +216,53 @@ function AnimatedWorldMap({
 
   // All Countries / Expanded per year across the whole 1970 series. `baselineIdx` is where the "% change since 1990" baseline year sits in it.
   const baselineIdx = Math.max(0, worldMapSeries.years.findIndex((y) => y >= BASELINE_YEAR));
-  const expandedIndices = useMemo(() => {
-    const names = new Set(expanded);
-    return worldMapSeries.countries.flatMap((c, i) => (names.has(c) ? [i] : []));
-  }, [worldMapSeries, expanded]);
   const allCo2ByYear = useMemo(() => worldTotals(worldMapSeries), [worldMapSeries]);
-  const expandedCo2ByYear = useMemo(
-    () => worldMapSeries.values.map((row) => expandedIndices.reduce((sum, idx) => sum + (row[idx] ?? 0), 0)),
-    [worldMapSeries, expandedIndices],
-  );
 
   // Cumulative totals per tier and year (Gt), and each tier's share of the world total, for Cumulative mode.
   const groupCum = (indices: number[] | null) => (cumMatrix ? cumMatrix.map((row) => (indices ? indices.reduce((s, i) => s + (row[i] ?? 0), 0) : row.reduce<number>((s, v) => s + (v ?? 0), 0))) : null);
   const allCum = useMemo(() => groupCum(null), [cumMatrix]); // eslint-disable-line react-hooks/exhaustive-deps
-  const expandedCum = useMemo(() => groupCum(expandedIndices), [cumMatrix, expandedIndices]); // eslint-disable-line react-hooks/exhaustive-deps
   const selectedCum = useMemo(() => groupCum(selectedIndices), [cumMatrix, selectedIndices]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cumulativeRow = (title: string, count: number, groupSeries: number[] | null, info?: string): TierRow => {
+  const cumulativeRow = (title: string, count: number, groupSeries: number[] | null): TierRow => {
     const gt = groupSeries?.[yearIdx] ?? 0;
     const worldMt = world?.cumulativeMt.get(currentYear);
     // The running total's growth since the comparison year (a running total only rises, so this is never a fall).
     const base = groupSeries?.[baselineIdx] ?? 0;
-    return { tier: title, countries: count, co2Total: 0, pctChange: base ? ((gt - base) / base) * 100 : 0, suppressPctChange: yearIdx <= baselineIdx, cumulativeGt: gt, sharePct: worldMt ? (gt / (worldMt / 1000)) * 100 : undefined, ...(info ? { info } : {}) };
+    return { tier: title, countries: count, co2Total: 0, pctChange: base ? ((gt - base) / base) * 100 : 0, suppressPctChange: yearIdx <= baselineIdx, cumulativeGt: gt, sharePct: worldMt ? (gt / (worldMt / 1000)) * 100 : undefined };
   };
 
-  // The top-5 leading emitters among ALL countries for the year on screen, in the active mode.
-  const topFive = useMemo(
-    () => leaders(activeValues[yearIdx] ?? [], worldMapSeries.countries, worldMapSeries.iso_codes, 5, (isCumulative ? world?.cumulativeMt : world?.annualMt)?.get(currentYear) ?? null),
-    [activeValues, yearIdx, worldMapSeries, world, isCumulative, currentYear],
-  );
-
-  // The map's colour bands for the mode on screen (a fixed scale, lib/mapBands), and the countries that changed band since the comparison year in that mode.
+  // The map's colour bands for the mode on screen (a fixed scale, lib/mapBands).
   const bandScale = MAP_BANDS[isCumulative ? 'cumulative' : 'absolute'];
   const comparisonYear = worldMapSeries.years[baselineIdx];
-  const moves = useMemo(
-    () => bandMoves(activeValues[baselineIdx] ?? [], activeValues[yearIdx] ?? [], worldMapSeries.iso_codes, worldMapSeries.countries, bandScale.breaks, { upOnly: isCumulative }),
-    [activeValues, baselineIdx, yearIdx, worldMapSeries, bandScale, isCumulative],
+  const worldTotalMt = (isCumulative ? world?.cumulativeMt : world?.annualMt)?.get(currentYear) ?? null;
+  const shareOf = (mt: number) => (worldTotalMt ? (mt / worldTotalMt) * 100 : null);
+
+  // "Your countries": the chosen countries, biggest first in the map's year, each with its share of the World total and the bands crossed since the comparison year.
+  const yourRows = useMemo<CountryRow[]>(() => {
+    const now = activeValues[yearIdx] ?? [];
+    const before = activeValues[baselineIdx] ?? [];
+    return selectedIndices
+      .map((i): CountryRow => {
+        const value = now[i] ?? null;
+        const ok = value != null && value >= 0;
+        return { iso: worldMapSeries.iso_codes[i], name: worldMapSeries.countries[i], value: ok ? value : null, sharePct: ok && worldTotalMt ? (value / worldTotalMt) * 100 : null, band: bandChange(before[i], now[i], bandScale.breaks) };
+      })
+      .sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
+  }, [selectedIndices, activeValues, yearIdx, baselineIdx, worldMapSeries, worldTotalMt, bandScale]);
+
+  // The two footer rows come from the same tier figures as before (the chosen group and all countries), so the totals are the tier values.
+  const toTotal = (label: string, row: TierRow): TotalRow => {
+    const mt = isCumulative ? (row.cumulativeGt ?? 0) * 1000 : row.co2Total;
+    return { label, value: mt, sharePct: shareOf(mt), pctChange: row.suppressPctChange ? null : row.pctChange };
+  };
+  const footers: TotalRow[] = [
+    toTotal(`Selected · ${selected.length}`, isCumulative ? cumulativeRow('Selected', selected.length, selectedCum) : animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, baselineIdx)),
+    toTotal(`All countries · ${allCountriesTier.countries_count}`, isCumulative ? cumulativeRow('All countries', allCountriesTier.countries_count, allCum) : animatedTierRow('All countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, baselineIdx)),
+  ];
+  const selectedSet = useMemo(() => new Set(selectedIndices), [selectedIndices]);
+  // Who else changed band since the comparison year (never a chosen country), the biggest changes in tonnes first; Cumulative has only ups.
+  const movers = useMemo(
+    () => outsideMovers(activeValues[baselineIdx] ?? [], activeValues[yearIdx] ?? [], worldMapSeries.iso_codes, worldMapSeries.countries, bandScale.breaks, selectedSet, { upOnly: isCumulative }),
+    [activeValues, baselineIdx, yearIdx, worldMapSeries, bandScale, selectedSet, isCumulative],
   );
 
   // ISO codes of the picker's selection, outlined on the map. Its own memo (and a separate Chart
@@ -312,128 +272,106 @@ function AnimatedWorldMap({
 
   return (
     <>
-      <div className="overview-hero-left" style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-        <ChartCard source={OWID}
-          id={TOP_EMITTERS_ANCHOR}
-          className="overview-map-card"
-          // The annual map is "Where emissions come from": the By Country bar chart below keeps "CO₂ Emissions by Country (year)", so no two charts share a title.
-          title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `Where emissions come from, ${currentYear}`}
-          actions={
-            <SegmentedControl
-              name="map-mode"
-              size="small"
-              value={isCumulative ? 'cumulative' : 'absolute'}
-              onChange={(v) => setMode(v as MapMode)}
-              items={[
-                { value: 'absolute', label: 'Absolute' },
-                { value: 'cumulative', label: 'Cumulative', disabled: !cumMatrix, reason: !cumMatrix ? 'Cumulative totals are unavailable right now' : undefined },
-              ]}
+      <ChartCard source={OWID}
+        id={TOP_EMITTERS_ANCHOR}
+        className="overview-map-card"
+        // The annual map is "Where emissions come from": the By Country bar chart below keeps "CO₂ Emissions by Country (year)", so no two charts share a title.
+        title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `Where emissions come from, ${currentYear}`}
+        actions={
+          <SegmentedControl
+            name="map-mode"
+            size="small"
+            value={isCumulative ? 'cumulative' : 'absolute'}
+            onChange={(v) => setMode(v as MapMode)}
+            items={[
+              { value: 'absolute', label: 'Absolute' },
+              { value: 'cumulative', label: 'Cumulative', disabled: !cumMatrix, reason: !cumMatrix ? 'Cumulative totals are unavailable right now' : undefined },
+            ]}
+          />
+        }
+        headingLevel={2}
+        expandable
+        // The card's whole body is the map panel (mid tone): the year controls, the map, its legend and the caption all sit on it and read there in either theme.
+        surface="map"
+      >
+        {(expanded) => (
+        <>
+        {/* flexWrap + a shrinkable slider track: Slider carries its own 220px min-width,
+            which together with the Play/Pause button floored this row (and therefore the
+            whole card, and therefore the page) at ~330px -- wider than a 320px phone like
+            the Galaxy S9+, forcing horizontal scroll on the entire Overview page. Wrapping
+            lets the slider drop to its own line before it has to overflow. */}
+        <div style={{ marginBottom: 4, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Button variant="ghost" onClick={toggle}>
+            {isPlaying ? 'Pause' : 'Play'}
+          </Button>
+          {/* No `minWidth: 0` here on purpose: Slider hardcodes its own 220px min-width, so
+              zeroing this wrapper's floor would let the wrapper shrink while the Slider
+              inside overflowed it instead of the row wrapping. Keeping the intrinsic floor
+              is what makes flexWrap above actually trigger. */}
+          <div style={{ flex: 1 }}>
+            <Slider
+              label="Year"
+              min={minYear}
+              max={maxYear}
+              step={1}
+              value={currentYear}
+              onChange={seek}
+              showValue={false}
+              // The decade stops under it carry the range (1970 … 2024), and the thumb carries the year, so the label and the range labels are kept for a screen reader only.
+              labelHidden
+              showThumbValue
             />
-          }
-          headingLevel={2}
-          expandable
-          // The card's whole body is the map panel (mid tone): the year controls, the map, its legend and the caption all sit on it and read there in either theme.
-          surface="map"
-        >
-          {(expanded) => (
-          <>
-          {/* flexWrap + a shrinkable slider track: Slider carries its own 220px min-width,
-              which together with the Play/Pause button floored this row (and therefore the
-              whole card, and therefore the page) at ~330px -- wider than a 320px phone like
-              the Galaxy S9+, forcing horizontal scroll on the entire Overview page. Wrapping
-              lets the slider drop to its own line before it has to overflow. */}
-          <div style={{ marginBottom: 4, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button variant="ghost" onClick={toggle}>
-              {isPlaying ? 'Pause' : 'Play'}
+          </div>
+        </div>
+        {/* Decade stops (§2.6): jump straight to one; Play steps through them. The slider above still scrubs year by year. */}
+        <div role="group" aria-label="Jump to a year" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          {stops.map((year) => (
+            <Button key={year} size="small" variant={year === currentYear ? 'primary' : 'secondary'} aria-pressed={year === currentYear} onClick={() => seek(year)}>
+              {year}
             </Button>
-            {/* No `minWidth: 0` here on purpose: Slider hardcodes its own 220px min-width, so
-                zeroing this wrapper's floor would let the wrapper shrink while the Slider
-                inside overflowed it instead of the row wrapping. Keeping the intrinsic floor
-                is what makes flexWrap above actually trigger. */}
-            <div style={{ flex: 1 }}>
-              <Slider
-                label="Year"
-                min={minYear}
-                max={maxYear}
-                step={1}
-                value={currentYear}
-                onChange={seek}
-                showValue={false}
-                // The decade stops under it carry the range (1970 … 2024), and the thumb carries the year, so the label and the range labels are kept for a screen reader only.
-                labelHidden
-                showThumbValue
-              />
-            </div>
-          </div>
-          {/* Decade stops (§2.6): jump straight to one; Play steps through them. The slider above still scrubs year by year. */}
-          <div role="group" aria-label="Jump to a year" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            {stops.map((year) => (
-              <Button key={year} size="small" variant={year === currentYear ? 'primary' : 'secondary'} aria-pressed={year === currentYear} onClick={() => seek(year)}>
-                {year}
-              </Button>
-            ))}
-          </div>
-          {/* The picture is as wide as the window's height allows (mapWidth), centred in its column; null leaves it filling the column. */}
-          <div style={mapWidth && !expanded ? { width: mapWidth, maxWidth: '100%', marginInline: 'auto' } : undefined}>
-          <Choropleth
-            values={valuesForYear}
-            valueLabel={isCumulative ? 'Cumulative CO₂, MtCO₂' : 'CO₂ emissions, MtCO₂'}
-            unit="MtCO₂"
-            scale="bands"
-            surface="map"
-            flush
-            // The countries with no value this year or mode (hatched), so the legend's bands and this add up to the All Countries tier.
-            noDataCount={Math.max(0, allCountriesTier.countries_count - Object.keys(valuesForYear).length)}
-            breaks={bandScale.breaks}
-            bandLabels={bandScale.labels}
-            ariaLabel={
-              isCumulative
-                ? `World map of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest); countries with no CO₂ ever recorded are hatched`
-                : `World map of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest); countries with no data for the year are hatched`
-            }
-            outline={outlineLocations}
-            // The legend carries what the caption under the map did: the hatched No data (with its count) and a key for the outlined countries.
-            outlineLabel="Selected"
-            controls="overlay"
-          />
-          </div>
-          </>
-          )}
-        </ChartCard>
-          {/* The Since-1990 summary sits under the map, as wide as the card (it follows the card's width, height-driven or not). Selection-invariant (SPEC.md §5.18.5) -- headlineMovers is a fixed top-N set from the
-              server, independent of the picker, so this stays visible even at 0 selected
-              countries (unlike the Selected tier row just below, which is still gated). */}
-          <OverviewHeadline
-            headlineMovers={headlineMovers}
-            scope={`the top ${headlineMovers.length} emitters by ${allCountriesTier.latest_year} output`}
-            latestYear={allCountriesTier.latest_year}
-          />
-      </div>
+          ))}
+        </div>
+        {/* The picture is as wide as the window's height allows (mapWidth), centred in its column; null leaves it filling the column. */}
+        <div style={mapWidth && !expanded ? { width: mapWidth, maxWidth: '100%', marginInline: 'auto' } : undefined}>
+        <Choropleth
+          values={valuesForYear}
+          valueLabel={isCumulative ? 'Cumulative CO₂, MtCO₂' : 'CO₂ emissions, MtCO₂'}
+          unit="MtCO₂"
+          scale="bands"
+          surface="map"
+          flush
+          // The countries with no value this year or mode (hatched), so the legend's bands and this add up to the All Countries tier.
+          noDataCount={Math.max(0, allCountriesTier.countries_count - Object.keys(valuesForYear).length)}
+          breaks={bandScale.breaks}
+          bandLabels={bandScale.labels}
+          ariaLabel={
+            isCumulative
+              ? `World map of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest); countries with no CO₂ ever recorded are hatched`
+              : `World map of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest); countries with no data for the year are hatched`
+          }
+          outline={outlineLocations}
+          // The legend carries what the caption under the map did: the hatched No data (with its count) and a key for the outlined countries.
+          outlineLabel="Selected"
+          controls={compactControls ? 'overlay' : 'below'}
+          formatCount={(n) => String(n)}
+          countsLabel="countries per band below"
+        />
+        </div>
+        </>
+        )}
+      </ChartCard>
 
       <div className="overview-hero-right" style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-        {/* The five leading emitters among all countries, in the same year and mode as the map and the tiers. */}
-        <LeadingEmitters year={currentYear} mode={isCumulative ? 'cumulative' : 'absolute'} leaders={topFive} cumulativeFrom={cumulativeFrom} />
-        <BandChanges mode={isCumulative ? 'cumulative' : 'absolute'} baselineYear={comparisonYear} year={currentYear} moves={moves} />
-        <TierSummaryPanel
-          year={currentYear}
-          baselineYear={comparisonYear}
-          mode={isCumulative ? 'cumulative' : 'absolute'}
-          rows={
-            isCumulative
-              ? [
-                  cumulativeRow('All countries', allCountriesTier.countries_count, allCum),
-                  cumulativeRow('Expanded', expandedTier.countries_count, expandedCum, EXPANDED_NOTE),
-                  ...(selected.length > 0 ? [cumulativeRow('Selected', selected.length, selectedCum)] : []),
-                ]
-              : [
-                  animatedTierRow('All countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, baselineIdx),
-                  animatedTierRow('Expanded', expandedTier.countries_count, expandedCo2ByYear, yearIdx, baselineIdx, EXPANDED_NOTE),
-                  ...(selected.length > 0
-                    ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, baselineIdx)]
-                    : []),
-                ]
-          }
-        />
+      {/* The Since-1990 summary heads the right column. Selection-invariant (SPEC.md §5.18.5) -- headlineMovers is a fixed top-N set from the
+          server, independent of the picker, so this stays visible even at 0 selected
+          countries (unlike the table below, which lists the chosen countries). */}
+      <OverviewHeadline
+        headlineMovers={headlineMovers}
+        scope={`the top ${headlineMovers.length} emitters by ${allCountriesTier.latest_year} output`}
+        latestYear={allCountriesTier.latest_year}
+      />
+        <YourCountries year={currentYear} baselineYear={comparisonYear} mode={isCumulative ? 'cumulative' : 'absolute'} rows={yourRows} footers={footers} movers={movers} />
       </div>
     </>
   );
@@ -552,7 +490,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         }
       />
       <Text as="p" type="caption" tone="muted" style={{ margin: '0 0 8px' }}>
-        {selected.length} of {MAX_SELECTED_COUNTRIES} max · from the {expanded.length} Expanded countries · drives the Selected tier and every chart below
+        {selected.length} of {MAX_SELECTED_COUNTRIES} max · from the {expanded.length} Expanded countries (coverage countries plus any country emitting ≥100 Mt) · drives the Your countries table and every chart below
       </Text>
       {/* Breathing room below the jump links: the active link's underline used to sit flush against the
           map card's accent top rule (and its shadow), reading as one muddled line. */}
@@ -592,12 +530,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           mapWidth={mapFit.mapWidth}
           worldMapSeries={worldMapSeries}
           selected={selected}
-          expanded={expanded}
           cumulative={cumulativeBase}
           world={worldShareTotals}
           pageYear={pageYear}
           allCountriesTier={data.all_countries}
-          expandedTier={data.expanded_countries}
           headlineMovers={data.headline_movers}
         />
       </div>
