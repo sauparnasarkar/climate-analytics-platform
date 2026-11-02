@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
-/** The ⓘ beside a chain value whose series has a newer year than the aligned one: a disclosure (aria-expanded) that opens the note over the cell, closed by
+/** The ⓘ beside a chain value whose series has a newer year than the aligned one: a disclosure (aria-expanded) that opens the note BELOW its cell (the nearest positioned ancestor, which the caller makes `position: relative`), so it never covers the value; closed by
  * Escape, an outside tap or the button again. Nothing is drawn when there is no note, so no icon appears unless newer data exists. */
 export function AlignedNote({ note, label }: { note: string | null; label: string }) {
   const [open, setOpen] = useState(false);
@@ -16,7 +16,7 @@ export function AlignedNote({ note, label }: { note: string | null; label: strin
   }, [open]);
   if (!note) return null;
   return (
-    <span ref={root} style={{ position: 'relative', display: 'inline-flex' }}>
+    <span ref={root} style={{ display: 'inline-flex' }}>
       <button
         type="button"
         aria-label={`Newer data available: ${label}`}
@@ -31,7 +31,7 @@ export function AlignedNote({ note, label }: { note: string | null; label: strin
         <span
           id={noteId}
           role="note"
-          style={{ position: 'absolute', zIndex: 20, top: 34, right: 0, width: 'min(280px, 70vw)', padding: '10px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.45, fontWeight: 400, textTransform: 'none', letterSpacing: 0, background: 'var(--syn-color-surface-raised)', color: 'var(--syn-color-text-secondary)', border: '1px solid var(--syn-color-border-default, currentColor)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}
+          style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, margin: '6px 8px 0', padding: '10px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.45, fontWeight: 400, textTransform: 'none', letterSpacing: 0, background: 'var(--syn-color-surface-raised)', color: 'var(--syn-color-text-secondary)', border: '1px solid var(--syn-color-border-default, currentColor)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}
         >
           {note}
         </span>

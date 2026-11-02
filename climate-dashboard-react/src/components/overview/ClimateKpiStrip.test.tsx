@@ -21,10 +21,15 @@ describe('ClimateKpiStrip at the aligned year', () => {
     expect(screen.getByText('Temperature anomaly · 2024')).toBeInTheDocument();
     expect(screen.getByText('+1.62 °C')).toBeInTheDocument();
     expect(screen.getByText('5-year mean 1.39 °C')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Newer data available: CO₂ emissions/ })).not.toBeInTheDocument();
-    const info = screen.getByRole('button', { name: 'Newer data available: Temperature anomaly · 2024' });
+    // one ⓘ per card: the emissions cards have no newer data, so theirs stays the plain baseline button
+    expect(screen.getByRole('button', { name: 'Baseline details: CO₂ emissions · 2024' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Newer data available/ })).not.toBeInTheDocument();
+    const info = screen.getByRole('button', { name: 'Newer data and baseline details: Temperature anomaly · 2024' });
+    expect(within(info.closest('article')!).getAllByRole('button')).toHaveLength(1);
     fireEvent.click(info);
-    expect(within(info.closest('article')!).getByRole('note')).toHaveTextContent('2025 is available: +1.45 °C (Berkeley Earth). Shown for 2024');
+    const panel = within(info.closest('article')!).getByRole('region');
+    expect(panel.firstElementChild).toHaveTextContent('2025 is available: +1.45 °C (Berkeley Earth). Shown for 2024'); // the newer-data line first, then the baseline rows
+    expect(panel).toHaveTextContent('Baseline1850–1900 average');
   });
 
   it('moves every card to 2025 when emissions gain that year, and the icons go', () => {
@@ -33,7 +38,7 @@ describe('ClimateKpiStrip at the aligned year', () => {
     expect(screen.getByText('CO₂ emissions · 2025')).toBeInTheDocument();
     expect(screen.getByText('427.4')).toBeInTheDocument();
     expect(screen.getByText('5-year mean 1.35 °C')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Newer data available/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Newer data/ })).not.toBeInTheDocument();
   });
 });
 

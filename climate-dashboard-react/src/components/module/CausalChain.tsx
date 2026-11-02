@@ -5,7 +5,7 @@ import type { AlignedChain } from '../../lib/alignedYear';
 import { AlignedNote } from '../climate/AlignedNote';
 import { BaselineChip } from '../climate/BaselineChip';
 
-const cell = { display: 'flex', flexDirection: 'column', gap: 6, padding: '14px 16px', minWidth: 0 } as const;
+const cell = { position: 'relative', display: 'flex', flexDirection: 'column', gap: 6, padding: '14px 16px', minWidth: 0 } as const;
 const head = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } as const;
 const label = { fontFamily: 'var(--syn-family-ui)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase' } as const;
 const weak = { margin: 0, color: 'var(--syn-color-text-muted)' } as const;

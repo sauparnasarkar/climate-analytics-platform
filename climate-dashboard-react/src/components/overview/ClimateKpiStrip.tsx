@@ -3,7 +3,6 @@ import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../../constants';
 import { fmtAnomaly, type ClimateSignal, type YearValue } from '../../lib/climateSignal';
 import { fmtInt, fmtPct } from '../../lib/landingData';
 import { buildAlignedChain, valueAt } from '../../lib/alignedYear';
-import { AlignedNote } from '../climate/AlignedNote';
 import { BaselineChip } from '../climate/BaselineChip';
 import { BaselineInfo, type BaselineSpec } from '../climate/BaselineInfo';
 import { SERIES_STYLES } from '../climate/seriesStyles';
@@ -41,10 +40,10 @@ interface CardProps {
 
 function KpiCard({ tone, label, value, delta, deltaColor, spark, sparkCaption, chip, info, note }: CardProps) {
   return (
-    <article className={`series--${tone}`} style={{ background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-default)', borderTop: '3px solid var(--series)', borderRadius: 'var(--syn-radius-card)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+    <article className={`series--${tone}`} style={{ background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-default)', borderTop: '3px solid var(--series)', borderRadius: 'var(--syn-radius-card)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, position: 'relative' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span className="syn-caption" style={{ color: 'var(--syn-color-text-muted)' }}>{label}</span>
-        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><AlignedNote note={note ?? null} label={label} /><BaselineInfo spec={info} label={label} /></span>
+        <BaselineInfo spec={info} label={label} note={note} anchorToParent />
       </div>
       <span className="syn-figure-sm" style={{ lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
       {delta && <span className="syn-text-md" style={{ color: deltaColor ?? 'var(--syn-color-text-muted)' }}>{delta}</span>}
