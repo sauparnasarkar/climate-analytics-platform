@@ -26,6 +26,8 @@ export interface FitInputs {
   viewportH: number;
   /** The bars pinned to the top of the page: the shell's bar and the jump row under it */
   stickyOffset: number;
+  /** What the shell pins over the bottom edge (the sources strip), px; 0 when nothing is */
+  bottomBar?: number;
   gridWidth: number;
   /** The card's height less the picture's, and its width less the picture's: what the card spends on everything else */
   chromeH: number;
@@ -39,12 +41,12 @@ export interface FitInputs {
  * bars and the bottom of the window), no wider than its column and no narrower than MIN_MAP_PX (below which the card may scroll). Returns NO_FIT where the height is not the
  * limit, so the layout stays as it was.
  */
-export function fitMap({ viewportW, viewportH, stickyOffset, gridWidth, chromeH, chromeW, aspect }: FitInputs): MapFit {
+export function fitMap({ viewportW, viewportH, stickyOffset, bottomBar = 0, gridWidth, chromeH, chromeW, aspect }: FitInputs): MapFit {
   if (viewportW < FIT_MIN_VIEWPORT_PX || !(aspect > 0) || !(gridWidth > 0)) return NO_FIT;
   const twoColumn = viewportW >= TWO_COLUMN_MIN_VIEWPORT_PX;
   const maxCard = twoColumn ? gridWidth - GRID_GAP_PX - RIGHT_COLUMN_MIN_PX : gridWidth;
   const maxMap = maxCard - chromeW;
-  const heightMap = (viewportH - stickyOffset - BOTTOM_ROOM_PX - chromeH) * aspect;
+  const heightMap = (viewportH - stickyOffset - bottomBar - BOTTOM_ROOM_PX - chromeH) * aspect;
   // Where the column would give the map at least this much, the screen's height is not what limits it.
   const natural = twoColumn ? ((gridWidth - GRID_GAP_PX) * 2) / 3 - chromeW : gridWidth - chromeW;
   const mapWidth = Math.round(Math.min(maxMap, Math.max(Math.min(MIN_MAP_PX, maxMap), heightMap)));
@@ -74,8 +76,10 @@ export function useMapFit(grid: HTMLElement | null, stickyOffset: number): MapFi
       // which would count the empty space beside a map that is narrower than its column).
       const cs = getComputedStyle(panel);
       const inner = panel.clientWidth - Number.parseFloat(cs.paddingLeft) - Number.parseFloat(cs.paddingRight);
+      // The sources strip the shell pins over the bottom edge covers the foot of the card unless it is counted out.
+      const bottomBar = Math.max(0, ...[...document.querySelectorAll('[data-syn-sticky="bottom"]')].map((el) => { const top = el.getBoundingClientRect().top; return top < window.innerHeight ? window.innerHeight - top : 0; }));
       const next = fitMap({
-        viewportW: window.innerWidth, viewportH: window.innerHeight, stickyOffset, gridWidth: grid.getBoundingClientRect().width,
+        viewportW: window.innerWidth, viewportH: window.innerHeight, stickyOffset, bottomBar, gridWidth: grid.getBoundingClientRect().width,
         chromeH: cardBox.height - h, chromeW: cardBox.width - inner, aspect: w / h,
       });
       const chromeW = cardBox.width - inner;

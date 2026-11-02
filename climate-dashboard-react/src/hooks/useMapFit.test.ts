@@ -24,6 +24,12 @@ describe('fitMap', () => {
     expect(narrow.cardWidth).toBeLessThanOrEqual(800 - 16 - RIGHT_COLUMN_MIN_PX);
   });
 
+  it('counts out the sources strip pinned over the bottom edge, so the card\'s foot is not under it', () => {
+    const tall = { ...BASE, viewportH: 820 };
+    expect(fitMap(tall).mapWidth).toBe(Math.round((820 - 190 - 12 - 320) * 2.3)); // 685
+    expect(fitMap({ ...tall, bottomBar: 28 }).mapWidth).toBe(Math.round((820 - 190 - 28 - 12 - 320) * 2.3)); // 28px less height, 64px less map
+  });
+
   it('is off below 1024px (phone and tablet in portrait are unchanged)', () => {
     expect(fitMap({ ...BASE, viewportW: 1023, viewportH: 600 })).toEqual(NO_FIT);
     expect(fitMap({ ...BASE, viewportW: 820, viewportH: 600 })).toEqual(NO_FIT);
