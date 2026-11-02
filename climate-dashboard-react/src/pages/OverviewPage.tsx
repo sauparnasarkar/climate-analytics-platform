@@ -385,6 +385,8 @@ function AnimatedWorldMap({
           scale="bands"
           surface="map"
           flush
+          // The countries with no value this year or mode (hatched), so the legend's bands and this add up to the All Countries tier.
+          noDataCount={Math.max(0, allCountriesTier.countries_count - Object.keys(valuesForYear).length)}
           breaks={bandScale.breaks}
           bandLabels={bandScale.labels}
           ariaLabel={

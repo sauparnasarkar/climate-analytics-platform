@@ -62,7 +62,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
       );
     },
     // The map's own drawing is the design system's concern; its props are what this page wires.
-    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
+    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; noDataCount?: number; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
       <SynThemeProvider theme="night" storageKey={null}><RealChoropleth {...props} /></SynThemeProvider>
     ) : (
       <div
@@ -75,6 +75,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-scale={props.scale}
         data-surface={props.surface}
         data-flush={props.flush ? 'true' : undefined}
+        data-no-data-count={props.noDataCount}
         data-breaks={props.breaks ? JSON.stringify(props.breaks) : undefined}
         data-band-labels={props.bandLabels ? JSON.stringify(props.bandLabels) : undefined}
         data-outline={props.outline ? JSON.stringify(props.outline) : undefined}
@@ -1113,6 +1114,28 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const counts = within(legend).getAllByText(/countr(y|ies)$/).map((e) => Number(e.textContent!.match(/\d+/)![0]));
     expect(counts.reduce((a, b) => a + b, 0)).toBe(3);
     expect(counts[0]).toBe(1); // Zedland, 0.4 Mt: <1
+  });
+
+  it('adds up: the bands\' counts plus the no-data count are the All Countries tier\'s countries (hidden at 0)', async () => {
+    realMap.on = true;
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    // the tier says 5 countries; 3 have a value in 2024 (one of them with no shape on the map), 2 do not
+    vi.mocked(api.overview).mockResolvedValue({ ...RESPONSE, all_countries: { ...RESPONSE.all_countries, countries_count: 5 } });
+    vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'ZZZ', 'XXX', 'YYY'], countries: ['China', 'Vietnam', 'Zedland', 'Nowhere', 'Neverland'], values: [[14350, 21, 7, null, null], [25324, 370, 0.4, null, null]] });
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
+    const legend = await screen.findByRole('list', { name: /in 8 bands from lowest to highest/ });
+    const bands = within(legend).getAllByText(/countr(y|ies)$/).map((e) => Number(e.textContent!.match(/\d+/)![0])).reduce((a, b) => a + b, 0);
+    const noData = Number(screen.getByText(/^\d+ countries$/, { selector: 'span:not(li span)' }).textContent!.match(/\d+/)![0]);
+    expect(bands).toBe(3);
+    expect(noData).toBe(2);
+    expect(bands + noData).toBe(5);
+  });
+
+  it('passes the no-data count to the map, 0 when every country has a value', async () => {
+    mountFullRange(2024);
+    const map = await screen.findByTestId('choropleth');
+    expect(map.getAttribute('data-no-data-count')).not.toBeNull();
+    expect(Number(map.getAttribute('data-no-data-count'))).toBeGreaterThanOrEqual(0);
   });
 
   it('makes the whole chart card body the map panel, with the map flush on it', async () => {
