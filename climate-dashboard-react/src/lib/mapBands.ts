@@ -15,8 +15,8 @@ export interface MapBandScale {
 export const MAP_BANDS: Record<BandMode, MapBandScale> = {
   // Yearly emissions, MtCO₂
   absolute: { breaks: [1, 10, 100, 250, 500, 1000, 2500], labels: ['<1', '1–10', '10–100', '100–250', '250–500', '500–1k', '1k–2.5k', '2.5k+'] },
-  // The running total emitted, MtCO₂
-  cumulative: { breaks: [100, 1000, 5000, 20000, 50000, 100000, 250000], labels: ['<100', '100–1k', '1k–5k', '5k–20k', '20k–50k', '50k–100k', '100k–250k', '250k+'] },
+  // The running total emitted: breaks in MtCO₂, labels in GtCO₂ (the same breaks ÷ 1000)
+  cumulative: { breaks: [100, 1000, 5000, 20000, 50000, 100000, 250000], labels: ['<0.1', '0.1–1', '1–5', '5–20', '20–50', '50–100', '100–250', '250+'] }, // the breaks are in MtCO₂ (the unit of the values); the cumulative labels are in GtCO₂, the unit the card shows
 };
 
 export interface BandMove {
@@ -32,32 +32,39 @@ export interface BandMove {
   value: number;
 }
 
-export const MOVES_UP = 4;
-export const MOVES_DOWN = 3;
+export const OUTSIDE_MOVERS = 3;
+
+/** The band a country was in before and is in now, and how many it crossed; null when it has no value in either year (nothing to compare). A real zero is a value, in the lowest band. */
+export function bandChange(before: number | null | undefined, now: number | null | undefined, breaks: ReadonlyArray<number>): { from: number; to: number; steps: number } | null {
+  if (now == null || !(now >= 0) || before == null || !(before >= 0)) return null;
+  const from = bandIndex(before, breaks);
+  const to = bandIndex(now, breaks);
+  return { from, to, steps: to - from };
+}
 
 /**
- * The countries that changed band between two years of the same mode, ranked by the size of the change in MtCO₂ (latest − baseline), not by the bands crossed:
- * the largest increases first (`MOVES_UP`), then, unless `up only`, the largest decreases (`MOVES_DOWN`); ties by the larger value now. A one-band move of a large
- * emitter outranks a two-band move of a small one. Cumulative totals cannot fall, so that mode asks for ups only. A country with no value in either year is left
- * out (there is nothing to compare); a real zero is a value, in the lowest band. `before` and `now` are values by country, parallel to `isos` and `names`.
+ * The countries OUTSIDE the chosen ones that changed band since the comparison year, the biggest changes in tonnes first (ups and downs together, by the size of the
+ * change in MtCO₂, ties by the larger value now): the top `limit`. Cumulative totals cannot fall, so that mode asks for ups only. `exclude` holds the indices of the
+ * chosen countries. `before` and `now` are values by country, parallel to `isos` and `names`.
  */
-export function bandMoves(
+export function outsideMovers(
   before: ReadonlyArray<number | null | undefined>,
   now: ReadonlyArray<number | null | undefined>,
   isos: ReadonlyArray<string>,
   names: ReadonlyArray<string>,
   breaks: ReadonlyArray<number>,
-  { upOnly = false }: { upOnly?: boolean } = {},
+  exclude: ReadonlySet<number>,
+  { upOnly = false, limit = OUTSIDE_MOVERS }: { upOnly?: boolean; limit?: number } = {},
 ): BandMove[] {
   const moves: BandMove[] = [];
   now.forEach((value, i) => {
-    const v0 = before[i];
-    if (value == null || !(value >= 0) || v0 == null || !(v0 >= 0)) return;
-    const from = bandIndex(v0, breaks);
-    const to = bandIndex(value, breaks);
-    if (from !== to) moves.push({ iso: isos[i], name: names[i], from, to, steps: to - from, change: value - v0, value });
+    if (exclude.has(i)) return;
+    const c = bandChange(before[i], value, breaks);
+    if (!c || c.steps === 0 || (upOnly && c.steps < 0)) return;
+    moves.push({ iso: isos[i], name: names[i], from: c.from, to: c.to, steps: c.steps, change: (value as number) - (before[i] as number), value: value as number });
   });
-  const ups = moves.filter((m) => m.steps > 0).sort((a, b) => b.change - a.change || b.value - a.value).slice(0, MOVES_UP);
-  const downs = upOnly ? [] : moves.filter((m) => m.steps < 0).sort((a, b) => a.change - b.change || b.value - a.value).slice(0, MOVES_DOWN);
-  return [...ups, ...downs];
+  return moves.sort((a, b) => Math.abs(b.change) - Math.abs(a.change) || b.value - a.value).slice(0, limit);
 }
+
+/** The scale for the map in the unit the card shows: Absolute stays in MtCO₂; Cumulative is in GtCO₂ (the breaks ÷ 1000, the values ÷ 1000 by the caller). */
+export const MAP_UNIT_DIVISOR: Record<BandMode, number> = { absolute: 1, cumulative: 1000 };
