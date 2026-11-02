@@ -328,7 +328,6 @@ function AnimatedWorldMap({
         className="overview-map-card"
         // The annual map is "Where emissions come from": the By Country bar chart below keeps "CO₂ Emissions by Country (year)", so no two charts share a title.
         title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `Where emissions come from, ${currentYear}`}
-        supportText={isCumulative ? `Running total, MtCO₂ emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'} (the cards beside the map show GtCO₂)` : 'Annual MtCO₂'}
         actions={
           <SegmentedControl
             name="map-mode"
@@ -399,19 +398,15 @@ function AnimatedWorldMap({
           bandLabels={bandScale.labels}
           ariaLabel={
             isCumulative
-              ? `World map of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest)`
-              : `World map of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest)`
+              ? `World map of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest); countries with no CO₂ ever recorded are hatched`
+              : `World map of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest); countries with no data for the year are hatched`
           }
           outline={outlineLocations}
+          // The legend carries what the caption under the map did: the hatched No data (with its count) and a key for the outlined countries.
+          outlineLabel="Selected"
           controls="overlay"
         />
         </div>
-        <Text as="p" type="caption" tone="muted">
-          {isCumulative
-            ? `Hatched: no CO₂ ever recorded for that country up to ${currentYear}.`
-            : `Hatched: no CO₂ data reported for that country in ${currentYear}.`}
-          {outlineLocations.length > 0 ? ' Outlined: your selected countries.' : ''}
-        </Text>
         </>
         )}
       </ChartCard>

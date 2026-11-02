@@ -62,7 +62,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
       );
     },
     // The map's own drawing is the design system's concern; its props are what this page wires.
-    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; noDataCount?: number; controls?: string; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
+    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; noDataCount?: number; controls?: string; outlineLabel?: string; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
       <SynThemeProvider theme="night" storageKey={null}><RealChoropleth {...props} /></SynThemeProvider>
     ) : (
       <div
@@ -77,6 +77,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-flush={props.flush ? 'true' : undefined}
         data-no-data-count={props.noDataCount}
         data-controls={props.controls}
+        data-outline-label={props.outlineLabel}
         data-breaks={props.breaks ? JSON.stringify(props.breaks) : undefined}
         data-band-labels={props.bandLabels ? JSON.stringify(props.bandLabels) : undefined}
         data-outline={props.outline ? JSON.stringify(props.outline) : undefined}
@@ -529,7 +530,7 @@ describe('OverviewPage', () => {
     const map = () => screen.getByTestId('choropleth');
     // Default selection is the 10 featured; only China is in this 2-country fixture series.
     expect(map()).toHaveAttribute('data-outline', '["CHN"]');
-    expect(screen.getByText(/Outlined: your selected countries\./)).toBeInTheDocument();
+    expect(map()).toHaveAttribute('data-outline-label', 'Selected'); // the legend's key for the outline (the caption line is gone)
     unmount();
     render(<MemoryRouter initialEntries={['/overview?countries=vietnam']}><OverviewPage /></MemoryRouter>);
     await screen.findAllByText('All Countries');
@@ -1072,7 +1073,7 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 1969, allCountries: true });
     expect(screen.getByRole('radio', { name: 'Absolute' })).toBeChecked();
     expect(await screen.findByRole('radio', { name: 'Cumulative' })).not.toBeDisabled();
-    expect(screen.getByText('Annual MtCO₂')).toBeInTheDocument();
+    expect(screen.queryByText('Annual MtCO₂')).not.toBeInTheDocument(); // the legend's label says it; the card keeps no support line
   });
 
   it('switches the map to running totals: its own title, unit, colour bar and frame values (GtCO₂), and back', async () => {
@@ -1085,23 +1086,24 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const values = JSON.parse(map.getAttribute('data-values')!) as Record<string, number>;
     ['CHN', 'VNM'].forEach((iso, i) => expect(values[iso]).toBeCloseTo(CUM[2024 - 1970][i] * 1000, 6));
     expect(screen.getByText('Cumulative CO₂ Emissions by Country, 1750–2024')).toBeInTheDocument();
-    expect(screen.getByText('Running total, MtCO₂ emitted since 1750 (the cards beside the map show GtCO₂)')).toBeInTheDocument();
+    expect(screen.queryByText(/^Running total, MtCO₂ emitted/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: 'Absolute' }));
     expect(screen.getByText('Where emissions come from, 2024')).toBeInTheDocument();
     expect(screen.getByTestId('choropleth')).toHaveAttribute('data-value-label', 'CO₂ emissions, MtCO₂');
   });
 
-  it('the map\'s accessible label and the hatched-no-data note describe the cumulative view, not the annual one', async () => {
+  it('the map\'s accessible label describes the cumulative view, not the annual one, and no caption line is left under the map', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     // Absolute
     expect(screen.getByLabelText(/^World map of CO₂ emissions by country, 1970 to 2024, currently showing 2024, coloured in 8 bands from pale yellow \(lowest\) to dark red \(highest\)/)).toBeInTheDocument();
-    expect(screen.getByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).toBeInTheDocument();
+    expect(screen.getByLabelText(/countries with no data for the year are hatched$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Hatched:/)).not.toBeInTheDocument(); // the legend's No data swatch and Selected key replace the caption
     // Cumulative: the period each value covers is stated, apart from the 1970–2024 frame range
     fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
     expect(screen.getByLabelText(/^World map of cumulative CO₂ emissions by country: the running total emitted since 1750, currently showing 2024/)).toBeInTheDocument();
-    expect(screen.getByText(/^Hatched: no CO₂ ever recorded for that country up to 2024\./)).toBeInTheDocument();
-    expect(screen.queryByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/countries with no CO₂ ever recorded are hatched$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Hatched:/)).not.toBeInTheDocument();
   });
 
   it('counts every country with a value in a band, drawn or not: the bands add up to the All Countries tier\'s countries', async () => {
@@ -1126,7 +1128,7 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     const legend = await screen.findByRole('list', { name: /in 8 bands from lowest to highest/ });
     const bands = within(legend).getAllByText(/countr(y|ies)$/).map((e) => Number(e.textContent!.match(/\d+/)![0])).reduce((a, b) => a + b, 0);
-    const noData = Number(screen.getByText(/^\d+ countries$/, { selector: 'span:not(li span)' }).textContent!.match(/\d+/)![0]);
+    const noData = Number(screen.getByText(/^No data · \d+ countries$/, { selector: 'span' }).textContent!.match(/\d+/)![0]);
     expect(bands).toBe(3);
     expect(noData).toBe(2);
     expect(bands + noData).toBe(5);
@@ -1137,6 +1139,32 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const map = await screen.findByTestId('choropleth');
     expect(map.getAttribute('data-no-data-count')).not.toBeNull();
     expect(Number(map.getAttribute('data-no-data-count'))).toBeGreaterThanOrEqual(0);
+  });
+
+  it('asks the legend for a Selected key, and the real legend writes "No data · n countries" beside it', async () => {
+    mountFullRange(2024);
+    expect(await screen.findByTestId('choropleth')).toHaveAttribute('data-outline-label', 'Selected');
+  });
+
+  it('writes the no-data count beside the hatched swatch and the Selected key beside it, with no caption line', async () => {
+    realMap.on = true;
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue({ ...RESPONSE, all_countries: { ...RESPONSE.all_countries, countries_count: 5 } });
+    vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'ZZZ', 'XXX', 'YYY'], countries: ['China', 'Vietnam', 'Zedland', 'Nowhere', 'Neverland'], values: [[14350, 21, 7, null, null], [25324, 370, 0.4, null, null]] });
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
+    expect(await screen.findByText('No data · 2 countries')).toBeInTheDocument();
+    expect(screen.getByText('Selected', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.queryByText(/Outlined: your selected countries/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the year slider named "Year" for assistive technology while its label is not drawn', async () => {
+    mountFullRange(2024);
+    await screen.findByTestId('choropleth');
+    const slider = screen.getByRole('slider', { name: 'Year' });
+    expect(slider).toBeInTheDocument();
+    expect(slider).toHaveAccessibleName('Year');
+    // the label is read out, not drawn: it is not in the visible flow
+    expect(document.querySelector('.overview-map-card label[for]')?.textContent).toBe('Year');
   });
 
   it('puts the map\'s controls over its corner (compact card)', async () => {
