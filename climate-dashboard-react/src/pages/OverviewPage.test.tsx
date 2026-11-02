@@ -62,7 +62,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
       );
     },
     // The map's own drawing is the design system's concern; its props are what this page wires.
-    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; noDataCount?: number; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
+    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; noDataCount?: number; controls?: string; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
       <SynThemeProvider theme="night" storageKey={null}><RealChoropleth {...props} /></SynThemeProvider>
     ) : (
       <div
@@ -76,6 +76,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-surface={props.surface}
         data-flush={props.flush ? 'true' : undefined}
         data-no-data-count={props.noDataCount}
+        data-controls={props.controls}
         data-breaks={props.breaks ? JSON.stringify(props.breaks) : undefined}
         data-band-labels={props.bandLabels ? JSON.stringify(props.bandLabels) : undefined}
         data-outline={props.outline ? JSON.stringify(props.outline) : undefined}
@@ -992,7 +993,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(within(group).getByRole('button', { name: '1990' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(within(group).getByRole('button', { name: '1980' }));
     expect(DEFAULT_ANIMATION.seek).toHaveBeenCalledWith(1980);
-    expect(within(group).getByText('or drag the year slider, year by year')).toBeInTheDocument();
+    expect(screen.queryByText('or drag the year slider, year by year')).not.toBeInTheDocument(); // the row is stops only
   });
 
   it('before 1990 the tiers are summed from the series itself and the "% since 1990" change is suppressed; from 1990 the API totals are used', async () => {
@@ -1136,6 +1137,12 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const map = await screen.findByTestId('choropleth');
     expect(map.getAttribute('data-no-data-count')).not.toBeNull();
     expect(Number(map.getAttribute('data-no-data-count'))).toBeGreaterThanOrEqual(0);
+  });
+
+  it('puts the map\'s controls over its corner (compact card)', async () => {
+    mountFullRange(2024);
+    const map = await screen.findByTestId('choropleth');
+    expect(map).toHaveAttribute('data-controls', 'overlay');
   });
 
   it('makes the whole chart card body the map panel, with the map flush on it', async () => {

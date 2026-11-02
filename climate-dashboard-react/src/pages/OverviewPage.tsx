@@ -23,6 +23,7 @@ import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { PageChrome } from '../layouts/PageChrome';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
+import { RIGHT_COLUMN_MIN_PX, useMapFit } from '../hooks/useMapFit';
 import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
 import { YearBadge } from '../components/overview/YearBadge';
 import { PathwaysSection } from '../components/overview/PathwaysSection';
@@ -216,6 +217,7 @@ function AnimatedWorldMap({
   cumulative,
   world,
   pageYear,
+  mapWidth,
 }: {
   /** The 1970-based series the map plays; the tiers' API totals cover its 1990-and-later part */
   worldMapSeries: WorldMapTimeSeries;
@@ -231,6 +233,8 @@ function AnimatedWorldMap({
   world: WorldTotals | null;
   /** The page's shared year and its Play/scrub controls (the sticky Year control drives the same value). */
   pageYear: UseYearAnimationResult;
+  /** The picture's width in px when the screen's height limits it (so the whole card fits the window); null when the column's width does */
+  mapWidth: number | null;
 }) {
   const minYear = worldMapSeries.years[0];
   const maxYear = worldMapSeries.years[worldMapSeries.years.length - 1];
@@ -347,7 +351,7 @@ function AnimatedWorldMap({
             whole card, and therefore the page) at ~330px -- wider than a 320px phone like
             the Galaxy S9+, forcing horizontal scroll on the entire Overview page. Wrapping
             lets the slider drop to its own line before it has to overflow. */}
-        <div style={{ marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ marginBottom: 4, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button variant="ghost" onClick={toggle}>
             {isPlaying ? 'Pause' : 'Play'}
           </Button>
@@ -370,14 +374,15 @@ function AnimatedWorldMap({
           </div>
         </div>
         {/* Decade stops (§2.6): jump straight to one; Play steps through them. The slider above still scrubs year by year. */}
-        <div role="group" aria-label="Jump to a year" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div role="group" aria-label="Jump to a year" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           {stops.map((year) => (
             <Button key={year} size="small" variant={year === currentYear ? 'primary' : 'secondary'} aria-pressed={year === currentYear} onClick={() => seek(year)}>
               {year}
             </Button>
           ))}
-          <span className="syn-caption" style={WEAK_TEXT}>or drag the year slider, year by year</span>
         </div>
+        {/* The picture is as wide as the window's height allows (mapWidth), centred in its column; null leaves it filling the column. */}
+        <div style={mapWidth ? { width: mapWidth, maxWidth: '100%', marginInline: 'auto' } : undefined}>
         <Choropleth
           values={valuesForYear}
           valueLabel={isCumulative ? 'Cumulative CO₂, MtCO₂' : 'CO₂ emissions, MtCO₂'}
@@ -395,7 +400,9 @@ function AnimatedWorldMap({
               : `World map of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest)`
           }
           outline={outlineLocations}
+          controls="overlay"
         />
+        </div>
         <Text as="p" type="caption" tone="muted">
           {isCumulative
             ? `Hatched: no CO₂ ever recorded for that country up to ${currentYear}.`
@@ -493,6 +500,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const jumpItems = [CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS];
   // The underlined link follows the section on screen, not only the last click.
   const activeJumpId = useScrollSpy(jumpItems.map((i) => i.id), barHeight + jumpRowPx);
+  // The map card is sized to the window's height (the whole card between the pinned bars and the bottom edge, from 1024px wide up).
+  const [mapGrid, setMapGrid] = useState<HTMLElement | null>(null);
+  const mapFit = useMapFit(mapGrid, barHeight + jumpRowPx);
   const cumulativeBase = useMemo(() => cumulativeBaseFrom(cumulativeQuery.data, CLIMATE_SERIES_START_YEAR - 1), [cumulativeQuery.data]);
   const concentrationContext = useMemo<ConcentrationContext | null>(
     () => (climate.signal ? { series: climate.signal.series.concentration, spliceYear: climate.signal.spliceYear, ppm1850: climate.signal.ppm1850 } : null),
@@ -592,8 +602,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           narrow for a world map, forced tall by the taller TierSummaryPanel sharing its row
           (SPEC.md §5.10). */}
       <style>{'@media (max-width: 1400px) { .overview-hero-grid { grid-template-columns: 1fr !important; } }'}</style>
-      <div id="map" className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: SECTION_GAP, alignItems: 'stretch' }}>
+      <div id="map" ref={setMapGrid} className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: mapFit.cardWidth ? `${mapFit.cardWidth}px minmax(${RIGHT_COLUMN_MIN_PX}px, 1fr)` : '2fr 1fr', gap: 16, marginBottom: SECTION_GAP, alignItems: 'stretch' }}>
         <AnimatedWorldMap
+          mapWidth={mapFit.mapWidth}
           worldMapSeries={worldMapSeries}
           selected={selected}
           expanded={expanded}
