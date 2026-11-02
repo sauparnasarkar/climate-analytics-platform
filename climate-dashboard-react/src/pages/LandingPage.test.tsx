@@ -412,6 +412,7 @@ describe('LandingPage — climate-signal carousel', () => {
   it('the carousel row links to the sections under the hero, in page order', async () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
+    await screen.findByRole('heading', { name: 'The stock keeps growing' }); // the section loads its own rankings, after the page
     const links = within(nav).getAllByRole('link');
     expect(links.map((l) => l.textContent)).toEqual(['Chain reaction', 'The stock keeps growing', 'Top 10 emitters', 'Explore the data']);
     expect(links.map((l) => l.getAttribute('href'))).toEqual(['#chain-heading', '#stock-heading', '#race-heading', '#features-heading']);
