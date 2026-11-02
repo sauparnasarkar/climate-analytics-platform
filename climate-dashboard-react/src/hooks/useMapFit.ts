@@ -64,21 +64,28 @@ export function useMapFit(grid: HTMLElement | null, stickyOffset: number): MapFi
     const measure = () => {
       const card = grid.querySelector<HTMLElement>('.overview-map-card');
       const canvas = card?.querySelector<HTMLCanvasElement>('canvas');
+      const panel = card?.querySelector<HTMLElement>('.syn-map-panel');
       const cardBox = card?.getBoundingClientRect();
-      const box = canvas?.getBoundingClientRect();
-      // The table view hides the picture: keep what was last worked out.
-      if (!card || !canvas || !cardBox || !box || box.height < 1 || box.width < 1) return;
+      // The picture's own size as the map set it (one render, so width and height agree); in the table view there is none: keep what was last worked out.
+      const w = canvas ? Number.parseFloat(canvas.style.width) : NaN;
+      const h = canvas ? Number.parseFloat(canvas.style.height) : NaN;
+      if (!card || !panel || !cardBox || !(w > 0) || !(h > 0) || canvas!.hidden) return;
+      // What the card spends on everything but the picture: its height less the picture's, and its width less the room inside its panel (never less the picture's own width,
+      // which would count the empty space beside a map that is narrower than its column).
+      const cs = getComputedStyle(panel);
+      const inner = panel.clientWidth - Number.parseFloat(cs.paddingLeft) - Number.parseFloat(cs.paddingRight);
       const next = fitMap({
         viewportW: window.innerWidth, viewportH: window.innerHeight, stickyOffset, gridWidth: grid.getBoundingClientRect().width,
-        chromeH: cardBox.height - box.height, chromeW: cardBox.width - box.width, aspect: box.width / box.height,
+        chromeH: cardBox.height - h, chromeW: cardBox.width - inner, aspect: w / h,
       });
+      const chromeW = cardBox.width - inner;
       // A→B→A: the legend changed its rows with the width and the sizes chase each other; stop at the smaller.
-      const w = next.mapWidth ?? -1;
-      history.push(w);
+      const result = next.mapWidth ?? -1;
+      history.push(result);
       if (history.length > 3) history.shift();
       if (history.length === 3 && history[0] === history[2] && history[0] !== history[1]) {
         const keep = history[0] === -1 ? history[1] : history[1] === -1 ? history[0] : Math.min(history[0], history[1]);
-        setFit(keep === -1 ? NO_FIT : { mapWidth: keep, cardWidth: keep + (cardBox.width - box.width) });
+        setFit(keep === -1 ? NO_FIT : { mapWidth: keep, cardWidth: keep + chromeW });
         return;
       }
       setFit((prev) => (prev.mapWidth === next.mapWidth && prev.cardWidth === next.cardWidth ? prev : next));
