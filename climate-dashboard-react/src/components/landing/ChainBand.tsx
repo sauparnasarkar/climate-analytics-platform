@@ -12,7 +12,7 @@ import { TAGLINE_HEADING } from '../../navigation';
 // forcing dataset). Every figure comes from the API.
 
 export const CHAIN_BAND_STYLES = `
-.chain-band__steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; border: 1px solid var(--syn-color-border-subtle); border-radius: 8px; overflow: hidden; background: var(--syn-color-surface-base); }
+.chain-band__steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; border: 1px solid var(--syn-color-border-subtle); border-radius: 8px; background: var(--syn-color-surface-base); }
 .chain-band__step { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; min-width: 0; }
 .chain-band__step + .chain-band__step { border-left: 1px solid var(--syn-color-border-subtle); }
 .chain-band__label { font-family: var(--syn-family-ui); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
