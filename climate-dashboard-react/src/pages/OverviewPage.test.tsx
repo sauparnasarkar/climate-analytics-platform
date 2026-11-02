@@ -62,7 +62,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
       );
     },
     // The map's own drawing is the design system's concern; its props are what this page wires.
-    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; noDataCount?: number; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
+    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; noDataCount?: number; controls?: string; outlineLabel?: string; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
       <SynThemeProvider theme="night" storageKey={null}><RealChoropleth {...props} /></SynThemeProvider>
     ) : (
       <div
@@ -76,6 +76,8 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-surface={props.surface}
         data-flush={props.flush ? 'true' : undefined}
         data-no-data-count={props.noDataCount}
+        data-controls={props.controls}
+        data-outline-label={props.outlineLabel}
         data-breaks={props.breaks ? JSON.stringify(props.breaks) : undefined}
         data-band-labels={props.bandLabels ? JSON.stringify(props.bandLabels) : undefined}
         data-outline={props.outline ? JSON.stringify(props.outline) : undefined}
@@ -237,12 +239,10 @@ describe('OverviewPage', () => {
     // The map and the Selected-tier bar chart no longer share a title: the map is "Where emissions are", the bar chart keeps "CO₂ Emissions by Country".
     expect(screen.getByText('Where emissions come from, 2024')).toBeInTheDocument();
     expect(screen.getAllByText('CO₂ Emissions by Country (2024)')).toHaveLength(1);
-    expect(screen.getAllByText('All Countries')).toHaveLength(2); // the tier card and the jump link to its section
-    expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
-    expect(screen.getByText('Selected')).toBeInTheDocument();
-    // Each tier row carries its own inline 'CO₂ (2024)' metric label (SPEC.md §5.18.2's
-    // heading-above-a-metric-strip layout, one per tier: All Countries/Expanded/Selected).
-    expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(3);
+    expect(screen.getAllByText('All Countries')).toHaveLength(1); // the jump link to its section (the tier is a row of the table below)
+    // One table with one header row, and a row per tier: name and count in the row header.
+    expect(within(tierTable()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Tier', 'CO₂ 2024', 'Since 1990']);
+    expect(tierRowsData().map((r) => r[0])).toEqual(['All countries · 195', 'Expanded · 40', 'Selected · 10']);
     // Tier numbers snap directly to their value (no CountUpText/aria-hidden duplication --
     // these change every autoplay tick, unlike the one-time KpiStat count-ups below).
     // All Countries and Expanded are summed from the series (the API sends no per-year tier totals): China 25,324 + Vietnam 370, in both tiers here.
@@ -263,7 +263,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('Selected');
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
 
     const map = screen.getByTestId('choropleth');
     expect(JSON.parse(map.dataset.values!)).toEqual({ CHN: 25324, VNM: 370 });
@@ -307,12 +307,12 @@ describe('OverviewPage', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('Selected');
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
 
     vi.mocked(api.overview).mockResolvedValue({ ...RESPONSE, selected_country_list: ['Vietnam'] });
     await user.click(screen.getByLabelText('Select countries (up to 10/11)'));
     await user.click(screen.getByRole('option', { name: 'Vietnam' }));
-    await screen.findByText('Selected'); // re-render settled
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ }); // re-render settled
 
     expect(vi.mocked(api.worldMapSeries)).toHaveBeenCalledTimes(1);
   });
@@ -361,7 +361,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    await screen.findByText('Selected');
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
     // All Countries, Expanded, and Selected each suppress their own pct-change row.
     expect(screen.getAllByText('—')).toHaveLength(3);
     expect(screen.queryByText('+0.0%')).not.toBeInTheDocument();
@@ -374,7 +374,7 @@ describe('OverviewPage', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('Selected');
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
 
     await user.click(screen.getByLabelText('Select countries (up to 10/11)'));
     const vietnamOption = screen.getByRole('option', { name: 'Vietnam' });
@@ -391,7 +391,7 @@ describe('OverviewPage', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('Selected');
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
 
     const updated: OverviewResponse = {
       ...RESPONSE,
@@ -421,17 +421,16 @@ describe('OverviewPage', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('Selected');
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
 
     await user.click(screen.getByRole('combobox', { name: /^Select countries/ }));
     await user.click(screen.getByRole('button', { name: 'Clear' }));
 
     // The heading sits outside the selected.length guard (SPEC.md §5.19, so #by-country is always a real jump target), so By Country renders its own InlineAlert.
     expect(await screen.findAllByText('Select at least one country.')).toHaveLength(1);
-    expect(screen.queryByText('Selected')).not.toBeInTheDocument();
+    expect(screen.queryByRole('rowheader', { name: /^Selected · / })).not.toBeInTheDocument(); // the row is hidden at 0 selected
     // All Countries/Expanded stay rendered regardless of the (now empty) selection.
-    expect(screen.getAllByText('All Countries')).toHaveLength(2); // the tier card and the jump link to its section
-    expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
+    expect(tierRowsData().map((r) => r[0])).toEqual(['All countries · 195', 'Expanded · 40']); // the Selected row is hidden at 0 selected
     // headline_movers (SPEC.md §5.18.5) is a fixed top-10-emitters set from the server,
     // completely independent of `selected` -- unlike the old top_movers-backed headline, it
     // must stay visible even when every country has been deselected from the picker.
@@ -465,7 +464,7 @@ describe('OverviewPage', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
-    await screen.findByText('Selected');
+    await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
 
     await user.click(screen.getByRole('combobox', { name: /^Select countries/ }));
     await user.click(screen.getByRole('button', { name: 'Clear' }));
@@ -475,7 +474,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     await user.click(screen.getByRole('button', { name: 'Reset to default' }));
 
-    expect(await screen.findByText('Selected')).toBeInTheDocument();
+    expect(await screen.findByRole('rowheader', { name: /^Selected · \d+/ })).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
   });
 
@@ -528,7 +527,7 @@ describe('OverviewPage', () => {
     const map = () => screen.getByTestId('choropleth');
     // Default selection is the 10 featured; only China is in this 2-country fixture series.
     expect(map()).toHaveAttribute('data-outline', '["CHN"]');
-    expect(screen.getByText(/Outlined: your selected countries\./)).toBeInTheDocument();
+    expect(map()).toHaveAttribute('data-outline-label', 'Selected'); // the legend's key for the outline (the caption line is gone)
     unmount();
     render(<MemoryRouter initialEntries={['/overview?countries=vietnam']}><OverviewPage /></MemoryRouter>);
     await screen.findAllByText('All Countries');
@@ -842,8 +841,12 @@ const FULL_RESPONSE: OverviewResponse = {
 };
 // The shell's pinned bar (68px) sits outside the canvas; the page's own pinned row inside it (a stand-in for both, measured through getBoundingClientRect).
 const barOrRowHeight = (el: HTMLElement, row: number) => (el.dataset.testid === 'shell-bar' ? 68 : el.style.position === 'sticky' ? row : 0);
-const tierChanges = () => screen.getAllByText('% Chg. since 1990').map((label) => label.nextElementSibling?.textContent);
+// The tiers are one real table: Tier | CO₂ {year} (or Total to {year}) | Since {baseline}; a row per group, the name and count in the row header.
+const tierTable = () => screen.getByRole('table', { name: /^CO₂ by group of countries in \d{4}$/ });
+const tierRowsData = () => within(tierTable()).getAllByRole('row').slice(1).map((r) => [...r.children].map((c) => (c.textContent ?? '').replace('ⓘ', '')));
+const tierChanges = () => tierRowsData().map((r) => r[2]);
 const mapSide = () => document.querySelector('.overview-hero-right') as HTMLElement;
+const mapColumn = () => document.querySelector('.overview-hero-left') as HTMLElement;
 
 // The all-countries snapshot at the last year before the series (1969): cumulative Mt per ISO3 country, recorded from 1750.
 const BASE_MT = { CHN: 100_000, VNM: 200 };
@@ -891,10 +894,9 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
   it('labels the "Since 1990" headline as a fixed comparison that does not follow the map\'s year, at every stop', async () => {
     mountFullRange(1980);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(within(mapSide()).getByText('Fixed comparison, 1990 to 2024; the cards below follow the map\'s year.')).toBeInTheDocument();
+    expect(within(mapColumn()).getByText('Fixed comparison, 1990 to 2024; the map and the cards beside it follow the map\'s year.')).toBeInTheDocument();
     // while the year-dependent cards are on the historical frame
-    expect(within(mapSide()).getByText('Atmospheric CO₂ · 1980')).toBeInTheDocument();
-    expect(within(mapSide()).getAllByText('CO₂ (1980)')).toHaveLength(3);
+    expect(within(tierTable()).getByRole('columnheader', { name: 'CO₂ 1980' })).toBeInTheDocument();
   });
 
   it('asks for the 1970 range, plays it in decade stops (~1.75 s each) and spans 1970 to 2024', async () => {
@@ -992,7 +994,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(within(group).getByRole('button', { name: '1990' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(within(group).getByRole('button', { name: '1980' }));
     expect(DEFAULT_ANIMATION.seek).toHaveBeenCalledWith(1980);
-    expect(within(group).getByText('or drag the year slider, year by year')).toBeInTheDocument();
+    expect(screen.queryByText('or drag the year slider, year by year')).not.toBeInTheDocument(); // the row is stops only
   });
 
   it('before 1990 the tiers are summed from the series itself and the "% since 1990" change is suppressed; from 1990 the API totals are used', async () => {
@@ -1021,43 +1023,45 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
   });
 });
 
-describe('OverviewPage — atmospheric CO₂ card on the map', () => {
-  it('shows the ppm for the map\'s own year with the change since 1850, the splice, and that it is global, not split by country', async () => {
-    mountFullRange(1990);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const card = within(mapSide()).getByText('Atmospheric CO₂ · 1990').closest('div')!.parentElement as HTMLElement;
-    expect(within(card).getByText(`${(354.45).toFixed(1)} ppm`)).toBeInTheDocument();
-    expect(within(card).getByText(`+${(354.45 - 286.8).toFixed(1)} ppm (+${(((354.45 - 286.8) / 286.8) * 100).toFixed(1)}%) since 1850`)).toBeInTheDocument();
-    expect(within(card).getByText(/Law Dome ice core to 1958 · NOAA Mauna Loa from 1959\. One global value: concentration is not split by country\./)).toBeInTheDocument();
-    expect(within(card).getByText('GLOBAL')).toBeInTheDocument();
-  });
-
-  it('follows the selected year, and shows a dash rather than a made-up figure when the year has no value', async () => {
+describe('OverviewPage — the map tab\'s columns', () => {
+  it('has no Atmospheric CO₂ card on the All Countries tab', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(within(mapSide()).getByText('Atmospheric CO₂ · 2024')).toBeInTheDocument();
-    expect(within(mapSide()).getByText('424.6 ppm')).toBeInTheDocument();
+    expect(screen.queryByText(/^Atmospheric CO₂ · 2024/, { selector: '.overview-hero-right *, .overview-hero-left *' })).not.toBeInTheDocument();
+    expect(within(mapSide()).queryByText(/Atmospheric CO₂/)).not.toBeInTheDocument();
   });
 
-  it('shows a dash, not an invented figure, for a year the concentration series has no value for', async () => {
-    mountFullRange(2000); // the fixture series has no 2000 value
+  it('keeps the page\'s order from the map down: map, the Since summary, Leading emitters, Changed band, then the tiers (this is also the stacked order on a phone)', async () => {
+    mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const card = within(mapSide()).getByText('Atmospheric CO₂ · 2000').closest('div')!.parentElement as HTMLElement;
-    expect(within(card).getByText('—')).toBeInTheDocument();
-    expect(within(card).queryByText(/since 1850/)).not.toBeInTheDocument();
+    const card = document.querySelector('.overview-map-card') as HTMLElement;
+    const summary = screen.getByText(/^Fixed comparison, 1990 to 2024/).closest('div') as HTMLElement;
+    const leading = screen.getByRole('region', { name: 'Leading emitters · 2024' });
+    const bands = screen.getByRole('region', { name: 'Changed band since 1990' });
+    const tiers = tierTable();
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(card, summary)).toBe(true);
+    expect(follows(summary, leading)).toBe(true);
+    expect(follows(leading, bands)).toBe(true);
+    expect(follows(bands, tiers)).toBe(true);
   });
 
-  it('is left out when the climate data is missing', async () => {
-    vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: 2024 });
-    vi.mocked(api.listCountries).mockResolvedValue({ featured: ['China'], expanded: ['China', 'Vietnam'] });
-    vi.mocked(api.overview).mockResolvedValue(FULL_RESPONSE);
-    vi.mocked(api.worldMapSeries).mockResolvedValue(FULL_MAP);
-    vi.mocked(api.correlationEmissionsTemperature).mockRejectedValue(new ApiError(503, 'climate data missing'));
-    vi.mocked(api.correlationTemperature).mockResolvedValue(TEMPERATURE);
-    vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
-    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+  it('puts the summary directly under the map card in the same column, so it is as wide as the card whatever the card\'s width', async () => {
+    mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(screen.queryByText(/Atmospheric CO₂ · /)).not.toBeInTheDocument();
+    const column = mapColumn();
+    const card = document.querySelector('.overview-map-card') as HTMLElement;
+    const summary = screen.getByText(/^Fixed comparison, 1990 to 2024/).closest('div') as HTMLElement;
+    const children = [...column.children];
+    expect(children.indexOf(card.closest('.overview-hero-left > *') as Element)).toBe(0);
+    expect(children.indexOf(summary)).toBe(1); // directly under it
+    expect(column.style.gap).toBe('16px');
+    // both columns may shrink below their content (a table with non-wrapping cells must not widen the page's single column on a 320px phone)
+    expect(column.style.minWidth).toBe('0px');
+    expect(mapSide().style.minWidth).toBe('0px');
+    // neither carries a width of its own: both take the column's (which the fit sets to the card's width)
+    expect(summary.style.width).toBe('');
+    expect((card.closest('.overview-hero-left > *') as HTMLElement).style.width).toBe('');
   });
 });
 
@@ -1071,7 +1075,7 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 1969, allCountries: true });
     expect(screen.getByRole('radio', { name: 'Absolute' })).toBeChecked();
     expect(await screen.findByRole('radio', { name: 'Cumulative' })).not.toBeDisabled();
-    expect(screen.getByText('Annual MtCO₂')).toBeInTheDocument();
+    expect(screen.queryByText('Annual MtCO₂')).not.toBeInTheDocument(); // the legend's label says it; the card keeps no support line
   });
 
   it('switches the map to running totals: its own title, unit, colour bar and frame values (GtCO₂), and back', async () => {
@@ -1084,23 +1088,24 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const values = JSON.parse(map.getAttribute('data-values')!) as Record<string, number>;
     ['CHN', 'VNM'].forEach((iso, i) => expect(values[iso]).toBeCloseTo(CUM[2024 - 1970][i] * 1000, 6));
     expect(screen.getByText('Cumulative CO₂ Emissions by Country, 1750–2024')).toBeInTheDocument();
-    expect(screen.getByText('Running total, MtCO₂ emitted since 1750 (the cards beside the map show GtCO₂)')).toBeInTheDocument();
+    expect(screen.queryByText(/^Running total, MtCO₂ emitted/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: 'Absolute' }));
     expect(screen.getByText('Where emissions come from, 2024')).toBeInTheDocument();
     expect(screen.getByTestId('choropleth')).toHaveAttribute('data-value-label', 'CO₂ emissions, MtCO₂');
   });
 
-  it('the map\'s accessible label and the hatched-no-data note describe the cumulative view, not the annual one', async () => {
+  it('the map\'s accessible label describes the cumulative view, not the annual one, and no caption line is left under the map', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     // Absolute
     expect(screen.getByLabelText(/^World map of CO₂ emissions by country, 1970 to 2024, currently showing 2024, coloured in 8 bands from pale yellow \(lowest\) to dark red \(highest\)/)).toBeInTheDocument();
-    expect(screen.getByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).toBeInTheDocument();
+    expect(screen.getByLabelText(/countries with no data for the year are hatched$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Hatched:/)).not.toBeInTheDocument(); // the legend's No data swatch and Selected key replace the caption
     // Cumulative: the period each value covers is stated, apart from the 1970–2024 frame range
     fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
     expect(screen.getByLabelText(/^World map of cumulative CO₂ emissions by country: the running total emitted since 1750, currently showing 2024/)).toBeInTheDocument();
-    expect(screen.getByText(/^Hatched: no CO₂ ever recorded for that country up to 2024\./)).toBeInTheDocument();
-    expect(screen.queryByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/countries with no CO₂ ever recorded are hatched$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Hatched:/)).not.toBeInTheDocument();
   });
 
   it('counts every country with a value in a band, drawn or not: the bands add up to the All Countries tier\'s countries', async () => {
@@ -1125,7 +1130,7 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     const legend = await screen.findByRole('list', { name: /in 8 bands from lowest to highest/ });
     const bands = within(legend).getAllByText(/countr(y|ies)$/).map((e) => Number(e.textContent!.match(/\d+/)![0])).reduce((a, b) => a + b, 0);
-    const noData = Number(screen.getByText(/^\d+ countries$/, { selector: 'span:not(li span)' }).textContent!.match(/\d+/)![0]);
+    const noData = Number(screen.getByText(/^No data · \d+ countries$/, { selector: 'span' }).textContent!.match(/\d+/)![0]);
     expect(bands).toBe(3);
     expect(noData).toBe(2);
     expect(bands + noData).toBe(5);
@@ -1136,6 +1141,38 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const map = await screen.findByTestId('choropleth');
     expect(map.getAttribute('data-no-data-count')).not.toBeNull();
     expect(Number(map.getAttribute('data-no-data-count'))).toBeGreaterThanOrEqual(0);
+  });
+
+  it('asks the legend for a Selected key, and the real legend writes "No data · n countries" beside it', async () => {
+    mountFullRange(2024);
+    expect(await screen.findByTestId('choropleth')).toHaveAttribute('data-outline-label', 'Selected');
+  });
+
+  it('writes the no-data count beside the hatched swatch and the Selected key beside it, with no caption line', async () => {
+    realMap.on = true;
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue({ ...RESPONSE, all_countries: { ...RESPONSE.all_countries, countries_count: 5 } });
+    vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'ZZZ', 'XXX', 'YYY'], countries: ['China', 'Vietnam', 'Zedland', 'Nowhere', 'Neverland'], values: [[14350, 21, 7, null, null], [25324, 370, 0.4, null, null]] });
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
+    expect(await screen.findByText('No data · 2 countries')).toBeInTheDocument();
+    expect(screen.getByText('Selected', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.queryByText(/Outlined: your selected countries/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the year slider named "Year" for assistive technology while its label is not drawn', async () => {
+    mountFullRange(2024);
+    await screen.findByTestId('choropleth');
+    const slider = screen.getByRole('slider', { name: 'Year' });
+    expect(slider).toBeInTheDocument();
+    expect(slider).toHaveAccessibleName('Year');
+    // the label is read out, not drawn: it is not in the visible flow
+    expect(document.querySelector('.overview-map-card label[for]')?.textContent).toBe('Year');
+  });
+
+  it('puts the map\'s controls over its corner (compact card)', async () => {
+    mountFullRange(2024);
+    const map = await screen.findByTestId('choropleth');
+    expect(map).toHaveAttribute('data-controls', 'overlay');
   });
 
   it('makes the whole chart card body the map panel, with the map flush on it', async () => {
@@ -1169,19 +1206,42 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(cumulative).toHaveAttribute('data-band-labels', JSON.stringify(['<100', '100–1k', '1k–5k', '5k–20k', '20k–50k', '50k–100k', '100k–250k', '250k+']));
   });
 
-  it('the tiers show cumulative GtCO₂ and each group\'s share of the world total, summing to the same world', async () => {
+  it('in Cumulative the tier table reads Total to {year} and Since {baseline}: each group\'s running total in GtCO₂ and its growth since the baseline', async () => {
     mountFullRange(2024);
     await showCumulative();
-    expect(screen.getAllByText('Cumulative 1750–2024')).toHaveLength(3);
-    expect(screen.getAllByText('Share of world total')).toHaveLength(3);
-    expect(screen.queryByText('% Chg. since 1990')).not.toBeInTheDocument();
+    expect(within(tierTable()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Tier', 'Total to 2024', 'Since 1990']);
     const world = CUM[54][0] + CUM[54][1];
     const china = CUM[54][0];
-    const sideText = mapSide().textContent!;
-    expect(sideText).toContain(`${gt(world)} GtCO₂`); // All Countries (and Expanded: the same two countries)
-    expect(sideText).toContain(`${gt(china)} GtCO₂`); // Selected = China
-    expect(sideText).toContain(`${((world / (world * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`); // All Countries is NOT the whole world: the rest is international transport
-    expect(sideText).toContain(`${((china / (world * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`);
+    const rows = tierRowsData();
+    expect(rows[0][1]).toBe(`${gt(world)} GtCO₂`); // All countries
+    expect(rows[2][1]).toBe(`${gt(china)} GtCO₂`); // Selected = China
+    const growth = (now: number, then: number) => `+${(((now - then) / then) * 100).toFixed(1)}%`;
+    expect(rows[2][2]).toBe(growth(china, CUM[20][0])); // the running total at 1990 (index 20 of the 1970-based series)
+    expect(screen.queryByText('Share of world total')).not.toBeInTheDocument();
+  });
+
+  it('hides the Selected row at 0 selected in both modes', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(tierRowsData()).toHaveLength(3);
+    cleanup();
+    vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: 2024 });
+    render(<MemoryRouter initialEntries={['/overview?countries=']}><OverviewPage /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(tierRowsData().map((r) => r[0].split(' · ')[0])).toEqual(['All countries', 'Expanded']);
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    expect(tierRowsData().map((r) => r[0].split(' · ')[0])).toEqual(['All countries', 'Expanded']);
+  });
+
+  it('explains Expanded behind an ⓘ in its row, reachable by keyboard', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const row = within(tierTable()).getByRole('rowheader', { name: /^Expanded · / });
+    const info = within(row).getByRole('button', { name: 'About Expanded' });
+    expect(info).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(info);
+    expect(info).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('note')).toHaveTextContent('Coverage countries plus any country emitting ≥100 Mt');
   });
 
   it('the table view follows the mode (the running totals in MtCO₂, with a cumulative caption)', async () => {
@@ -1194,14 +1254,6 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(within(region).getByRole('columnheader', { name: 'Cumulative CO₂, MtCO₂' })).toBeInTheDocument();
     expect(within(region).getByText((CUM[54][0] * 1000).toLocaleString('en-GB'))).toBeInTheDocument(); // China's running total
     expect(within(region).getAllByText('No data').length).toBeGreaterThan(100); // every country without a value is listed, not left out
-  });
-
-  it('keeps the atmospheric CO₂ card the same in both modes: a stock, never split by country', async () => {
-    mountFullRange(2024);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const before = within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent;
-    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
-    expect(within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent).toBe(before);
   });
 
   it('also offers only Absolute when the snapshot comes back empty (a 200 with no rows): an empty base would silently drop the pre-1970 history', async () => {
@@ -1271,7 +1323,7 @@ describe('OverviewPage — leading emitters', () => {
     expect(rows[0]).toHaveTextContent(`${fmt0(chinaAt(2024))} Mt`);
     expect(rows[0].textContent).not.toMatch(/%/);
     fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
-    expect(mapSide().textContent).toContain('—'); // the tiers' share cell is a dash, not a percentage of the countries' sum
+    expect(mapSide().textContent).not.toMatch(/Share of world total/); // the tier table carries no share column
   });
 
   it('states no warming attribution anywhere on the card: it ranks emissions only', async () => {
