@@ -846,6 +846,7 @@ const FULL_RESPONSE: OverviewResponse = {
 const barOrRowHeight = (el: HTMLElement, row: number) => (el.dataset.testid === 'shell-bar' ? 68 : el.style.position === 'sticky' ? row : 0);
 const tierChanges = () => screen.getAllByText('% Chg. since 1990').map((label) => label.nextElementSibling?.textContent);
 const mapSide = () => document.querySelector('.overview-hero-right') as HTMLElement;
+const mapColumn = () => document.querySelector('.overview-hero-left') as HTMLElement;
 
 // The all-countries snapshot at the last year before the series (1969): cumulative Mt per ISO3 country, recorded from 1750.
 const BASE_MT = { CHN: 100_000, VNM: 200 };
@@ -893,9 +894,8 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
   it('labels the "Since 1990" headline as a fixed comparison that does not follow the map\'s year, at every stop', async () => {
     mountFullRange(1980);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(within(mapSide()).getByText('Fixed comparison, 1990 to 2024; the cards below follow the map\'s year.')).toBeInTheDocument();
+    expect(within(mapColumn()).getByText('Fixed comparison, 1990 to 2024; the map and the cards beside it follow the map\'s year.')).toBeInTheDocument();
     // while the year-dependent cards are on the historical frame
-    expect(within(mapSide()).getByText('Atmospheric CO₂ · 1980')).toBeInTheDocument();
     expect(within(mapSide()).getAllByText('CO₂ (1980)')).toHaveLength(3);
   });
 
@@ -1023,43 +1023,42 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
   });
 });
 
-describe('OverviewPage — atmospheric CO₂ card on the map', () => {
-  it('shows the ppm for the map\'s own year with the change since 1850, the splice, and that it is global, not split by country', async () => {
-    mountFullRange(1990);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const card = within(mapSide()).getByText('Atmospheric CO₂ · 1990').closest('div')!.parentElement as HTMLElement;
-    expect(within(card).getByText(`${(354.45).toFixed(1)} ppm`)).toBeInTheDocument();
-    expect(within(card).getByText(`+${(354.45 - 286.8).toFixed(1)} ppm (+${(((354.45 - 286.8) / 286.8) * 100).toFixed(1)}%) since 1850`)).toBeInTheDocument();
-    expect(within(card).getByText(/Law Dome ice core to 1958 · NOAA Mauna Loa from 1959\. One global value: concentration is not split by country\./)).toBeInTheDocument();
-    expect(within(card).getByText('GLOBAL')).toBeInTheDocument();
-  });
-
-  it('follows the selected year, and shows a dash rather than a made-up figure when the year has no value', async () => {
+describe('OverviewPage — the map tab\'s columns', () => {
+  it('has no Atmospheric CO₂ card on the All Countries tab', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(within(mapSide()).getByText('Atmospheric CO₂ · 2024')).toBeInTheDocument();
-    expect(within(mapSide()).getByText('424.6 ppm')).toBeInTheDocument();
+    expect(screen.queryByText(/^Atmospheric CO₂ · 2024/, { selector: '.overview-hero-right *, .overview-hero-left *' })).not.toBeInTheDocument();
+    expect(within(mapSide()).queryByText(/Atmospheric CO₂/)).not.toBeInTheDocument();
   });
 
-  it('shows a dash, not an invented figure, for a year the concentration series has no value for', async () => {
-    mountFullRange(2000); // the fixture series has no 2000 value
+  it('keeps the page\'s order from the map down: map, the Since summary, Leading emitters, Changed band, then the tiers (this is also the stacked order on a phone)', async () => {
+    mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const card = within(mapSide()).getByText('Atmospheric CO₂ · 2000').closest('div')!.parentElement as HTMLElement;
-    expect(within(card).getByText('—')).toBeInTheDocument();
-    expect(within(card).queryByText(/since 1850/)).not.toBeInTheDocument();
+    const card = document.querySelector('.overview-map-card') as HTMLElement;
+    const summary = screen.getByText(/^Fixed comparison, 1990 to 2024/).closest('div') as HTMLElement;
+    const leading = screen.getByRole('region', { name: 'Leading emitters · 2024' });
+    const bands = screen.getByRole('region', { name: 'Changed band since 1990' });
+    const tiers = screen.getByText('Expanded (Coverage + ≥100 Mt)');
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(card, summary)).toBe(true);
+    expect(follows(summary, leading)).toBe(true);
+    expect(follows(leading, bands)).toBe(true);
+    expect(follows(bands, tiers)).toBe(true);
   });
 
-  it('is left out when the climate data is missing', async () => {
-    vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: 2024 });
-    vi.mocked(api.listCountries).mockResolvedValue({ featured: ['China'], expanded: ['China', 'Vietnam'] });
-    vi.mocked(api.overview).mockResolvedValue(FULL_RESPONSE);
-    vi.mocked(api.worldMapSeries).mockResolvedValue(FULL_MAP);
-    vi.mocked(api.correlationEmissionsTemperature).mockRejectedValue(new ApiError(503, 'climate data missing'));
-    vi.mocked(api.correlationTemperature).mockResolvedValue(TEMPERATURE);
-    vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
-    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+  it('puts the summary directly under the map card in the same column, so it is as wide as the card whatever the card\'s width', async () => {
+    mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(screen.queryByText(/Atmospheric CO₂ · /)).not.toBeInTheDocument();
+    const column = mapColumn();
+    const card = document.querySelector('.overview-map-card') as HTMLElement;
+    const summary = screen.getByText(/^Fixed comparison, 1990 to 2024/).closest('div') as HTMLElement;
+    const children = [...column.children];
+    expect(children.indexOf(card.closest('.overview-hero-left > *') as Element)).toBe(0);
+    expect(children.indexOf(summary)).toBe(1); // directly under it
+    expect(column.style.gap).toBe('16px');
+    // neither carries a width of its own: both take the column's (which the fit sets to the card's width)
+    expect(summary.style.width).toBe('');
+    expect((card.closest('.overview-hero-left > *') as HTMLElement).style.width).toBe('');
   });
 });
 
@@ -1229,14 +1228,6 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(within(region).getByRole('columnheader', { name: 'Cumulative CO₂, MtCO₂' })).toBeInTheDocument();
     expect(within(region).getByText((CUM[54][0] * 1000).toLocaleString('en-GB'))).toBeInTheDocument(); // China's running total
     expect(within(region).getAllByText('No data').length).toBeGreaterThan(100); // every country without a value is listed, not left out
-  });
-
-  it('keeps the atmospheric CO₂ card the same in both modes: a stock, never split by country', async () => {
-    mountFullRange(2024);
-    await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    const before = within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent;
-    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
-    expect(within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent).toBe(before);
   });
 
   it('also offers only Absolute when the snapshot comes back empty (a 200 with no rows): an empty base would silently drop the pre-1970 history', async () => {
