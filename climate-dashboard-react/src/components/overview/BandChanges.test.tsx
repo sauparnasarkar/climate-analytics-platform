@@ -4,8 +4,8 @@ import type { BandMove } from '../../lib/mapBands';
 import { BandChanges } from './BandChanges';
 
 const MOVES: BandMove[] = [
-  { iso: 'CHN', name: 'China', from: 6, to: 7, steps: 1, value: 12000 },
-  { iso: 'RUS', name: 'Russia', from: 7, to: 6, steps: -1, value: 1700 },
+  { iso: 'CHN', name: 'China', from: 6, to: 7, steps: 1, change: 9800, value: 12000 },
+  { iso: 'RUS', name: 'Russia', from: 7, to: 6, steps: -1, change: -800, value: 1700 },
 ];
 
 describe('BandChanges', () => {
@@ -35,8 +35,21 @@ describe('BandChanges', () => {
   });
 
   it('uses the cumulative labels in cumulative mode', () => {
-    render(<BandChanges mode="cumulative" baselineYear={1990} year={2024} moves={[{ iso: 'IND', name: 'India', from: 2, to: 4, steps: 2, value: 66000 }]} />);
+    render(<BandChanges mode="cumulative" baselineYear={1990} year={2024} moves={[{ iso: 'IND', name: 'India', from: 2, to: 4, steps: 2, change: 60000, value: 66000 }]} />);
     expect(screen.getByText('1k–5k → 20k–50k')).toBeInTheDocument();
+  });
+
+  it('says the list is ranked by tonnes', () => {
+    render(<BandChanges mode="absolute" baselineYear={1990} year={2024} moves={MOVES} />);
+    expect(screen.getByText('Largest changes in tonnes first. Up means more CO₂.')).toBeInTheDocument();
+  });
+
+  it('shows no down rows and no empty-state text for them in cumulative mode (ups only)', () => {
+    render(<BandChanges mode="cumulative" baselineYear={1990} year={2024} moves={[{ iso: 'IND', name: 'India', from: 2, to: 4, steps: 2, change: 60000, value: 66000 }]} />);
+    const rows = screen.getAllByRole('listitem');
+    expect(rows).toHaveLength(1);
+    expect(screen.queryByText(/↓/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no country/i)).not.toBeInTheDocument();
   });
 
   it('asks for a later year at the baseline, with no list', () => {

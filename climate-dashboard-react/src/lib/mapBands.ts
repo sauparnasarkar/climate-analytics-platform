@@ -26,6 +26,8 @@ export interface BandMove {
   to: number;
   /** Bands crossed: positive is up (more CO₂) */
   steps: number;
+  /** The change in MtCO₂ (now − before): what the list is ranked on */
+  change: number;
   /** The value now, the tie-break (larger first) */
   value: number;
 }
@@ -34,9 +36,10 @@ export const MOVES_UP = 4;
 export const MOVES_DOWN = 3;
 
 /**
- * The countries that changed band between two years of the same mode: the largest moves up (`MOVES_UP`), then the largest down (`MOVES_DOWN`); the size of a move
- * is the number of bands crossed, ties broken by the larger value now. A country with no value in either year is left out (there is nothing to compare); a real zero is a value, in the lowest band.
- * `before` and `now` are values by country, parallel to `isos` and `names`.
+ * The countries that changed band between two years of the same mode, ranked by the size of the change in MtCO₂ (latest − baseline), not by the bands crossed:
+ * the largest increases first (`MOVES_UP`), then, unless `up only`, the largest decreases (`MOVES_DOWN`); ties by the larger value now. A one-band move of a large
+ * emitter outranks a two-band move of a small one. Cumulative totals cannot fall, so that mode asks for ups only. A country with no value in either year is left
+ * out (there is nothing to compare); a real zero is a value, in the lowest band. `before` and `now` are values by country, parallel to `isos` and `names`.
  */
 export function bandMoves(
   before: ReadonlyArray<number | null | undefined>,
@@ -44,6 +47,7 @@ export function bandMoves(
   isos: ReadonlyArray<string>,
   names: ReadonlyArray<string>,
   breaks: ReadonlyArray<number>,
+  { upOnly = false }: { upOnly?: boolean } = {},
 ): BandMove[] {
   const moves: BandMove[] = [];
   now.forEach((value, i) => {
@@ -51,9 +55,9 @@ export function bandMoves(
     if (value == null || !(value >= 0) || v0 == null || !(v0 >= 0)) return;
     const from = bandIndex(v0, breaks);
     const to = bandIndex(value, breaks);
-    if (from !== to) moves.push({ iso: isos[i], name: names[i], from, to, steps: to - from, value });
+    if (from !== to) moves.push({ iso: isos[i], name: names[i], from, to, steps: to - from, change: value - v0, value });
   });
-  const ups = moves.filter((m) => m.steps > 0).sort((a, b) => b.steps - a.steps || b.value - a.value).slice(0, MOVES_UP);
-  const downs = moves.filter((m) => m.steps < 0).sort((a, b) => a.steps - b.steps || b.value - a.value).slice(0, MOVES_DOWN);
+  const ups = moves.filter((m) => m.steps > 0).sort((a, b) => b.change - a.change || b.value - a.value).slice(0, MOVES_UP);
+  const downs = upOnly ? [] : moves.filter((m) => m.steps < 0).sort((a, b) => a.change - b.change || b.value - a.value).slice(0, MOVES_DOWN);
   return [...ups, ...downs];
 }

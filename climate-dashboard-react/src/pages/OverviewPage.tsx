@@ -308,8 +308,8 @@ function AnimatedWorldMap({
   const bandScale = MAP_BANDS[isCumulative ? 'cumulative' : 'absolute'];
   const comparisonYear = worldMapSeries.years[baselineIdx];
   const moves = useMemo(
-    () => bandMoves(activeValues[baselineIdx] ?? [], activeValues[yearIdx] ?? [], worldMapSeries.iso_codes, worldMapSeries.countries, bandScale.breaks),
-    [activeValues, baselineIdx, yearIdx, worldMapSeries, bandScale],
+    () => bandMoves(activeValues[baselineIdx] ?? [], activeValues[yearIdx] ?? [], worldMapSeries.iso_codes, worldMapSeries.countries, bandScale.breaks, { upOnly: isCumulative }),
+    [activeValues, baselineIdx, yearIdx, worldMapSeries, bandScale, isCumulative],
   );
 
   // ISO codes of the picker's selection, outlined on the map. Its own memo (and a separate Chart
@@ -339,6 +339,8 @@ function AnimatedWorldMap({
         }
         headingLevel={2}
         expandable
+        // The card's whole body is the map panel (mid tone): the year controls, the map, its legend and the caption all sit on it and read there in either theme.
+        surface="map"
       >
         {/* flexWrap + a shrinkable slider track: Slider carries its own 220px min-width,
             which together with the Play/Pause button floored this row (and therefore the
@@ -382,6 +384,7 @@ function AnimatedWorldMap({
           unit="MtCO₂"
           scale="bands"
           surface="map"
+          flush
           breaks={bandScale.breaks}
           bandLabels={bandScale.labels}
           ariaLabel={

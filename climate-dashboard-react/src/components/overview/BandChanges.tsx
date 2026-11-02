@@ -7,7 +7,7 @@ const swatch = (band: number) => (
 
 /**
  * "Changed band since {baseline}": under the leading emitters, the countries that moved between the map's fixed colour bands since the comparison year, the
- * largest moves up and then down. Up means more CO₂ (the same direction colours as the rest of the page). With no later year picked there is nothing to
+ * largest changes in tonnes first, up and then down (Cumulative has only ups: a running total cannot fall). Up means more CO₂ (the same direction colours as the rest of the page). With no later year picked there is nothing to
  * compare, and it says so.
  */
 export function BandChanges({ mode, baselineYear, year, moves }: { mode: BandMode; baselineYear: number; year: number; moves: BandMove[] }) {
@@ -38,7 +38,7 @@ export function BandChanges({ mode, baselineYear, year, moves }: { mode: BandMod
               </li>
             ))}
           </ul>
-          <p className="syn-caption" style={{ margin: 0, color: 'var(--syn-color-text-muted)' }}>Largest moves up, then down (ties: larger emitters first). Up means more CO₂.</p>
+          <p className="syn-caption" style={{ margin: 0, color: 'var(--syn-color-text-muted)' }}>Largest changes in tonnes first. Up means more CO₂.</p>
         </>
       )}
     </section>

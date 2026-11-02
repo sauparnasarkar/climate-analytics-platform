@@ -62,7 +62,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
       );
     },
     // The map's own drawing is the design system's concern; its props are what this page wires.
-    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
+    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; flush?: boolean; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
       <SynThemeProvider theme="night" storageKey={null}><RealChoropleth {...props} /></SynThemeProvider>
     ) : (
       <div
@@ -74,6 +74,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-domain={props.domain ? JSON.stringify(props.domain) : undefined}
         data-scale={props.scale}
         data-surface={props.surface}
+        data-flush={props.flush ? 'true' : undefined}
         data-breaks={props.breaks ? JSON.stringify(props.breaks) : undefined}
         data-band-labels={props.bandLabels ? JSON.stringify(props.bandLabels) : undefined}
         data-outline={props.outline ? JSON.stringify(props.outline) : undefined}
@@ -1099,6 +1100,27 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(screen.getByLabelText(/^World map of cumulative CO₂ emissions by country: the running total emitted since 1750, currently showing 2024/)).toBeInTheDocument();
     expect(screen.getByText(/^Hatched: no CO₂ ever recorded for that country up to 2024\./)).toBeInTheDocument();
     expect(screen.queryByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).not.toBeInTheDocument();
+  });
+
+  it('counts every country with a value in a band, drawn or not: the bands add up to the All Countries tier\'s countries', async () => {
+    realMap.on = true;
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    // three countries with a value, one of them (ZZZ) with no shape on the map; one without a value
+    vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'ZZZ', 'XXX'], countries: ['China', 'Vietnam', 'Zedland', 'Nowhere'], values: [[14350, 21, 7, null], [25324, 370, 0.4, null]] });
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
+    const legend = await screen.findByRole('list', { name: /in 8 bands from lowest to highest/ });
+    const counts = within(legend).getAllByText(/countr(y|ies)$/).map((e) => Number(e.textContent!.match(/\d+/)![0]));
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(3);
+    expect(counts[0]).toBe(1); // Zedland, 0.4 Mt: <1
+  });
+
+  it('makes the whole chart card body the map panel, with the map flush on it', async () => {
+    mountFullRange(2024);
+    const map = await screen.findByTestId('choropleth');
+    expect(map).toHaveAttribute('data-flush', 'true');
+    expect(document.querySelector('.overview-map-card .syn-map-panel')).not.toBeNull();
+    expect(document.querySelector('.overview-map-card .syn-data-panel')).toBeNull();
   });
 
   it('gives the map a real zero (Antarctica reports 0.0) as a value, for the lowest band, and still leaves a missing value out', async () => {
