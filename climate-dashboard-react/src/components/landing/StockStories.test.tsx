@@ -9,8 +9,8 @@ vi.mock('../../api/client', () => ({ api: { correlationCountryShare: vi.fn() } }
 
 type R = [string, number, number, number | null, number | null];
 const ranking = (rows: R[]) => ({ cumulative_from: 1750, rows: rows.map(([country, cumulative_mt, share_pct, annual_mt, annual_share_pct], i) => ({ rank: i + 1, country, name: `${country} land`, cumulative_mt, share_pct, annual_mt, annual_share_pct })), series: [] }) as unknown as CorrelationCountryShareResponse;
-const LATEST = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['GBR', 80000, 4.3, 300, 0.8]]);
-const BASELINE = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['GBR', 63000, 7, 580, 2]]);
+const LATEST = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['DEU', 95000, 5.1, 600, 1.6]]);
+const BASELINE = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['DEU', 80000, 9, 1000, 4]]);
 const SERIES = (countries: string[]) => ({ series: countries.map((country) => ({ country, points: [{ year: 1950, cumulative_mt: 5000 }, { year: 1990, cumulative_mt: 100000 }, { year: 2024, cumulative_mt: 300000 }] })) }) as unknown as CorrelationCountryShareResponse;
 
 function mockApi(latest: CorrelationCountryShareResponse | Error = LATEST, baseline: CorrelationCountryShareResponse | Error = BASELINE) {
@@ -32,7 +32,7 @@ describe('StockStories', () => {
     expect(screen.getByText('Share of all CO₂ since 1750')).toBeInTheDocument();
     expect(screen.getByText('Share of 2024 emissions')).toBeInTheDocument();
     const cards = screen.getAllByRole('article');
-    expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['USA land', 'CHN land', 'IND land', 'GBR land']);
+    expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['USA land', 'CHN land', 'IND land', 'DEU land']);
     expect(within(cards[0]).getByText('Built the stock')).toBeInTheDocument();
     expect(within(cards[0]).getByText('23.5%')).toBeInTheDocument();
     expect(within(cards[0]).getByText('12.7%')).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('StockStories', () => {
     const curve = await screen.findAllByRole('img', { name: /cumulative CO₂, 1950 to 2024: 300 Gt at the end/ });
     expect(curve).toHaveLength(4);
     expect(screen.getAllByText('2024 · 300 Gt')).toHaveLength(4);
-    expect(vi.mocked(api.correlationCountryShare)).toHaveBeenCalledWith({ countries: ['USA', 'CHN', 'IND', 'GBR'], startYear: 1950 });
+    expect(vi.mocked(api.correlationCountryShare)).toHaveBeenCalledWith({ countries: ['USA', 'CHN', 'IND', 'DEU'], startYear: 1950 });
   });
 
   it('keeps a card but leaves off its key figure when the baseline ranking is unavailable', async () => {

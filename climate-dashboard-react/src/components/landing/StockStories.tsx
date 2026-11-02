@@ -9,7 +9,7 @@ import { ARCHETYPE_TAG, STOCK_CURVE_FROM, cumulativeCurve, pickStockStories, sto
 
 export const STOCK_STORIES_STYLES = `
 .stock-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; list-style: none; margin: 0; padding: 0; }
-.stock-card { background: var(--syn-color-surface-base); border: 1px solid var(--syn-color-border-subtle); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.stock-card { container: stock-card / inline-size; background: var(--syn-color-surface-base); border: 1px solid var(--syn-color-border-subtle); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .stock-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .stock-key { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .stock-key--stock, .stock-bar--stock { background: #0A6E8C; } .stock-key--annual, .stock-bar--annual { background: #B07A10; }
@@ -19,6 +19,10 @@ export const STOCK_STORIES_STYLES = `
 .stock-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 8px; align-items: center; }
 .stock-bar-track { height: 14px; border-radius: 3px; background: var(--syn-color-border-subtle); overflow: hidden; }
 .stock-bar { display: block; height: 14px; }
+.stock-curve-axis { position: relative; height: 16px; color: var(--syn-color-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stock-curve-axis > span { position: absolute; top: 0; }
+.stock-curve-axis__base { transform: translateX(-50%); }
+@container stock-card (max-width: 230px) { .stock-curve-axis__base { display: none; } }
 .stock-curve-fig { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 @media (max-width: 1100px) { .stock-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .stock-cards { grid-template-columns: 1fr; gap: 12px; } .stock-card { padding: 14px 16px; gap: 10px; } .stock-curve-fig { display: none; } }
@@ -35,16 +39,20 @@ function Curve({ points, latestYear, baselineYear, label }: { points: CurvePoint
   const path = `M${xy.join(' L')}`;
   const end = points[points.length - 1];
   const xBase = ((baselineYear - STOCK_CURVE_FROM) / span) * WIDTH;
+  const showBase = baselineYear > STOCK_CURVE_FROM && baselineYear < latestYear;
   return (
     <figure className="stock-curve-fig">
       <svg role="img" aria-label={label} width="100%" height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none">
         <path d={`M0 80H${WIDTH}`} stroke="var(--syn-color-border-subtle)" vectorEffect="non-scaling-stroke" />
         <path className="stock-curve-area" d={`${path} L${WIDTH} 80 L0 80 Z`} />
         <path className="stock-curve" d={path} strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        {baselineYear > STOCK_CURVE_FROM && baselineYear < latestYear && <line x1={xBase} y1="6" x2={xBase} y2="80" stroke="var(--syn-color-text-muted)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
+        {showBase && <line x1={xBase} y1="6" x2={xBase} y2="80" stroke="var(--syn-color-text-muted)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
       </svg>
-      <figcaption className="syn-caption" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--syn-color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-        <span>{STOCK_CURVE_FROM}</span><span>{baselineYear}</span><span>{end.year} · {fmtGt(end.gt)} Gt</span>
+      {/* The baseline's label sits under its marker (same scale as the line), not evenly between the ends; it drops out where the ends' labels would touch it. */}
+      <figcaption className="syn-caption stock-curve-axis">
+        <span style={{ left: 0 }}>{STOCK_CURVE_FROM}</span>
+        {showBase && <span className="stock-curve-axis__base" style={{ left: `${(xBase / WIDTH) * 100}%` }}>{baselineYear}</span>}
+        <span style={{ right: 0 }}>{end.year} · {fmtGt(end.gt)} Gt</span>
       </figcaption>
     </figure>
   );

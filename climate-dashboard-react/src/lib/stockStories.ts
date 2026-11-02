@@ -6,6 +6,8 @@ import type { CorrelationCountryShareResponse, ShareRow } from '../api/correlati
 
 export const STOCK_TOP_N = 10;
 export const STOCK_CURVE_FROM = 1950;
+/** "Falling, but still adding" needs yearly emissions down at least this much (%) since the baseline: a smaller fall is not the story, and a collapse from a small stock (a much larger % fall) is not the one to tell. */
+export const FALLING_MIN_DROP_PCT = 40;
 
 export type Archetype = 'built' | 'catching' | 'large-today' | 'falling';
 
@@ -61,8 +63,8 @@ export function stockCandidates(latest: CorrelationCountryShareResponse | null |
  *   1. built the stock: the largest cumulative share;
  *   2. catching up fast: the largest stock growth since the baseline;
  *   3. large today, small stock: the largest annual share minus stock share;
- *   4. falling, but still adding: the largest fall in yearly emissions since the baseline, with the stock still growing.
- * A rule nobody satisfies gives no card.
+ *   4. falling, but still adding: of those whose yearly emissions fell by at least FALLING_MIN_DROP_PCT since the baseline, the largest stock share.
+ * A rule nobody satisfies gives no card (so rule 4 may leave three).
  */
 export function pickStockStories(candidates: StockCandidate[]): StockPick[] {
   const picked = new Set<string>();
@@ -79,7 +81,7 @@ export function pickStockStories(candidates: StockCandidate[]): StockPick[] {
   take('built', (c) => c.stockShare);
   take('catching', (c) => c.stockGrowthPct);
   take('large-today', (c) => (c.annualShare === null ? null : c.annualShare - c.stockShare));
-  take('falling', (c) => (c.annualChangePct === null ? null : -c.annualChangePct), (c) => c.annualChangePct !== null && c.annualChangePct < 0 && c.stockGrowthPct !== null && c.stockGrowthPct > 0);
+  take('falling', (c) => c.stockShare, (c) => c.annualChangePct !== null && c.annualChangePct <= -FALLING_MIN_DROP_PCT);
   return out;
 }
 
