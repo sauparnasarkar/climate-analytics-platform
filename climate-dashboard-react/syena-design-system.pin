@@ -1,3 +1,3 @@
 # The design system commit this app is built and tested against: <commit> <repository>.
 # scripts/setup-design-system.sh clones the repository beside this one at that commit and generates its tokens.
-070aa8ca5208291cc97b11bfb984ca83bbc9be67 https://github.com/sauparnasarkar/syena-design-system.git
+47802408b682f37177fd4455ca9c843514e6e4c7 https://github.com/sauparnasarkar/syena-design-system.git
