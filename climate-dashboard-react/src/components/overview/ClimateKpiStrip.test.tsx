@@ -50,5 +50,8 @@ describe('ClimateKpiStrip emissions sparkline', () => {
     expect(screen.getByText('CO₂ emissions · 2024')).toBeInTheDocument();
     expect(screen.getByText('1990–2025')).toBeInTheDocument();
     expect(container.querySelector('article circle')).not.toBeNull(); // the marker dot at 2024
+    const changeCard = screen.getByText('Change since baseline').closest('article')!;
+    expect(within(changeCard).getByText('Index, 1990–2024')).toBeInTheDocument();
+    expect(changeCard.querySelector('path')?.getAttribute('d')?.match(/L/g)?.length).toBe(2);
   });
 });
