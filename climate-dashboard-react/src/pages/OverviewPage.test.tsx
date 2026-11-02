@@ -241,7 +241,8 @@ describe('OverviewPage', () => {
     expect(screen.getAllByText('CO₂ Emissions by Country (2024)')).toHaveLength(1);
     expect(screen.getAllByText('All Countries')).toHaveLength(1); // the jump link to its section
     expect(screen.getByRole('heading', { name: 'Your countries · 2024' })).toBeInTheDocument();
-    expect(yourHeads()).toEqual(['Country', 'MtCO₂', 'Share of world', 'Band since 1990']);
+    expect(yourHeads()).toEqual(['Country', '2024 · Mt', 'Share of world', 'Band since 1990']);
+    expect(screen.getByText('Arrows: bands crossed since 1990; up = more CO₂.')).toBeInTheDocument(); // one line
     expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 10', 'All countries · 195']); // no World total in this fixture, so no Shipping & aviation row (it is worked out from it)
     // The footer totals snap directly to their value: All countries is summed from the series (the API sends no per-year totals), Selected from the chosen countries.
     expect(yourFoot()[1][1]).toBe('25,694');
@@ -1193,7 +1194,7 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
   it('in Cumulative the table reads Total to {year}, in GtCO₂, with each row\'s share of the cumulative world total and the footer\'s growth since the baseline', async () => {
     mountFullRange(2024, '&countries=Vietnam');
     await showCumulative();
-    expect(yourHeads()).toEqual(['Country', 'Total to 2024, GtCO₂', 'Share of world', 'Band since 1990']);
+    expect(yourHeads()).toEqual(['Country', 'Total to 2024 · Gt', 'Share of world', 'Band since 1990']);
     const china = CUM[54][0];
     const vietnam = CUM[54][1];
     const worldMt = (china + vietnam) * WORLD_OVER_COUNTRIES; // Gt
@@ -1407,7 +1408,7 @@ describe('OverviewPage: the Your countries table', () => {
   it('in Cumulative reads Total to {year}, and the outside movers are ups only (a running total cannot fall)', async () => {
     mountBands(2024);
     await showCumulative();
-    expect(yourHeads()).toEqual(['Country', 'Total to 2024, GtCO₂', 'Share of world', 'Band since 1990']);
+    expect(yourHeads()).toEqual(['Country', 'Total to 2024 · Gt', 'Share of world', 'Band since 1990']);
     expect(alsoLine()).not.toMatch(/↓/);
     expect(alsoLine()).toMatch(/^Also changed band: /);
   });

@@ -36,20 +36,22 @@ const arrow = (steps: number) => (steps > 0 ? `↑${steps}` : `↓${-steps}`);
 function BandCell({ band, labels }: { band: CountryRow['band']; labels: string[] }) {
   if (!band) return <span aria-label="No band to compare" title="No value to compare">—</span>;
   const { from, to, steps } = band;
-  // Unchanged: the band it is in, and a dash for no change.
+  // One grid for every row so the columns line up: from-swatch | arrow slot (fixed width, centred) | to-swatch. Unchanged: the swatch in the from position, a dash in the slot, an empty to-slot.
+  const grid = { display: 'inline-grid', gridTemplateColumns: '12px 32px 12px', alignItems: 'center', justifyItems: 'center', columnGap: 4 } as const;
   if (steps === 0) {
     return (
-      <span role="img" aria-label={`Unchanged: ${labels[to]}`} title={`Unchanged: ${labels[to]}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+      <span role="img" aria-label={`Unchanged: ${labels[to]}`} title={`Unchanged: ${labels[to]}`} style={grid}>
         {swatch(to)}
-        <span aria-hidden="true" style={{ minWidth: 24, textAlign: 'center' }}>–</span>
+        <span aria-hidden="true">–</span>
+        <span aria-hidden="true" />
       </span>
     );
   }
   const what = `${steps > 0 ? 'Up' : 'Down'} ${Math.abs(steps)} ${Math.abs(steps) === 1 ? 'band' : 'bands'}: ${labels[from]} to ${labels[to]}`;
   return (
-    <span role="img" aria-label={what} title={`${labels[from]} → ${labels[to]}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+    <span role="img" aria-label={what} title={`${labels[from]} → ${labels[to]}`} style={grid}>
       {swatch(from)}
-      <span aria-hidden="true" style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: dir(steps) }}>{arrow(steps)}</span>
+      <span aria-hidden="true" style={{ fontWeight: 700, color: dir(steps) }}>{arrow(steps)}</span>
       {swatch(to)}
     </span>
   );
@@ -72,14 +74,14 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
     <section aria-labelledby="your-countries-title" style={{ position: 'relative', background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-subtle)', borderTop: '3px solid var(--syn-data-cat-3, transparent)', borderRadius: 8, padding: '10px 14px 10px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
       <h3 id="your-countries-title" className="syn-caption" style={{ margin: 0 }}>{`Your countries · ${year}`}</h3>
       {/* A country's name stays on one line from a phone's width up (it wraps below, where the table is narrowest); the table scrolls sideways on its own as a last resort. */}
-      <style>{'@media (min-width: 481px) { .your-countries-table tbody th[scope="row"] { white-space: nowrap !important; } } @media (max-width: 480px) { .your-countries-table th { white-space: normal !important; } .your-countries-table th, .your-countries-table td { padding-left: 6px !important; } }'}</style>
+      <style>{'@media (min-width: 481px) { .your-countries-table tbody th[scope="row"], .your-countries-table tfoot th[scope="row"] { white-space: nowrap !important; } } @media (max-width: 480px) { .your-countries-table th { white-space: normal !important; } .your-countries-table th, .your-countries-table td { padding-left: 6px !important; } }'}</style>
       <div style={{ overflowX: 'auto' }}>
         <table className="syn-text-md your-countries-table" style={{ width: '100%', borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
           <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{`The countries you chose, ${cumulative ? `total to ${year}` : `emissions in ${year}`}, share of the world total and band change since ${baselineYear}`}</caption>
           <thead>
             <tr className="syn-caption">
               <th scope="col" style={{ ...head, textAlign: 'left' }}>Country</th>
-              <th scope="col" style={head}>{cumulative ? `Total to ${year}, GtCO₂` : 'MtCO₂'}</th>
+              <th scope="col" style={head}>{cumulative ? `Total to ${year} · Gt` : `${year} · Mt`}</th>
               <th scope="col" style={{ ...head, paddingLeft: 10 }}>Share of world</th>
               <th scope="col" style={{ ...head, paddingLeft: 10 }}>{`Band since ${baselineYear}`}</th>
             </tr>
@@ -129,7 +131,7 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
           ))}
         </p>
       ) : null}
-      <span className="syn-caption" style={{ color: 'var(--syn-color-text-muted)' }}>{`Sorted by ${cumulative ? `total to ${year}` : `emissions in ${year}`}. Band arrows count bands crossed; up means more CO₂.`}</span>
+      <span className="syn-caption" style={{ color: 'var(--syn-color-text-muted)' }}>{`Arrows: bands crossed since ${baselineYear}; up = more CO₂.`}</span>
     </section>
   );
 }
