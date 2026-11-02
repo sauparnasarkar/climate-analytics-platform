@@ -31,7 +31,7 @@ export function AlignedNote({ note, label, buttonLabel }: { note: string | null;
         <span
           id={noteId}
           role="note"
-          style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, margin: '6px 8px 0', padding: '10px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.45, fontWeight: 400, textTransform: 'none', letterSpacing: 0, background: 'var(--syn-color-surface-raised)', color: 'var(--syn-color-text-secondary)', border: '1px solid var(--syn-color-border-default, currentColor)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}
+          style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, margin: '6px 8px 0', padding: '10px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.45, fontWeight: 400, textTransform: 'none', letterSpacing: 0, whiteSpace: 'normal', textAlign: 'start', background: 'var(--syn-color-surface-raised)', color: 'var(--syn-color-text-secondary)', border: '1px solid var(--syn-color-border-default, currentColor)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}
         >
           {note}
         </span>

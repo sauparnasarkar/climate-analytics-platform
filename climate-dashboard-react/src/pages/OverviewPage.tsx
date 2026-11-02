@@ -120,7 +120,10 @@ function TierSummaryPanel({ rows, year, baselineYear, mode = 'absolute' }: { row
   return (
     // A categorical-colour top rule (the data colours are applied per metric, never per sentiment). Relative, so the ⓘ's note opens across the panel.
     <div style={{ position: 'relative', background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-subtle)', borderTop: '3px solid var(--syn-data-cat-3, transparent)', borderRadius: 8 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <style>{'@media (max-width: 480px) { .overview-tier-table th, .overview-tier-table td { padding-left: 8px !important; padding-right: 8px !important; } .overview-tier-table { font-size: 0.9em; } }'}</style>
+      {/* The table scrolls sideways on its own if it ever cannot fit (the ⓘ's note is outside this box, so it is not clipped). */}
+      <div style={{ overflowX: 'auto' }}>
+      <table className="overview-tier-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{`CO₂ by group of countries in ${year}`}</caption>
         <thead>
           <tr className="syn-caption">
@@ -132,7 +135,7 @@ function TierSummaryPanel({ rows, year, baselineYear, mode = 'absolute' }: { row
         <tbody>
           {rows.map((row) => (
             <tr key={row.tier} style={{ borderTop: '1px solid var(--syn-color-border-subtle)' }}>
-              <th scope="row" className="syn-text-lg" style={{ ...cell, textAlign: 'left', fontWeight: 400 }}>
+              <th scope="row" className="syn-text-lg" style={{ ...cell, textAlign: 'left', fontWeight: 400, whiteSpace: 'normal' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   {`${row.tier} · ${Math.round(row.countries).toLocaleString()}`}
                   {row.info ? <AlignedNote note={row.info} label={row.tier} buttonLabel={`About ${row.tier}`} /> : null}
@@ -148,6 +151,7 @@ function TierSummaryPanel({ rows, year, baselineYear, mode = 'absolute' }: { row
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
