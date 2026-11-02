@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { MIN_MAP_PX, NO_FIT, RIGHT_COLUMN_MIN_PX, fitMap, type FitInputs } from './useMapFit';
+import { renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MIN_MAP_PX, NO_FIT, RIGHT_COLUMN_MIN_PX, fitMap, useMapFit, type FitInputs } from './useMapFit';
 
 // A 2.3:1 picture; the card spends 320px of height and 48px of width on everything but the picture.
 const BASE: FitInputs = { viewportW: 1440, viewportH: 789, stickyOffset: 190, gridWidth: 1120, chromeH: 320, chromeW: 48, aspect: 2.3 };
@@ -44,5 +45,49 @@ describe('fitMap', () => {
   it('is off before the picture has been measured', () => {
     expect(fitMap({ ...BASE, aspect: 0 })).toEqual(NO_FIT);
     expect(fitMap({ ...BASE, gridWidth: 0 })).toEqual(NO_FIT);
+  });
+});
+
+// jsdom has no layout: a grid with a card and a picture whose boxes are given by hand, observed by a ResizeObserver that fires once.
+function gridWithCard({ inDialog }: { inDialog: boolean }) {
+  const grid = document.createElement('div');
+  const host = document.createElement('div');
+  if (inDialog) host.setAttribute('role', 'dialog');
+  const card = document.createElement('div');
+  card.className = 'overview-map-card';
+  const panel = document.createElement('div');
+  panel.className = 'syn-map-panel';
+  const canvas = document.createElement('canvas');
+  canvas.style.width = '1000px';
+  canvas.style.height = '435px';
+  panel.append(canvas);
+  card.append(panel);
+  host.append(card);
+  grid.append(host);
+  document.body.append(grid);
+  const box = (width: number, height: number) => ({ width, height, top: 0, bottom: height, left: 0, right: width, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+  vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue(box(1120, 800));
+  vi.spyOn(card, 'getBoundingClientRect').mockReturnValue(box(1048, 750));
+  Object.defineProperty(panel, 'clientWidth', { value: 1048 });
+  return grid;
+}
+
+describe('useMapFit', () => {
+  afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
+
+  it('fits the card on the page', () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} unobserve() {} });
+    Object.defineProperty(window, 'innerWidth', { value: 1440, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 789, configurable: true });
+    const { result } = renderHook(() => useMapFit(gridWithCard({ inDialog: false }), 190));
+    expect(result.current.mapWidth).not.toBeNull();
+  });
+
+  it('leaves the layout alone while the card is expanded into a dialog (its size is not the grid\'s to fit)', () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} unobserve() {} });
+    Object.defineProperty(window, 'innerWidth', { value: 1440, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 789, configurable: true });
+    const { result } = renderHook(() => useMapFit(gridWithCard({ inDialog: true }), 190));
+    expect(result.current).toEqual(NO_FIT);
   });
 });

@@ -346,6 +346,8 @@ function AnimatedWorldMap({
         // The card's whole body is the map panel (mid tone): the year controls, the map, its legend and the caption all sit on it and read there in either theme.
         surface="map"
       >
+        {(expanded) => (
+        <>
         {/* flexWrap + a shrinkable slider track: Slider carries its own 220px min-width,
             which together with the Play/Pause button floored this row (and therefore the
             whole card, and therefore the page) at ~330px -- wider than a 320px phone like
@@ -383,7 +385,7 @@ function AnimatedWorldMap({
           ))}
         </div>
         {/* The picture is as wide as the window's height allows (mapWidth), centred in its column; null leaves it filling the column. */}
-        <div style={mapWidth ? { width: mapWidth, maxWidth: '100%', marginInline: 'auto' } : undefined}>
+        <div style={mapWidth && !expanded ? { width: mapWidth, maxWidth: '100%', marginInline: 'auto' } : undefined}>
         <Choropleth
           values={valuesForYear}
           valueLabel={isCumulative ? 'Cumulative CO₂, MtCO₂' : 'CO₂ emissions, MtCO₂'}
@@ -410,6 +412,8 @@ function AnimatedWorldMap({
             : `Hatched: no CO₂ data reported for that country in ${currentYear}.`}
           {outlineLocations.length > 0 ? ' Outlined: your selected countries.' : ''}
         </Text>
+        </>
+        )}
       </ChartCard>
 
       <div className="overview-hero-right" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

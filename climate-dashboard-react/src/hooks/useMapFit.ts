@@ -71,7 +71,8 @@ export function useMapFit(grid: HTMLElement | null, stickyOffset: number): MapFi
       // The picture's own size as the map set it (one render, so width and height agree); in the table view there is none: keep what was last worked out.
       const w = canvas ? Number.parseFloat(canvas.style.width) : NaN;
       const h = canvas ? Number.parseFloat(canvas.style.height) : NaN;
-      if (!card || !panel || !cardBox || !(w > 0) || !(h > 0) || canvas!.hidden) return;
+      // Expanded, the card is a dialog over the page: its size is not the grid's to fit (and the map there fills it); keep what was worked out for the page.
+      if (!card || !panel || !cardBox || !(w > 0) || !(h > 0) || canvas!.hidden || card.closest('[role="dialog"]')) return;
       // What the card spends on everything but the picture: its height less the picture's, and its width less the room inside its panel (never less the picture's own width,
       // which would count the empty space beside a map that is narrower than its column).
       const cs = getComputedStyle(panel);
