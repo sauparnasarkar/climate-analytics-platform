@@ -561,6 +561,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           }}
           signal={climate.signal}
           mean5y={climate.mean5y}
+          mean5ySeries={climate.mean5ySeries}
         />
       </section>
       {climate.signal && <RelationshipSection signal={climate.signal} emissionsSeries={emissionsSeries} />}
