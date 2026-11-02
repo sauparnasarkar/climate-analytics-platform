@@ -113,7 +113,7 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
                 <td style={{ ...cell, fontWeight: 600 }}>{fmt(f.value)}</td>
                 <td style={{ ...cell, paddingLeft: 8, color: 'var(--syn-color-text-muted)' }}>{f.sharePct == null ? '—' : `${f.sharePct.toFixed(1)}%`}</td>
                 <td style={{ ...cell, paddingLeft: 8, color: f.pctChange == null ? undefined : f.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-                  {f.pctChange == null ? (f.blankChange ? '' : '—') : `${pct(f.pctChange)} since ${baselineYear}`}
+                  {f.pctChange == null ? (f.blankChange ? '' : '—') : <>{pct(f.pctChange)}<span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{` since ${baselineYear}`}</span></>}
                 </td>
               </tr>
             ))}
