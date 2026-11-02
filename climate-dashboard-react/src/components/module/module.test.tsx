@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { CONCENTRATION, PAIR, TEMPERATURE } from '../../test/climateFixtures';
 import { buildClimateSignal } from '../../lib/climateSignal';
+import { buildAlignedChain } from '../../lib/alignedYear';
 import { buildHeadline } from '../../lib/headline';
 import { Ar6Strip } from './Ar6Strip';
 import { CausalChain } from './CausalChain';
@@ -12,7 +13,7 @@ const signal = buildClimateSignal(PAIR, TEMPERATURE, CONCENTRATION)!;
 
 describe('CausalChain', () => {
   it('shows four cells in order, with the forcing cell marked as a concept and carrying no number', () => {
-    render(<CausalChain signal={signal} emissions={{ year: 2024, total: 37398.067 }} />);
+    render(<CausalChain signal={signal} chain={buildAlignedChain(signal, [{ year: 2023, value: 37000 }, { year: 2024, value: 37398.067 }])!} />);
     const cells = within(screen.getByRole('list')).getAllByRole('listitem');
     expect(cells).toHaveLength(4);
     expect(cells[0]).toHaveTextContent('1 · Emissions');
@@ -29,7 +30,7 @@ describe('CausalChain', () => {
   });
 
   it('says nothing for the emissions figure rather than a zero when it is unavailable', () => {
-    render(<CausalChain signal={signal} emissions={null} />);
+    render(<CausalChain signal={signal} chain={buildAlignedChain(signal, [])!} />);
     const first = within(screen.getByRole('list')).getAllByRole('listitem')[0];
     expect(first.textContent).not.toMatch(/MtCO₂/);
     expect(first).toHaveTextContent('stock that stays');

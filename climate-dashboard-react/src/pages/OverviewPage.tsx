@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { emissionsYearValues } from '../lib/alignedYear';
 import { ClimateKpiStrip } from '../components/overview/ClimateKpiStrip';
 import { RelationshipSection } from '../components/overview/RelationshipSection';
 import { useClimateSignal } from '../hooks/useClimateSignal';
@@ -482,7 +483,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
     () => (worldMapSeries ? worldMapSeries.countries.flatMap((c, i) => (selected.includes(c) ? [worldMapSeries.iso_codes[i]] : [])) : []),
     [worldMapSeries, selected],
   );
-  const emissionsSeries = useMemo(() => (globeSeries ? worldTotals(globeSeries).map((value, i) => ({ year: globeSeries.years[i], value })) : []), [globeSeries]);
+  const emissionsSeries = useMemo(() => (globeSeries ? emissionsYearValues(globeSeries) : []), [globeSeries]); // years with no data at all are left out, not counted as zero
   const reduceMotion = useReducedMotion();
   // Handles a bookmarked/shared #anchor already in the URL (SPEC.md §5.19) -- called
   // unconditionally (before the early returns below) per the Rules of Hooks; the hook itself
@@ -561,6 +562,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           }}
           signal={climate.signal}
           mean5y={climate.mean5y}
+          mean5ySeries={climate.mean5ySeries}
         />
       </section>
       {climate.signal && <RelationshipSection signal={climate.signal} emissionsSeries={emissionsSeries} />}

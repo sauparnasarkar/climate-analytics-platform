@@ -23,7 +23,7 @@ import { GAS_COMPOSITION_ANCHOR } from '../lib/gasComposition';
 import { buildComposition } from '../lib/gasComposition';
 import { buildHeadline } from '../lib/headline';
 import { METHODS_ANCHORS } from '../lib/methodology';
-import { latestWorldTotal } from '../lib/mapSeries';
+import { buildAlignedChain, emissionsYearValues } from '../lib/alignedYear';
 import { CLIMATE_SERIES_START_YEAR } from '../constants';
 
 /** The id of the closing method note, so the jump row can reach it. */
@@ -56,7 +56,7 @@ export default function ClimateCorrelationPage() {
 
   const signal = climate.signal;
   // The latest year that has data: an all-null final row is missing, not a world total of zero.
-  const emissions = useMemo(() => (world.data ? latestWorldTotal(world.data) : null), [world.data]);
+  const chain = useMemo(() => (signal ? buildAlignedChain(signal, world.data ? emissionsYearValues(world.data) : [], climate.mean5ySeries) : null), [signal, world.data, climate.mean5ySeries]);
   const allGas = useMemo(() => buildAllGas(allGasQuery.data), [allGasQuery.data]);
   const composition = useMemo(() => buildComposition(compositionQuery.data), [compositionQuery.data]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
@@ -97,7 +97,7 @@ export default function ClimateCorrelationPage() {
         <InlineAlert variant="error">{`The climate data is unavailable right now, so the chain and the relationship are not shown. ${NOT_A_CLIMATE_MODEL}`}</InlineAlert>
       ) : (
         <>
-          <CausalChain signal={signal} emissions={emissions} />
+          {chain && <CausalChain signal={signal} chain={chain} />}
           <HeadlineRelationship signal={signal} headline={headline} hasAllGas={allGas !== null} />
         </>
       )}
