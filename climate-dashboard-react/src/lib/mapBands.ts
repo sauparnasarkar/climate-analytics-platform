@@ -15,8 +15,8 @@ export interface MapBandScale {
 export const MAP_BANDS: Record<BandMode, MapBandScale> = {
   // Yearly emissions, MtCO₂
   absolute: { breaks: [1, 10, 100, 250, 500, 1000, 2500], labels: ['<1', '1–10', '10–100', '100–250', '250–500', '500–1k', '1k–2.5k', '2.5k+'] },
-  // The running total emitted, MtCO₂
-  cumulative: { breaks: [100, 1000, 5000, 20000, 50000, 100000, 250000], labels: ['<100', '100–1k', '1k–5k', '5k–20k', '20k–50k', '50k–100k', '100k–250k', '250k+'] },
+  // The running total emitted: breaks in MtCO₂, labels in GtCO₂ (the same breaks ÷ 1000)
+  cumulative: { breaks: [100, 1000, 5000, 20000, 50000, 100000, 250000], labels: ['<0.1', '0.1–1', '1–5', '5–20', '20–50', '50–100', '100–250', '250+'] }, // the breaks are in MtCO₂ (the unit of the values); the cumulative labels are in GtCO₂, the unit the card shows
 };
 
 export interface BandMove {
@@ -65,3 +65,6 @@ export function outsideMovers(
   });
   return moves.sort((a, b) => Math.abs(b.change) - Math.abs(a.change) || b.value - a.value).slice(0, limit);
 }
+
+/** The scale for the map in the unit the card shows: Absolute stays in MtCO₂; Cumulative is in GtCO₂ (the breaks ÷ 1000, the values ÷ 1000 by the caller). */
+export const MAP_UNIT_DIVISOR: Record<BandMode, number> = { absolute: 1, cumulative: 1000 };

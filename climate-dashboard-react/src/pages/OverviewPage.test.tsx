@@ -242,7 +242,7 @@ describe('OverviewPage', () => {
     expect(screen.getAllByText('All Countries')).toHaveLength(1); // the jump link to its section
     expect(screen.getByRole('heading', { name: 'Your countries · 2024' })).toBeInTheDocument();
     expect(yourHeads()).toEqual(['Country', 'MtCO₂', 'Share of world', 'Band since 1990']);
-    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 10', 'All countries · 195']);
+    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 10', 'All countries · 195']); // no World total in this fixture, so no Shipping & aviation row (it is worked out from it)
     // The footer totals snap directly to their value: All countries is summed from the series (the API sends no per-year totals), Selected from the chosen countries.
     expect(yourFoot()[1][1]).toBe('25,694');
     expect(yourFoot()[0][1]).toBe('25,324');
@@ -421,7 +421,7 @@ describe('OverviewPage', () => {
     expect(await screen.findAllByText('Select at least one country.')).toHaveLength(1);
     // 0 selected: no country rows, the prompt in their place, and both footer rows still there (the chosen group at 0).
     expect(within(yourTable()).getByText('Select countries to compare them here.')).toBeInTheDocument();
-    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 0', 'All countries · 195']);
+    expect(yourFoot().map((r) => r[0]).slice(0, 2)).toEqual(['Selected · 0', 'All countries · 195']);
     expect(yourBody()).toHaveLength(1); // the prompt's row only
     // headline_movers (SPEC.md §5.18.5) is a fixed top-10-emitters set from the server, completely independent of `selected`: it stays visible.
     expect(await screen.findByText('Since 1990')).toBeInTheDocument();
@@ -830,12 +830,12 @@ const FULL_RESPONSE: OverviewResponse = {
 const barOrRowHeight = (el: HTMLElement, row: number) => (el.dataset.testid === 'shell-bar' ? 68 : el.style.position === 'sticky' ? row : 0);
 // "Your countries" is one real table: the chosen countries (biggest first in the map's year), then two footer rows (the chosen group and all countries).
 const yourTable = () => screen.getByRole('table', { name: /^The countries you chose/ }) as HTMLTableElement;
-const cellsOf = (rows: Iterable<HTMLTableRowElement>) => [...rows].map((r) => [...r.cells].map((c) => (c.textContent ?? '').trim()));
+const cellsOf = (rows: Iterable<HTMLTableRowElement>) => [...rows].map((r) => [...r.cells].map((c) => (c.textContent ?? '').replace('ⓘ', '').trim()));
 const yourBody = () => cellsOf(yourTable().tBodies[0].rows);
 const yourFoot = () => cellsOf(yourTable().tFoot!.rows);
 const yourHeads = () => within(yourTable()).getAllByRole('columnheader').map((h) => h.textContent);
 // The change since the baseline in each footer row (Selected, then All countries), without its "since 1990".
-const tierChanges = () => yourFoot().map((r) => r[3].replace(/ since \d{4}$/, ''));
+const tierChanges = () => yourFoot().slice(0, 2).map((r) => r[3].replace(/ since \d{4}$/, ''));
 const mapSide = () => document.querySelector('.overview-hero-right') as HTMLElement;
 
 // The all-countries snapshot at the last year before the series (1969): cumulative Mt per ISO3 country, recorded from 1750.
@@ -997,7 +997,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
   it('at 1990 the footer totals sum the series and the change is still suppressed (the baseline)', async () => {
     mountFullRange(1990, '&countries=Vietnam');
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(yourFoot().map((r) => r[1])).toEqual([fmt0(chinaAt(1990) + vietnamAt(1990)), fmt0(chinaAt(1990) + vietnamAt(1990))]); // both countries chosen: Selected equals All countries here
+    expect(yourFoot().slice(0, 2).map((r) => r[1])).toEqual([fmt0(chinaAt(1990) + vietnamAt(1990)), fmt0(chinaAt(1990) + vietnamAt(1990))]); // both countries chosen: Selected equals All countries here
     expect(tierChanges()).toEqual(['—', '—']);
   });
   it('after 1990 the change is measured against the 1990 baseline, not the 1970 start', async () => {
@@ -1060,12 +1060,12 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     mountFullRange(2024);
     await showCumulative();
     const map = screen.getByTestId('choropleth');
-    expect(map).toHaveAttribute('data-value-label', 'Cumulative CO₂, MtCO₂');
-    expect(map).toHaveAttribute('data-unit', 'MtCO₂');
-    // the map layer carries the running totals in Mt, by ISO code (the cards beside it show the same numbers in Gt)
+    expect(map).toHaveAttribute('data-value-label', 'Cumulative CO₂, GtCO₂');
+    expect(map).toHaveAttribute('data-unit', 'GtCO₂');
+    // everything on the card is in GtCO₂ in Cumulative: the map layer carries the running totals in Gt, by ISO code
     const values = JSON.parse(map.getAttribute('data-values')!) as Record<string, number>;
-    ['CHN', 'VNM'].forEach((iso, i) => expect(values[iso]).toBeCloseTo(CUM[2024 - 1970][i] * 1000, 6));
-    expect(screen.getByText('Cumulative CO₂ Emissions by Country, 1750–2024')).toBeInTheDocument();
+    ['CHN', 'VNM'].forEach((iso, i) => expect(values[iso]).toBeCloseTo(CUM[2024 - 1970][i], 6));
+    expect(screen.getByText('All CO₂ emitted to 2024, by country')).toBeInTheDocument();
     expect(screen.queryByText(/^Running total, MtCO₂ emitted/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: 'Absolute' }));
     expect(screen.getByText('Where emissions come from, 2024')).toBeInTheDocument();
@@ -1186,32 +1186,32 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(map).not.toHaveAttribute('data-domain'); // the log domain is no longer passed
     fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
     const cumulative = await screen.findByTestId('choropleth');
-    expect(cumulative).toHaveAttribute('data-breaks', JSON.stringify([100, 1000, 5000, 20000, 50000, 100000, 250000]));
-    expect(cumulative).toHaveAttribute('data-band-labels', JSON.stringify(['<100', '100–1k', '1k–5k', '5k–20k', '20k–50k', '50k–100k', '100k–250k', '250k+']));
+    expect(cumulative).toHaveAttribute('data-breaks', JSON.stringify([0.1, 1, 5, 20, 50, 100, 250])); // the same breaks in GtCO₂ (÷ 1000)
+    expect(cumulative).toHaveAttribute('data-band-labels', JSON.stringify(['<0.1', '0.1–1', '1–5', '5–20', '20–50', '50–100', '100–250', '250+']));
   });
 
   it('in Cumulative the table reads Total to {year}, in GtCO₂, with each row\'s share of the cumulative world total and the footer\'s growth since the baseline', async () => {
     mountFullRange(2024, '&countries=Vietnam');
     await showCumulative();
-    expect(yourHeads()).toEqual(['Country', 'Total to 2024', 'Share of world', 'Band since 1990']);
+    expect(yourHeads()).toEqual(['Country', 'Total to 2024, GtCO₂', 'Share of world', 'Band since 1990']);
     const china = CUM[54][0];
     const vietnam = CUM[54][1];
     const worldMt = (china + vietnam) * WORLD_OVER_COUNTRIES; // Gt
-    expect(yourBody()[0].slice(0, 3)).toEqual(['China', `${gt(china)} Gt`, `${((china / worldMt) * 100).toFixed(1)}%`]);
-    expect(yourFoot()[1][1]).toBe(`${gt(china + vietnam)} Gt`); // All countries
+    expect(yourBody()[0].slice(0, 3)).toEqual(['China', gt(china), `${((china / worldMt) * 100).toFixed(1)}%`]);
+    expect(yourFoot()[1][1]).toBe(gt(china + vietnam)); // All countries
     const growth = (now: number, then: number) => `+${(((now - then) / then) * 100).toFixed(1)}%`;
     expect(yourFoot()[1][3]).toBe(`${growth(china + vietnam, CUM[20][0] + CUM[20][1])} since 1990`); // the running total at 1990 is index 20 of the 1970-based series
     expect(screen.queryByText('Share of world total')).not.toBeInTheDocument();
   });
-  it('the table view follows the mode (the running totals in MtCO₂, with a cumulative caption)', async () => {
+  it('the table view follows the mode (the running totals in GtCO₂, with a cumulative caption)', async () => {
     realMap.on = true;
     mountFullRange(2024);
     await showCumulative();
     fireEvent.click(screen.getByRole('button', { name: 'Table view' }));
     const region = screen.getByRole('region', { name: 'Table of values' });
     expect(within(region).getByRole('table', { name: /^World map of cumulative CO₂ emissions by country: the running total emitted since 1750, currently showing 2024/ })).toBeInTheDocument();
-    expect(within(region).getByRole('columnheader', { name: 'Cumulative CO₂, MtCO₂' })).toBeInTheDocument();
-    expect(within(region).getByText((CUM[54][0] * 1000).toLocaleString('en-GB'))).toBeInTheDocument(); // China's running total
+    expect(within(region).getByRole('columnheader', { name: 'Cumulative CO₂, GtCO₂' })).toBeInTheDocument();
+    expect(within(region).getByText(Number(CUM[54][0].toPrecision(3)).toLocaleString('en-GB'))).toBeInTheDocument(); // China's running total, in Gt
     expect(within(region).getAllByText('No data').length).toBeGreaterThan(100); // every country without a value is listed, not left out
   });
 
@@ -1351,8 +1351,10 @@ describe('OverviewPage: the Your countries table', () => {
     expect(within(cell('Upland')).getByRole('img')).toHaveAttribute('title', '100–250 → 1k–2.5k');
     expect(cell('Downland').textContent).toContain('↓1');
     expect(within(cell('Downland')).getByRole('img')).toHaveAccessibleName('Down 1 band: 2.5k+ to 1k–2.5k');
+    // unchanged: the band it is in, and a dash
     expect(cell('Stayland').textContent).toBe('–');
-    expect(cell('Stayland').querySelector('[aria-label]')).toHaveAttribute('aria-label', 'Stayed in 10–100');
+    expect(within(cell('Stayland')).getByRole('img')).toHaveAccessibleName('Unchanged: 10–100');
+    expect(within(cell('Stayland')).getByRole('img').querySelector('span[style*="--syn-data-band-3"]')).not.toBeNull(); // the 10–100 band's swatch
   });
 
   it('shows no band change at the baseline year, and no "Also changed band" line', async () => {
@@ -1376,9 +1378,11 @@ describe('OverviewPage: the Your countries table', () => {
     const all = BAND_COUNTRIES.map((c) => c[1]);
     const chosen = ['Upland', 'Downland', 'Stayland'];
     const world = sum(all, 2024) * 1.2;
-    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 3', 'All countries · 7']);
+    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 3', 'All countries · 7', 'Shipping & aviation']);
     expect(yourFoot()[0][1]).toBe(fmt0(sum(chosen, 2024)));
     expect(yourFoot()[1][1]).toBe(fmt0(sum(all, 2024)));
+    // Shipping & aviation is the World total less the countries' sum, worked out, not typed in
+    expect(yourFoot()[2][1]).toBe(fmt0(world - sum(all, 2024)));
     expect(yourFoot()[0][2]).toBe(`${((sum(chosen, 2024) / world) * 100).toFixed(1)}%`);
     expect(yourFoot()[1][2]).toBe(`${((sum(all, 2024) / world) * 100).toFixed(1)}%`);
     const change = (names: string[]) => (((sum(names, 2024) - sum(names, 1990)) / sum(names, 1990)) * 100).toFixed(1);
@@ -1403,7 +1407,7 @@ describe('OverviewPage: the Your countries table', () => {
   it('in Cumulative reads Total to {year}, and the outside movers are ups only (a running total cannot fall)', async () => {
     mountBands(2024);
     await showCumulative();
-    expect(yourHeads()).toEqual(['Country', 'Total to 2024', 'Share of world', 'Band since 1990']);
+    expect(yourHeads()).toEqual(['Country', 'Total to 2024, GtCO₂', 'Share of world', 'Band since 1990']);
     expect(alsoLine()).not.toMatch(/↓/);
     expect(alsoLine()).toMatch(/^Also changed band: /);
   });
@@ -1412,7 +1416,7 @@ describe('OverviewPage: the Your countries table', () => {
     mountBands(2024, []);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     expect(within(yourTable()).getByText('Select countries to compare them here.')).toBeInTheDocument();
-    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 0', 'All countries · 7']);
+    expect(yourFoot().map((r) => r[0]).slice(0, 2)).toEqual(['Selected · 0', 'All countries · 7']);
     expect(alsoLine()).toBe('Also changed band: Outup ↑4, Upland ↑3, Downland ↓1'); // by tonnes: +2,900, +1,850, then Downland −900 (ties Outmid +900; the larger value now wins)
     await showCumulative();
     expect(within(yourTable()).getByText('Select countries to compare them here.')).toBeInTheDocument();
@@ -1422,7 +1426,47 @@ describe('OverviewPage: the Your countries table', () => {
     mountBands(2024, undefined, new ApiError(503, 'unavailable'));
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     expect(yourBody().map((r) => r[2])).toEqual(['—', '—', '—']);
+    expect(yourFoot().map((r) => r[0])).toEqual(['Selected · 3', 'All countries · 7']); // and no Shipping & aviation row: it needs the World total
     expect(yourFoot().map((r) => r[2])).toEqual(['—', '—']);
+  });
+
+  it('adds a Shipping & aviation row: the World total less the countries, with its share, its change since the baseline and an empty band cell; All countries and Shipping & aviation shares make 100%, in both modes', async () => {
+    mountBands(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const shareOf = (row: string[]) => Number(row[2].replace('%', ''));
+    const check = () => {
+      const [, all, shipping] = yourFoot();
+      expect(shipping[0]).toBe('Shipping & aviation');
+      expect(shareOf(all) + shareOf(shipping)).toBeCloseTo(100, 0); // each is rounded to 0.1%
+      expect(Math.abs(shareOf(all) + shareOf(shipping) - 100)).toBeLessThanOrEqual(0.1);
+    };
+    check();
+    // 20% over the countries: bunkers are 1/6 of the world
+    expect(shareOf(yourFoot()[2])).toBeCloseTo(16.7, 1);
+    // its change since 1990 follows the same fraction (20% of both years' sums, so the same growth as the countries'), and the band column holds no swatches
+    expect(yourFoot()[2][3]).toMatch(/^\+[\d.]+% since 1990$/);
+    expect(within(yourTable().tFoot!.rows[2].cells[3]).queryByRole('img')).toBeNull();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    check();
+    expect(yourFoot()[2][0]).toBe('Shipping & aviation');
+  });
+
+  it('explains Shipping & aviation behind an ⓘ, reachable by keyboard', async () => {
+    mountBands(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const row = within(yourTable()).getByRole('rowheader', { name: /^Shipping & aviation/ });
+    const info = within(row).getByRole('button', { name: 'About Shipping & aviation' });
+    expect(info).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(info);
+    expect(screen.getByRole('note')).toHaveTextContent('International transport fuels (bunkers), not assigned to any country.');
+  });
+
+  it('leaves the Shipping & aviation change blank at the baseline year, and has no footnote about it', async () => {
+    mountBands(1990);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(yourFoot()[2][0]).toBe('Shipping & aviation');
+    expect(yourFoot()[2][3]).toBe('');
+    expect(screen.queryByText(/bunkers/i, { selector: 'p, span.syn-caption' })).not.toBeInTheDocument();
   });
 
   it('states no warming attribution anywhere on the table: it lists emissions only', async () => {

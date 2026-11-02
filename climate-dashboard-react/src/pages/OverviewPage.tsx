@@ -8,7 +8,7 @@ import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 import { worldTotals } from '../lib/mapSeries';
 import { computeAutoplayStops } from '../lib/yearStops';
 import { YourCountries, type CountryRow, type TotalRow } from '../components/overview/YourCountries';
-import { MAP_BANDS, bandChange, outsideMovers, type BandMode } from '../lib/mapBands';
+import { MAP_BANDS, MAP_UNIT_DIVISOR, bandChange, outsideMovers, type BandMode } from '../lib/mapBands';
 import { buildCumulative, cumulativeBaseFrom, positiveRange, worldTotalsFrom, type WorldTotals } from '../lib/cumulative';
 import { ChartCard, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, SegmentedControl, Choropleth, Text, useReducedMotion, Chart } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
@@ -258,6 +258,27 @@ function AnimatedWorldMap({
     toTotal(`Selected · ${selected.length}`, isCumulative ? cumulativeRow('Selected', selected.length, selectedCum) : animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, baselineIdx)),
     toTotal(`All countries · ${allCountriesTier.countries_count}`, isCumulative ? cumulativeRow('All countries', allCountriesTier.countries_count, allCum) : animatedTierRow('All countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, baselineIdx)),
   ];
+  // Shipping & aviation: the international transport fuels (bunkers) that no country is assigned, worked out as the World total less the sum of the countries (the same
+  // World total every share here divides by), for the year and, for the change, the comparison year. Left out when the World total is unavailable.
+  // The map is given its values and breaks in the unit the card shows: MtCO₂ for Absolute, GtCO₂ for Cumulative (all ÷ 1000, so a value on a break stays on it).
+  const divisor = MAP_UNIT_DIVISOR[isCumulative ? 'cumulative' : 'absolute'];
+  const mapValues = useMemo(() => (divisor === 1 ? valuesForYear : Object.fromEntries(Object.entries(valuesForYear).map(([k, v]) => [k, v / divisor]))), [valuesForYear, divisor]);
+  const mapBreaks = useMemo(() => bandScale.breaks.map((b) => b / divisor), [bandScale, divisor]);
+  const worldSeriesMt = isCumulative ? world?.cumulativeMt : world?.annualMt;
+  const countriesSumMt = (idx: number) => (isCumulative ? (allCum?.[idx] ?? 0) * 1000 : (allCo2ByYear[idx] ?? 0));
+  const bunkersAt = (year: number, idx: number): number | null => { const w = worldSeriesMt?.get(year); return w == null ? null : w - countriesSumMt(idx); };
+  const bunkersNow = bunkersAt(currentYear, yearIdx);
+  const bunkersBase = bunkersAt(comparisonYear, baselineIdx);
+  if (bunkersNow != null && Number.isFinite(bunkersNow) && bunkersNow >= 0) {
+    footers.push({
+      label: 'Shipping & aviation',
+      value: bunkersNow,
+      sharePct: shareOf(bunkersNow),
+      pctChange: yearIdx > baselineIdx && bunkersBase != null && bunkersBase > 0 ? ((bunkersNow - bunkersBase) / bunkersBase) * 100 : null,
+      blankChange: true,
+      info: 'International transport fuels (bunkers), not assigned to any country.',
+    });
+  }
   const selectedSet = useMemo(() => new Set(selectedIndices), [selectedIndices]);
   // Who else changed band since the comparison year (never a chosen country), the biggest changes in tonnes first; Cumulative has only ups.
   const movers = useMemo(
@@ -276,7 +297,7 @@ function AnimatedWorldMap({
         id={TOP_EMITTERS_ANCHOR}
         className="overview-map-card"
         // The annual map is "Where emissions come from": the By Country bar chart below keeps "CO₂ Emissions by Country (year)", so no two charts share a title.
-        title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `Where emissions come from, ${currentYear}`}
+        title={isCumulative ? `All CO₂ emitted to ${currentYear}, by country` : `Where emissions come from, ${currentYear}`}
         actions={
           <SegmentedControl
             name="map-mode"
@@ -335,15 +356,15 @@ function AnimatedWorldMap({
         {/* The picture is as wide as the window's height allows (mapWidth), centred in its column; null leaves it filling the column. */}
         <div style={mapWidth && !expanded ? { width: mapWidth, maxWidth: '100%', marginInline: 'auto' } : undefined}>
         <Choropleth
-          values={valuesForYear}
-          valueLabel={isCumulative ? 'Cumulative CO₂, MtCO₂' : 'CO₂ emissions, MtCO₂'}
-          unit="MtCO₂"
+          values={mapValues}
+          valueLabel={isCumulative ? 'Cumulative CO₂, GtCO₂' : 'CO₂ emissions, MtCO₂'}
+          unit={isCumulative ? 'GtCO₂' : 'MtCO₂'}
           scale="bands"
           surface="map"
           flush
           // The countries with no value this year or mode (hatched), so the legend's bands and this add up to the All Countries tier.
           noDataCount={Math.max(0, allCountriesTier.countries_count - Object.keys(valuesForYear).length)}
-          breaks={bandScale.breaks}
+          breaks={mapBreaks}
           bandLabels={bandScale.labels}
           ariaLabel={
             isCumulative
