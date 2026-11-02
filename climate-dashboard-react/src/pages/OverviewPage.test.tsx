@@ -1362,6 +1362,13 @@ describe('OverviewPage: the Your countries table', () => {
     expect(alsoLine()).toBeNull();
   });
 
+  it('does not compare band changes for years before the baseline', async () => {
+    mountBands(1980);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(yourBody().map((r) => r[3])).toEqual(['—', '—', '—']);
+    expect(alsoLine()).toBeNull();
+  });
+
   it('has footer rows whose totals are the group\'s values: the chosen countries\' sum, all countries, their shares of the world and the change since the baseline', async () => {
     mountBands(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });

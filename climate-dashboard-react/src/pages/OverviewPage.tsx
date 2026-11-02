@@ -244,7 +244,7 @@ function AnimatedWorldMap({
       .map((i): CountryRow => {
         const value = now[i] ?? null;
         const ok = value != null && value >= 0;
-        return { iso: worldMapSeries.iso_codes[i], name: worldMapSeries.countries[i], value: ok ? value : null, sharePct: ok && worldTotalMt ? (value / worldTotalMt) * 100 : null, band: bandChange(before[i], now[i], bandScale.breaks) };
+        return { iso: worldMapSeries.iso_codes[i], name: worldMapSeries.countries[i], value: ok ? value : null, sharePct: ok && worldTotalMt ? (value / worldTotalMt) * 100 : null, band: yearIdx < baselineIdx ? null : bandChange(before[i], now[i], bandScale.breaks) };
       })
       .sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
   }, [selectedIndices, activeValues, yearIdx, baselineIdx, worldMapSeries, worldTotalMt, bandScale]);
