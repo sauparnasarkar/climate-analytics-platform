@@ -368,7 +368,8 @@ function AnimatedWorldMap({
               value={currentYear}
               onChange={seek}
               showValue={false}
-              showRangeLabels
+              // The decade stops under it carry the range (1970 … 2024), and the thumb carries the year, so the label and the range labels are kept for a screen reader only.
+              labelHidden
               showThumbValue
             />
           </div>
