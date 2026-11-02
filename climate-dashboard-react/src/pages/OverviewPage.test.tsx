@@ -62,7 +62,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
       );
     },
     // The map's own drawing is the design system's concern; its props are what this page wires.
-    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[] }) => realMap.on ? (
+    Choropleth: (props: { ariaLabel?: string; values: Record<string, number>; valueLabel: string; unit?: string; domain?: [number, number]; outline?: string[]; scale?: string; surface?: string; breaks?: number[]; bandLabels?: string[] }) => realMap.on ? (
       <SynThemeProvider theme="night" storageKey={null}><RealChoropleth {...props} /></SynThemeProvider>
     ) : (
       <div
@@ -72,6 +72,10 @@ vi.mock('@syena/ds', async (importOriginal) => {
         data-value-label={props.valueLabel}
         data-unit={props.unit}
         data-domain={props.domain ? JSON.stringify(props.domain) : undefined}
+        data-scale={props.scale}
+        data-surface={props.surface}
+        data-breaks={props.breaks ? JSON.stringify(props.breaks) : undefined}
+        data-band-labels={props.bandLabels ? JSON.stringify(props.bandLabels) : undefined}
         data-outline={props.outline ? JSON.stringify(props.outline) : undefined}
       />
     ),
@@ -546,7 +550,7 @@ describe('OverviewPage', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
     const table = within(screen.getByRole('region', { name: 'Table of values' })).getByRole('table', { name: /^World map of CO₂ emissions by country, 2023 to 2024, currently showing 2024/ });
     const rows = within(table).getAllByRole('row').slice(1).map((r) => [...r.children].map((c) => c.textContent));
-    expect(rows.slice(0, 2)).toEqual([['China', '25,324'], ['Vietnam', '370']]); // countries with a value, largest first
+    expect(rows.slice(0, 2)).toEqual([['China', '25,324', '2.5k+'], ['Vietnam', '370', '250–500']]); // countries with a value, largest first, each with the band it is in
     const noData = rows.slice(2); // then every other country on the map, by name, so a missing value is stated and not silently absent
     expect(noData.length).toBeGreaterThan(100);
     expect(noData.every(([, value]) => value === 'No data')).toBe(true);
@@ -1084,17 +1088,31 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(screen.getByTestId('choropleth')).toHaveAttribute('data-value-label', 'CO₂ emissions, MtCO₂');
   });
 
-  it('the map\'s accessible label and the grey legend describe the cumulative view, not the annual one', async () => {
+  it('the map\'s accessible label and the hatched-no-data note describe the cumulative view, not the annual one', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     // Absolute
-    expect(screen.getByLabelText(/^World map of CO₂ emissions by country, 1970 to 2024, currently showing 2024/)).toBeInTheDocument();
-    expect(screen.getByText(/^Grey: no CO₂ data reported for that country in 2024\./)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^World map of CO₂ emissions by country, 1970 to 2024, currently showing 2024, coloured in 8 bands from pale yellow \(lowest\) to dark red \(highest\)/)).toBeInTheDocument();
+    expect(screen.getByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).toBeInTheDocument();
     // Cumulative: the period each value covers is stated, apart from the 1970–2024 frame range
     fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
     expect(screen.getByLabelText(/^World map of cumulative CO₂ emissions by country: the running total emitted since 1750, currently showing 2024/)).toBeInTheDocument();
-    expect(screen.getByText(/^Grey: no CO₂ ever recorded for that country up to 2024\./)).toBeInTheDocument();
-    expect(screen.queryByText(/^Grey: no CO₂ data reported for that country in 2024\./)).not.toBeInTheDocument();
+    expect(screen.getByText(/^Hatched: no CO₂ ever recorded for that country up to 2024\./)).toBeInTheDocument();
+    expect(screen.queryByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).not.toBeInTheDocument();
+  });
+
+  it('draws the map in eight fixed bands on the map panel, with each mode\'s own breaks and labels', async () => {
+    mountFullRange(2024);
+    const map = await screen.findByTestId('choropleth');
+    expect(map).toHaveAttribute('data-scale', 'bands');
+    expect(map).toHaveAttribute('data-surface', 'map');
+    expect(map).toHaveAttribute('data-breaks', JSON.stringify([1, 10, 100, 250, 500, 1000, 2500]));
+    expect(map).toHaveAttribute('data-band-labels', JSON.stringify(['<1', '1–10', '10–100', '100–250', '250–500', '500–1k', '1k–2.5k', '2.5k+']));
+    expect(map).not.toHaveAttribute('data-domain'); // the log domain is no longer passed
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    const cumulative = await screen.findByTestId('choropleth');
+    expect(cumulative).toHaveAttribute('data-breaks', JSON.stringify([100, 1000, 5000, 20000, 50000, 100000, 250000]));
+    expect(cumulative).toHaveAttribute('data-band-labels', JSON.stringify(['<100', '100–1k', '1k–5k', '5k–20k', '20k–50k', '50k–100k', '100k–250k', '250k+']));
   });
 
   it('the tiers show cumulative GtCO₂ and each group\'s share of the world total, summing to the same world', async () => {

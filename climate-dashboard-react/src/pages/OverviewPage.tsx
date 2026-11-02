@@ -9,6 +9,8 @@ import { worldTotals } from '../lib/mapSeries';
 import { computeAutoplayStops } from '../lib/yearStops';
 import { AtmosphericCo2Card, type ConcentrationContext } from '../components/overview/AtmosphericCo2Card';
 import { LeadingEmitters, type MapMode } from '../components/overview/LeadingEmitters';
+import { BandChanges } from '../components/overview/BandChanges';
+import { MAP_BANDS, bandMoves } from '../lib/mapBands';
 import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange, worldTotalsFrom, type WorldTotals } from '../lib/cumulative';
 import { ChartCard, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, SegmentedControl, Choropleth, Text, useReducedMotion, Chart, formatFigure } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
@@ -301,6 +303,14 @@ function AnimatedWorldMap({
     [activeValues, yearIdx, worldMapSeries, world, isCumulative, currentYear],
   );
 
+  // The map's colour bands for the mode on screen (a fixed scale, lib/mapBands), and the countries that changed band since the comparison year in that mode.
+  const bandScale = MAP_BANDS[isCumulative ? 'cumulative' : 'absolute'];
+  const comparisonYear = worldMapSeries.years[baselineIdx];
+  const moves = useMemo(
+    () => bandMoves(activeValues[baselineIdx] ?? [], activeValues[yearIdx] ?? [], worldMapSeries.iso_codes, worldMapSeries.countries, bandScale.breaks),
+    [activeValues, baselineIdx, yearIdx, worldMapSeries, bandScale],
+  );
+
   // ISO codes of the picker's selection, outlined on the map. Its own memo (and a separate Chart
   // prop) so a selection change restyles just the outline and never resets the user's zoom; it
   // only changes when the selection does, not per animation tick.
@@ -369,18 +379,21 @@ function AnimatedWorldMap({
           values={valuesForYear}
           valueLabel={isCumulative ? 'Cumulative CO₂, MtCO₂' : 'CO₂ emissions, MtCO₂'}
           unit="MtCO₂"
-          domain={isCumulative && cumRange ? [Math.max(cumRange[0], 0.01), Math.max(cumRange[1], 0.02)] : undefined}
+          scale="bands"
+          surface="map"
+          breaks={bandScale.breaks}
+          bandLabels={bandScale.labels}
           ariaLabel={
             isCumulative
-              ? `World map of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, currently showing ${currentYear}, log-scaled colour from pale yellow (lowest) to deep red (highest)`
-              : `World map of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, log-scaled colour from pale yellow (lowest) to deep red (highest)`
+              ? `World map of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest)`
+              : `World map of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, coloured in 8 bands from pale yellow (lowest) to dark red (highest)`
           }
           outline={outlineLocations}
         />
         <Text as="p" type="caption" tone="muted">
           {isCumulative
-            ? `Grey: no CO₂ ever recorded for that country up to ${currentYear}.`
-            : `Grey: no CO₂ data reported for that country in ${currentYear}.`}
+            ? `Hatched: no CO₂ ever recorded for that country up to ${currentYear}.`
+            : `Hatched: no CO₂ data reported for that country in ${currentYear}.`}
           {outlineLocations.length > 0 ? ' Outlined: your selected countries.' : ''}
         </Text>
       </ChartCard>
@@ -416,6 +429,7 @@ function AnimatedWorldMap({
         />
         {/* The five leading emitters among all countries, in the same year and mode as the map and the tiers. */}
         <LeadingEmitters year={currentYear} mode={isCumulative ? 'cumulative' : 'absolute'} leaders={topFive} cumulativeFrom={cumulativeFrom} />
+        <BandChanges mode={isCumulative ? 'cumulative' : 'absolute'} baselineYear={comparisonYear} year={currentYear} moves={moves} />
         {/* Atmospheric CO₂ for the map's own year (a stock: one global value, unchanged by the Absolute/Cumulative mode, never split by country). */}
         {concentration && <AtmosphericCo2Card year={currentYear} concentration={concentration} />}
       </div>
