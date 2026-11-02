@@ -23,6 +23,7 @@ import { useElementHeight } from '../hooks/useElementHeight';
 import { PageChrome } from '../layouts/PageChrome';
 import { useStickyBarHeight } from '../hooks/useStickyBarHeight';
 import { RIGHT_COLUMN_MIN_PX, useMapFit } from '../hooks/useMapFit';
+import { AlignedNote } from '../components/climate/AlignedNote';
 import { AnchorScroll, StickyAnchorRow } from '../components/StickyAnchorRow';
 import { YearBadge } from '../components/overview/YearBadge';
 import { PathwaysSection } from '../components/overview/PathwaysSection';
@@ -70,6 +71,8 @@ const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relat
 // rather than counting up -- no separate animation duration to coordinate with this one.
 
 // The muted-text colour, shared by the many small captions and labels on this page (one place to change it).
+/** What the Expanded tier means, behind its ⓘ. */
+const EXPANDED_NOTE = 'Coverage countries plus any country emitting ≥100 Mt';
 const WEAK_TEXT: CSSProperties = { color: 'var(--syn-color-text-muted)' };
 
 
@@ -84,6 +87,8 @@ interface TierRow {
   // Cumulative mode (the map's other view): GtCO₂ emitted to the selected year and the group's share of the world total.
   cumulativeGt?: number;
   sharePct?: number;
+  /** A note behind an ⓘ beside the row's name */
+  info?: string;
 }
 
 // Builds a TierRow from a per-year series and the currently-playing frame, rather than
@@ -97,71 +102,52 @@ function animatedTierRow(
   co2ByYear: number[],
   yearIdx: number,
   baseIdx = 0,
+  info?: string,
 ): TierRow {
   const co2Total = co2ByYear[yearIdx] ?? 0;
   const base = co2ByYear[baseIdx] ?? 0;
   const pctChange = base ? ((co2Total - base) / base) * 100 : 0;
-  return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx <= baseIdx };
+  return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx <= baseIdx, ...(info ? { info } : {}) };
 }
 
-// Each tier gets a full-width heading line (its name, e.g. "Expanded (Coverage + ≥100 Mt)") above
-// a compact 3-column metric strip, rather than a single 4-column table (SPEC.md §5.18.2 original
-// shape). A shared 4-column table crammed the tier name into ~130px of a ~380-450px-wide panel --
-// measured directly against the DOM: "Expanded (Coverage + ≥100 Mt)" needs 204px and was getting
-// 133px, truncating to "Expanded (Cover..." and losing the coverage/materiality qualifier this
-// tier's whole definition rests on. Promoting the name to its own full-width line gives it the
-// panel's entire width to wrap into instead, while Countries/CO₂/%Change -- short, fixed-format
-// numbers that were never the truncation risk -- stay in a compact strip below it. Still one
-// visually compact block (a shared border, no per-tier cards/icons), not the taller card layout
-// this replaced.
-// No count-up animation here -- these three metrics change every autoplay tick (as often as
-// every 1.2s), so they snap directly to the new value in step with the map rather than easing,
-// which would otherwise either lag behind the map or still be mid-animation when the next tick
-// arrives. CountUpText (below) stays reserved for values that only ever change once, on load.
-function TierSummaryPanel({ rows, year, mode = 'absolute', cumulativeFrom = null }: { rows: TierRow[]; year: number; mode?: MapMode; cumulativeFrom?: number | null }) {
+// The tiers as one compact table: a header row (Tier | CO₂ {year}, or Total to {year} in Cumulative | Since {baseline}) and a row per group of countries, name and
+// count in the row header ("Expanded · 40", with an ⓘ saying what Expanded means), figures right-aligned in tabular numerals, the change in the direction colours.
+// A real <table> with scoped headers. No count-up animation: these figures change every autoplay tick, so they snap to the new value in step with the map.
+function TierSummaryPanel({ rows, year, baselineYear, mode = 'absolute' }: { rows: TierRow[]; year: number; baselineYear: number; mode?: MapMode }) {
+  const cumulative = mode === 'cumulative';
+  const head = { padding: '6px 12px', textAlign: 'right', fontWeight: 400, color: 'var(--syn-color-text-muted)', whiteSpace: 'nowrap' } as const;
+  const cell = { padding: '6px 12px', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const;
   return (
-    // A categorical-colour top rule (the data colours are applied per metric, never per sentiment).
-    // Pairs with OverviewHeadline's rule below -- the two hero-row cards read as distinct metric groups.
-    <div style={{ background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-subtle)', borderTop: '3px solid var(--syn-data-cat-3, transparent)', borderRadius: 8, overflow: 'hidden' }}>
-      {rows.map((row, i) => (
-        <div
-          key={row.tier}
-          style={{ padding: '8px 12px', borderTop: i === 0 ? undefined : '1px solid var(--syn-color-border-subtle)' }}
-        >
-          <div className="syn-caption" style={{ marginBottom: 6 }}>{row.tier}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            <div>
-              <div className="syn-caption" style={WEAK_TEXT}>Countries</div>
-              <div className="syn-text-lg">{Math.round(row.countries).toLocaleString()}</div>
-            </div>
-            {mode === 'cumulative' ? (
-              <>
-                <div>
-                  <div className="syn-caption" style={WEAK_TEXT}>{`Cumulative ${cumulativeFrom ?? ''}–${year}`}</div>
-                  <div className="syn-text-lg">{`${fmtGt(row.cumulativeGt ?? 0)} GtCO₂`}</div>
-                </div>
-                <div>
-                  <div className="syn-caption" style={WEAK_TEXT}>Share of world total</div>
-                  <div className="syn-text-lg">{row.sharePct == null ? '—' : `${row.sharePct.toFixed(1)}%`}</div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <div className="syn-caption" style={WEAK_TEXT}>{`CO₂ (${year})`}</div>
-                  <div className="syn-text-lg">{`${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}</div>
-                </div>
-                <div>
-                  <div className="syn-caption" style={WEAK_TEXT}>% Chg. since 1990</div>
-                  <div className="syn-text-lg" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-                    {row.suppressPctChange ? '—' : `${formatFigure(row.pctChange, { signed: true, decimals: 1 })}%`}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
+    // A categorical-colour top rule (the data colours are applied per metric, never per sentiment). Relative, so the ⓘ's note opens across the panel.
+    <div style={{ position: 'relative', background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-subtle)', borderTop: '3px solid var(--syn-data-cat-3, transparent)', borderRadius: 8 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{`CO₂ by group of countries in ${year}`}</caption>
+        <thead>
+          <tr className="syn-caption">
+            <th scope="col" style={{ ...head, textAlign: 'left' }}>Tier</th>
+            <th scope="col" style={head}>{cumulative ? `Total to ${year}` : `CO₂ ${year}`}</th>
+            <th scope="col" style={head}>{`Since ${baselineYear}`}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.tier} style={{ borderTop: '1px solid var(--syn-color-border-subtle)' }}>
+              <th scope="row" className="syn-text-lg" style={{ ...cell, textAlign: 'left', fontWeight: 400 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {`${row.tier} · ${Math.round(row.countries).toLocaleString()}`}
+                  {row.info ? <AlignedNote note={row.info} label={row.tier} buttonLabel={`About ${row.tier}`} /> : null}
+                </span>
+              </th>
+              <td className="syn-text-lg" style={cell}>
+                {cumulative ? `${fmtGt(row.cumulativeGt ?? 0)} GtCO₂` : `${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
+              </td>
+              <td className="syn-text-lg" style={{ ...cell, color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+                {row.suppressPctChange ? '—' : `${formatFigure(row.pctChange, { signed: true, decimals: 1 })}%`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -293,10 +279,12 @@ function AnimatedWorldMap({
   const allCum = useMemo(() => groupCum(null), [cumMatrix]); // eslint-disable-line react-hooks/exhaustive-deps
   const expandedCum = useMemo(() => groupCum(expandedIndices), [cumMatrix, expandedIndices]); // eslint-disable-line react-hooks/exhaustive-deps
   const selectedCum = useMemo(() => groupCum(selectedIndices), [cumMatrix, selectedIndices]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cumulativeRow = (title: string, count: number, groupSeries: number[] | null): TierRow => {
+  const cumulativeRow = (title: string, count: number, groupSeries: number[] | null, info?: string): TierRow => {
     const gt = groupSeries?.[yearIdx] ?? 0;
     const worldMt = world?.cumulativeMt.get(currentYear);
-    return { tier: title, countries: count, co2Total: 0, pctChange: 0, cumulativeGt: gt, sharePct: worldMt ? (gt / (worldMt / 1000)) * 100 : undefined };
+    // The running total's growth since the comparison year (a running total only rises, so this is never a fall).
+    const base = groupSeries?.[baselineIdx] ?? 0;
+    return { tier: title, countries: count, co2Total: 0, pctChange: base ? ((gt - base) / base) * 100 : 0, suppressPctChange: yearIdx <= baselineIdx, cumulativeGt: gt, sharePct: worldMt ? (gt / (worldMt / 1000)) * 100 : undefined, ...(info ? { info } : {}) };
   };
 
   // The top-5 leading emitters among ALL countries for the year on screen, in the active mode.
@@ -424,18 +412,18 @@ function AnimatedWorldMap({
         <BandChanges mode={isCumulative ? 'cumulative' : 'absolute'} baselineYear={comparisonYear} year={currentYear} moves={moves} />
         <TierSummaryPanel
           year={currentYear}
+          baselineYear={comparisonYear}
           mode={isCumulative ? 'cumulative' : 'absolute'}
-          cumulativeFrom={cumulativeFrom}
           rows={
             isCumulative
               ? [
-                  cumulativeRow('All Countries', allCountriesTier.countries_count, allCum),
-                  cumulativeRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCum),
+                  cumulativeRow('All countries', allCountriesTier.countries_count, allCum),
+                  cumulativeRow('Expanded', expandedTier.countries_count, expandedCum, EXPANDED_NOTE),
                   ...(selected.length > 0 ? [cumulativeRow('Selected', selected.length, selectedCum)] : []),
                 ]
               : [
-                  animatedTierRow('All Countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, baselineIdx),
-                  animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCo2ByYear, yearIdx, baselineIdx),
+                  animatedTierRow('All countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, baselineIdx),
+                  animatedTierRow('Expanded', expandedTier.countries_count, expandedCo2ByYear, yearIdx, baselineIdx, EXPANDED_NOTE),
                   ...(selected.length > 0
                     ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, baselineIdx)]
                     : []),

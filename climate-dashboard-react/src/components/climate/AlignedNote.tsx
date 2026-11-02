@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 /** The ⓘ beside a chain value whose series has a newer year than the aligned one: a disclosure (aria-expanded) that opens the note BELOW its cell (the nearest positioned ancestor, which the caller makes `position: relative`), so it never covers the value; closed by
  * Escape, an outside tap or the button again. Nothing is drawn when there is no note, so no icon appears unless newer data exists. */
-export function AlignedNote({ note, label }: { note: string | null; label: string }) {
+export function AlignedNote({ note, label, buttonLabel }: { note: string | null; label: string; /** The button's accessible name when it is not about newer data (a plain note: "About the Expanded countries") */ buttonLabel?: string }) {
   const [open, setOpen] = useState(false);
   const noteId = useId();
   const root = useRef<HTMLSpanElement>(null);
@@ -19,7 +19,7 @@ export function AlignedNote({ note, label }: { note: string | null; label: strin
     <span ref={root} style={{ display: 'inline-flex' }}>
       <button
         type="button"
-        aria-label={`Newer data available: ${label}`}
+        aria-label={buttonLabel ?? `Newer data available: ${label}`}
         aria-expanded={open}
         aria-controls={noteId}
         onClick={() => setOpen((o) => !o)}
