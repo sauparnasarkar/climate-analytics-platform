@@ -67,7 +67,7 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
   const labels = MAP_BANDS[mode].labels;
   const atBaseline = year <= baselineYear;
   const fmt = (v: number | null) => (v == null ? '—' : cumulative ? gt(v) : num(v));
-  const head = { padding: '4px 0', fontWeight: 500, textAlign: 'right', color: 'var(--syn-color-text-muted)', whiteSpace: 'nowrap' } as const;
+  const head = { padding: '4px 0', fontWeight: 500, textAlign: 'right', color: 'var(--syn-color-text-muted)', whiteSpace: 'normal', verticalAlign: 'bottom', lineHeight: 1.25 } as const;
   const cell = { padding: '5px 0', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const;
   const rule = '1px solid var(--syn-color-border-subtle)';
   return (
@@ -83,8 +83,8 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
             <tr className="syn-caption">
               <th scope="col" style={{ ...head, textAlign: 'left' }}>Country</th>
               <th scope="col" style={head}>{cumulative ? `Total to ${year} · Gt` : `${year} · Mt`}</th>
-              <th scope="col" style={{ ...head, paddingLeft: 10 }}>Share of world</th>
-              <th scope="col" style={{ ...head, paddingLeft: 10 }}>{`Band since ${baselineYear}`}</th>
+              <th scope="col" style={{ ...head, paddingLeft: 8 }}>Share of world</th>
+              <th scope="col" style={{ ...head, paddingLeft: 8 }}>{`Band since ${baselineYear}`}</th>
             </tr>
           </thead>
           <tbody>
@@ -96,8 +96,8 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
               <tr key={r.iso} style={{ borderTop: rule }}>
                 <th scope="row" style={{ ...cell, textAlign: 'left', fontWeight: 400, whiteSpace: 'normal' }}>{r.name}</th>
                 <td style={cell}>{fmt(r.value)}</td>
-                <td style={{ ...cell, paddingLeft: 10, color: 'var(--syn-color-text-muted)' }}>{r.sharePct == null ? '—' : `${r.sharePct.toFixed(1)}%`}</td>
-                <td style={{ ...cell, paddingLeft: 10 }}><BandCell band={r.band} labels={labels} /></td>
+                <td style={{ ...cell, paddingLeft: 8, color: 'var(--syn-color-text-muted)' }}>{r.sharePct == null ? '—' : `${r.sharePct.toFixed(1)}%`}</td>
+                <td style={{ ...cell, paddingLeft: 8 }}><BandCell band={r.band} labels={labels} /></td>
               </tr>
             ))}
           </tbody>
@@ -111,8 +111,8 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
                   </span>
                 </th>
                 <td style={{ ...cell, fontWeight: 600 }}>{fmt(f.value)}</td>
-                <td style={{ ...cell, paddingLeft: 10, color: 'var(--syn-color-text-muted)' }}>{f.sharePct == null ? '—' : `${f.sharePct.toFixed(1)}%`}</td>
-                <td style={{ ...cell, paddingLeft: 10, color: f.pctChange == null ? undefined : f.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+                <td style={{ ...cell, paddingLeft: 8, color: 'var(--syn-color-text-muted)' }}>{f.sharePct == null ? '—' : `${f.sharePct.toFixed(1)}%`}</td>
+                <td style={{ ...cell, paddingLeft: 8, color: f.pctChange == null ? undefined : f.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
                   {f.pctChange == null ? (f.blankChange ? '' : '—') : `${pct(f.pctChange)} since ${baselineYear}`}
                 </td>
               </tr>
