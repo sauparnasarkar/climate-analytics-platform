@@ -58,8 +58,10 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
   return (
     <section aria-labelledby="your-countries-title" style={{ background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-subtle)', borderTop: '3px solid var(--syn-data-cat-3, transparent)', borderRadius: 8, padding: '10px 14px 10px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
       <h3 id="your-countries-title" className="syn-caption" style={{ margin: 0 }}>{`Your countries · ${year}`}</h3>
+      {/* A country's name stays on one line from a phone's width up (it wraps below, where the table is narrowest); the table scrolls sideways on its own as a last resort. */}
+      <style>{'@media (min-width: 481px) { .your-countries-table tbody th[scope="row"] { white-space: nowrap !important; } }'}</style>
       <div style={{ overflowX: 'auto' }}>
-        <table className="syn-text-md" style={{ width: '100%', borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
+        <table className="syn-text-md your-countries-table" style={{ width: '100%', borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
           <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{`The countries you chose, ${cumulative ? `total to ${year}` : `emissions in ${year}`}, share of the world total and band change since ${baselineYear}`}</caption>
           <thead>
             <tr className="syn-caption">
