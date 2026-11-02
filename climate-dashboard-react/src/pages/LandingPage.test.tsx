@@ -253,6 +253,7 @@ describe('LandingPage', () => {
     expect(screen.queryByRole('heading', { name: /stories/i })).not.toBeInTheDocument();
     expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 2024, allCountries: true });
     expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 1990, allCountries: true });
+    expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 2007, allCountries: true }); // the middle year of 1990 and 2024
   });
 
   it('shows the real final-year cumulative ranking and its share of the world total', async () => {

@@ -11,12 +11,13 @@ type R = [string, number, number, number | null, number | null];
 const ranking = (rows: R[]) => ({ cumulative_from: 1750, rows: rows.map(([country, cumulative_mt, share_pct, annual_mt, annual_share_pct], i) => ({ rank: i + 1, country, name: `${country} land`, cumulative_mt, share_pct, annual_mt, annual_share_pct })), series: [] }) as unknown as CorrelationCountryShareResponse;
 const LATEST = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['DEU', 95000, 5.1, 600, 1.6]]);
 const BASELINE = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['DEU', 80000, 9, 1000, 4]]);
+const MID = ranking([['USA', 340000, 25, 5900, 19], ['CHN', 130000, 10, 7000, 22], ['IND', 30000, 2, 1500, 5], ['DEU', 90000, 8, 800, 3]]);
 const SERIES = (countries: string[]) => ({ series: countries.map((country) => ({ country, points: [{ year: 1950, cumulative_mt: 5000 }, { year: 1990, cumulative_mt: 100000 }, { year: 2024, cumulative_mt: 300000 }] })) }) as unknown as CorrelationCountryShareResponse;
 
 function mockApi(latest: CorrelationCountryShareResponse | Error = LATEST, baseline: CorrelationCountryShareResponse | Error = BASELINE) {
   vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => {
     if (o?.countries) return SERIES(o.countries);
-    const r = o?.year === 2024 ? latest : baseline;
+    const r = o?.year === 2024 ? latest : o?.year === 2007 ? MID : baseline;
     if (r instanceof Error) throw r;
     return r;
   });
@@ -64,7 +65,7 @@ describe('StockStories', () => {
   it('keeps the cards when only the curves fail', async () => {
     vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => {
       if (o?.countries) throw new ApiError(503, 'unavailable');
-      return o?.year === 2024 ? LATEST : BASELINE;
+      return o?.year === 2024 ? LATEST : o?.year === 2007 ? MID : BASELINE;
     });
     render(<StockStories latestYear={2024} baselineYear={1990} />);
     expect(await screen.findAllByRole('article')).toHaveLength(4);
@@ -74,7 +75,7 @@ describe('StockStories', () => {
   it('renders nothing when the latest ranking is unavailable', async () => {
     mockApi(new ApiError(503, 'unavailable'));
     const { container } = render(<StockStories latestYear={2024} baselineYear={1990} />);
-    await vi.waitFor(() => expect(api.correlationCountryShare).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(api.correlationCountryShare).toHaveBeenCalledTimes(3));
     expect(container).toBeEmptyDOMElement();
   });
 });

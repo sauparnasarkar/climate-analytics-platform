@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
-import { FALLING_MIN_DROP_PCT, cumulativeCurve, pickStockStories, stockCandidates, stockCardText } from './stockStories';
+import { cumulativeCurve, midYear, pickStockStories, stockCandidates, stockCardText } from './stockStories';
 
 type R = [country: string, cum: number, share: number, annual: number | null, annualShare: number | null];
 const ranking = (rows: R[]) => ({ cumulative_from: 1750, rows: rows.map(([country, cumulative_mt, share_pct, annual_mt, annual_share_pct], i) => ({ rank: i + 1, country, name: country, cumulative_mt, share_pct, annual_mt, annual_share_pct })), series: [] }) as unknown as CorrelationCountryShareResponse;
@@ -10,6 +10,11 @@ const LATEST = ranking([
   ['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['RUS', 120000, 6.4, 1700, 4.4], ['IND', 66000, 3.6, 3200, 8.3], ['GBR', 80000, 4.3, 300, 0.8],
   ['DEU', 95000, 5.1, 600, 1.6], ['JPN', 70000, 3.8, 1000, 2.6],
 ]);
+// middle year (2007): [country, cumulative Mt (unused here), share, annual Mt, annual share]; Russia collapsed then rebounded (below 1990, above 2007)
+const MID = ranking([
+  ['USA', 340000, 25, 5900, 19], ['CHN', 130000, 10, 7000, 22], ['RUS', 110000, 11, 1500, 5], ['IND', 30000, 2, 1500, 5], ['GBR', 72000, 6, 540, 2],
+  ['DEU', 90000, 8, 800, 3], ['JPN', 55000, 5, 1250, 4],
+]);
 const BASELINE = ranking([
   ['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['RUS', 100000, 12, 2300, 10], ['IND', 11000, 1, 600, 3], ['GBR', 63000, 7, 580, 2],
   ['DEU', 80000, 9, 1000, 4], ['JPN', 40000, 5, 1100, 5],
@@ -17,23 +22,40 @@ const BASELINE = ranking([
 
 describe('pickStockStories', () => {
   it('chooses by the four rules, in order, from the top ten', () => {
-    const picks = pickStockStories(stockCandidates(LATEST, BASELINE));
+    const picks = pickStockStories(stockCandidates(LATEST, BASELINE, MID));
     expect(picks.map((p) => [p.archetype, p.candidate.country])).toEqual([['built', 'USA'], ['catching', 'CHN'], ['large-today', 'IND'], ['falling', 'DEU']]);
   });
 
-  it('takes the largest stock among those that fell by at least the threshold, not the biggest collapse', () => {
-    // GBR fell 48% and DEU 40% (4900 -> ... ); a Ukraine-like -80% on a small stock must not win, and the larger stock (DEU) does.
-    const latest = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['DEU', 95000, 5.1, 600, 1.6], ['GBR', 80000, 4.3, 300, 0.8], ['UKR', 31000, 1.7, 140, 0.4]]);
-    const base = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['DEU', 80000, 9, 1000, 4], ['GBR', 63000, 7, 580, 2], ['UKR', 20000, 3, 700, 3]]);
-    const falling = pickStockStories(stockCandidates(latest, base)).find((p) => p.archetype === 'falling')!;
-    expect(falling.candidate.country).toBe('DEU');
-    expect(FALLING_MIN_DROP_PCT).toBe(40);
+  it('derives the middle year from the other two', () => {
+    expect(midYear(1990, 2024)).toBe(2007);
+    expect(midYear(1990, 2025)).toBe(2008); // 2007.5 rounds up
   });
 
-  it('leaves out the fourth card when nobody fell by the threshold (a 39% fall does not qualify)', () => {
-    const latest = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['DEU', 95000, 5.1, 610, 1.6]]);
+  it('assert today: Germany, the larger stock of two steady fallers (UK, Germany); Russia (rebounded) and Japan-like cases do not displace it', () => {
+    const falling = pickStockStories(stockCandidates(LATEST, BASELINE, MID)).find((p) => p.archetype === 'falling')!;
+    expect(falling.candidate.country).toBe('DEU');
+  });
+
+  it('excludes a collapse-then-rebound country (Russia-like: below the baseline, above the middle year)', () => {
+    const latest = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['RUS', 120000, 6.4, 1700, 4.4]]);
+    const base = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['RUS', 100000, 12, 2300, 10]]);
+    const mid = ranking([['USA', 340000, 25, 5900, 19], ['CHN', 130000, 10, 7000, 22], ['IND', 30000, 2, 1500, 5], ['RUS', 110000, 11, 1500, 5]]);
+    expect(pickStockStories(stockCandidates(latest, base, mid)).map((p) => p.archetype)).toEqual(['built', 'catching', 'large-today']);
+  });
+
+  it('lets a larger-stock steady faller beat a small-stock steep faller (Ukraine-like −80%)', () => {
+    const latest = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['DEU', 95000, 5.1, 600, 1.6], ['UKR', 31000, 1.7, 140, 0.4]]);
+    const base = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['DEU', 80000, 9, 1000, 4], ['UKR', 20000, 3, 700, 3]]);
+    const mid = ranking([['USA', 340000, 25, 5900, 19], ['CHN', 130000, 10, 7000, 22], ['IND', 30000, 2, 1500, 5], ['DEU', 90000, 8, 800, 3], ['UKR', 25000, 2, 350, 1]]);
+    expect(pickStockStories(stockCandidates(latest, base, mid)).find((p) => p.archetype === 'falling')!.candidate.country).toBe('DEU');
+  });
+
+  it('leaves out the fourth card when no one is below both years, and when the middle year is unavailable', () => {
+    const latest = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['DEU', 95000, 5.1, 900, 1.6]]);
     const base = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['DEU', 80000, 9, 1000, 4]]);
-    expect(pickStockStories(stockCandidates(latest, base)).map((p) => p.archetype)).toEqual(['built', 'catching', 'large-today']);
+    const mid = ranking([['USA', 340000, 25, 5900, 19], ['CHN', 130000, 10, 7000, 22], ['IND', 30000, 2, 1500, 5], ['DEU', 90000, 8, 800, 3]]); // Germany is above its 2007 level
+    expect(pickStockStories(stockCandidates(latest, base, mid)).map((p) => p.archetype)).toEqual(['built', 'catching', 'large-today']);
+    expect(pickStockStories(stockCandidates(LATEST, BASELINE, null)).map((p) => p.archetype)).toEqual(['built', 'catching', 'large-today']);
   });
 
   it('skips a country already picked, so the next best takes the place', () => {
@@ -57,7 +79,7 @@ describe('pickStockStories', () => {
 
 describe('stockCardText', () => {
   const ctx = { baselineYear: 1990, latestYear: 2024, cumulativeFrom: 1750 };
-  const picks = pickStockStories(stockCandidates(LATEST, BASELINE));
+  const picks = pickStockStories(stockCandidates(LATEST, BASELINE, MID));
   const text = (a: string) => stockCardText(picks.find((p) => p.archetype === a)!, ctx);
 
   it('computes the key figures from the two rankings', () => {

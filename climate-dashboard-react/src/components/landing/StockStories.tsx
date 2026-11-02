@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { api } from '../../api/client';
 import { useAsync } from '../../hooks/useAsync';
 import { fmtGt } from '../../lib/cumulative';
-import { ARCHETYPE_TAG, STOCK_CURVE_FROM, cumulativeCurve, pickStockStories, stockCandidates, stockCardText, type CurvePoint, type StockPick } from '../../lib/stockStories';
+import { ARCHETYPE_TAG, STOCK_CURVE_FROM, cumulativeCurve, midYear, pickStockStories, stockCandidates, stockCardText, type CurvePoint, type StockPick } from '../../lib/stockStories';
 
 // "The stock keeps growing" (Home, SPEC §5.25): stock share against today's annual share for four countries chosen by rule. Every number, year, country
 // and rank comes from /correlation/country-share; a figure that is missing is left off its card, and a card whose country cannot be chosen is not drawn.
@@ -94,7 +94,9 @@ function Card({ pick, scaleMax, curve, baselineYear, latestYear, cumulativeFrom 
 export function StockStories({ latestYear, baselineYear }: { latestYear: number; baselineYear: number }) {
   const latest = useAsync(() => api.correlationCountryShare({ year: latestYear, allCountries: true }), [latestYear]);
   const baseline = useAsync(() => api.correlationCountryShare({ year: baselineYear, allCountries: true }), [baselineYear]);
-  const picks = useMemo(() => (latest.data && !baseline.loading ? pickStockStories(stockCandidates(latest.data, baseline.data)) : []), [latest.data, baseline.data, baseline.loading]);
+  const middleYear = midYear(baselineYear, latestYear);
+  const middle = useAsync(() => api.correlationCountryShare({ year: middleYear, allCountries: true }), [middleYear]);
+  const picks = useMemo(() => (latest.data && !baseline.loading && !middle.loading ? pickStockStories(stockCandidates(latest.data, baseline.data, middle.data)) : []), [latest.data, baseline.data, baseline.loading, middle.data, middle.loading]);
   const ids = picks.map((p) => p.candidate.country);
   const curves = useAsync(async () => (ids.length > 0 ? api.correlationCountryShare({ countries: ids, startYear: STOCK_CURVE_FROM }) : null), [ids.join(',')]);
   if (picks.length === 0) return null;
