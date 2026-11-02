@@ -75,7 +75,8 @@ export function YourCountries({ year, baselineYear, mode, rows, footers, movers 
       <h3 id="your-countries-title" className="syn-caption" style={{ margin: 0 }}>{`Your countries · ${year}`}</h3>
       {/* A country's name stays on one line from a phone's width up (it wraps below, where the table is narrowest); the table scrolls sideways on its own as a last resort. */}
       <style>{'@media (min-width: 481px) { .your-countries-table tbody th[scope="row"], .your-countries-table tfoot th[scope="row"] { white-space: nowrap !important; } } @media (max-width: 480px) { .your-countries-table th { white-space: normal !important; } .your-countries-table th, .your-countries-table td { padding-left: 6px !important; } }'}</style>
-      <div style={{ overflowX: 'auto' }}>
+      {/* The right padding keeps the last swatch's outline inside the scroll box, which clips whatever pokes past the table's edge. */}
+      <div style={{ overflowX: 'auto', paddingRight: 3 }}>
         <table className="syn-text-md your-countries-table" style={{ width: '100%', borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
           <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{`The countries you chose, ${cumulative ? `total to ${year}` : `emissions in ${year}`}, share of the world total and band change since ${baselineYear}`}</caption>
           <thead>
