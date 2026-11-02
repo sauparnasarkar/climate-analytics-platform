@@ -12,7 +12,7 @@ export const midYear = (baselineYear: number, latestYear: number) => Math.round(
 export type Archetype = 'built' | 'catching' | 'large-today' | 'falling';
 
 export const ARCHETYPE_TAG: Record<Archetype, string> = {
-  built: 'Built the stock',
+  built: 'Largest share so far',
   catching: 'Catching up fast',
   'large-today': 'Large today, small stock',
   falling: 'Falling, but still adding',
