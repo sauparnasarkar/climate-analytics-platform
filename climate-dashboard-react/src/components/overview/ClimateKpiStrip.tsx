@@ -69,7 +69,7 @@ export function ClimateKpiStrip({ emissions, signal, mean5y, mean5ySeries = [] }
   const first = series[0]?.year;
   const lastSeriesYear = series[series.length - 1]?.year ?? year;
   const baselineTotal = series.find((p) => p.year === baselineYear)?.value;
-  const indexSeries = baselineTotal ? series.filter((p) => p.year >= baselineYear).map((p) => ({ year: p.year, value: (p.value / baselineTotal) * 100 })) : [];
+  const indexSeries = baselineTotal ? series.filter((p) => p.year >= baselineYear && p.year <= year).map((p) => ({ year: p.year, value: (p.value / baselineTotal) * 100 })) : [];
   const owidRange = first != null ? `OWID, ${first}–${year}` : `OWID, to ${year}`;
   const changeColor = pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR; // more emissions is the bad direction, as elsewhere on this page
 
