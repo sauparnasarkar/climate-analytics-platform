@@ -34,7 +34,7 @@ describe('StockStories', () => {
     expect(screen.getByText('Share of 2024 emissions')).toBeInTheDocument();
     const cards = screen.getAllByRole('article');
     expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['USA land', 'CHN land', 'IND land', 'DEU land']);
-    expect(within(cards[0]).getByText('Built the stock')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Largest share so far')).toBeInTheDocument();
     expect(within(cards[0]).getByText('23.5%')).toBeInTheDocument();
     expect(within(cards[0]).getByText('12.7%')).toBeInTheDocument();
     expect(within(cards[0]).getByText('+75%')).toBeInTheDocument();
