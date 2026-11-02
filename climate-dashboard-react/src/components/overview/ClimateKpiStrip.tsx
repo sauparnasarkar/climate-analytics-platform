@@ -68,6 +68,7 @@ export function ClimateKpiStrip({ emissions, signal, mean5y, mean5ySeries = [] }
   const mean5yAtAligned = chain ? valueAt(mean5ySeries, chain.year) : null;
   const meanShown = mean5yAtAligned != null ? mean5yAtAligned : mean5y?.value ?? null;
   const first = series[0]?.year;
+  const lastSeriesYear = series[series.length - 1]?.year ?? year;
   const baselineTotal = series.find((p) => p.year === baselineYear)?.value;
   const indexSeries = baselineTotal ? series.filter((p) => p.year >= baselineYear).map((p) => ({ year: p.year, value: (p.value / baselineTotal) * 100 })) : [];
   const owidRange = first != null ? `OWID, ${first}–${year}` : `OWID, to ${year}`;
@@ -86,7 +87,7 @@ export function ClimateKpiStrip({ emissions, signal, mean5y, mean5ySeries = [] }
       <KpiCard
         tone="emissions" label={`CO₂ emissions · ${year}`}
         value={<>{fmtInt(total)} <span className="syn-text-lg">MtCO₂</span></>} delta="all countries"
-        spark={<Sparkline values={series} />} sparkCaption={first != null ? `${first}–${year}` : undefined}
+        spark={<Sparkline values={series} highlightYear={lastSeriesYear > year ? year : null} />} sparkCaption={first != null ? `${first}–${lastSeriesYear}` : undefined}
         chip={<BaselineChip baseline={String(baselineYear)} source="OWID" />} info={emissionsInfo} note={chain?.emissions?.note}
       />
       <KpiCard

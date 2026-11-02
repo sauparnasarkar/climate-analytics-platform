@@ -36,3 +36,14 @@ describe('ClimateKpiStrip at the aligned year', () => {
     expect(screen.queryByRole('button', { name: /Newer data available/ })).not.toBeInTheDocument();
   });
 });
+
+describe('ClimateKpiStrip emissions sparkline', () => {
+  it('plots to the latest emissions year, says so in its caption, and marks the aligned year when emissions are the newer series', () => {
+    const older = { ...SIGNAL, concentration: { value: 424.6, year: 2024 }, temperature: { value: 1.62, year: 2024 }, series: { concentration: SIGNAL.series.concentration.slice(0, 2), temperature: SIGNAL.series.temperature.slice(0, 2) } };
+    const series = [...SERIES, { year: 2025, value: 37900 }];
+    const { container } = render(<ClimateKpiStrip emissions={emissions(2025, series)} signal={older} mean5y={null} />);
+    expect(screen.getByText('CO₂ emissions · 2024')).toBeInTheDocument();
+    expect(screen.getByText('1990–2025')).toBeInTheDocument();
+    expect(container.querySelector('article circle')).not.toBeNull(); // the marker dot at 2024
+  });
+});
