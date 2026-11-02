@@ -410,7 +410,7 @@ function AnimatedWorldMap({
           />
       </div>
 
-      <div className="overview-hero-right" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="overview-hero-right" style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
         {/* The five leading emitters among all countries, in the same year and mode as the map and the tiers. */}
         <LeadingEmitters year={currentYear} mode={isCumulative ? 'cumulative' : 'absolute'} leaders={topFive} cumulativeFrom={cumulativeFrom} />
         <BandChanges mode={isCumulative ? 'cumulative' : 'absolute'} baselineYear={comparisonYear} year={currentYear} moves={moves} />

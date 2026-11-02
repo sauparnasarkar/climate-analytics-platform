@@ -1056,6 +1056,9 @@ describe('OverviewPage — the map tab\'s columns', () => {
     expect(children.indexOf(card.closest('.overview-hero-left > *') as Element)).toBe(0);
     expect(children.indexOf(summary)).toBe(1); // directly under it
     expect(column.style.gap).toBe('16px');
+    // both columns may shrink below their content (a table with non-wrapping cells must not widen the page's single column on a 320px phone)
+    expect(column.style.minWidth).toBe('0px');
+    expect(mapSide().style.minWidth).toBe('0px');
     // neither carries a width of its own: both take the column's (which the fit sets to the card's width)
     expect(summary.style.width).toBe('');
     expect((card.closest('.overview-hero-left > *') as HTMLElement).style.width).toBe('');
