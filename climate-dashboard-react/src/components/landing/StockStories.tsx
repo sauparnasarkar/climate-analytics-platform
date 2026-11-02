@@ -19,6 +19,7 @@ export const STOCK_STORIES_STYLES = `
 .stock-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 8px; align-items: center; }
 .stock-bar-track { height: 14px; border-radius: 3px; background: var(--syn-color-border-subtle); overflow: hidden; }
 .stock-bar { display: block; height: 14px; }
+.stock-curve-fig { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 @media (max-width: 1100px) { .stock-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .stock-cards { grid-template-columns: 1fr; gap: 12px; } .stock-card { padding: 14px 16px; gap: 10px; } .stock-curve-fig { display: none; } }
 `;
@@ -35,7 +36,7 @@ function Curve({ points, latestYear, baselineYear, label }: { points: CurvePoint
   const end = points[points.length - 1];
   const xBase = ((baselineYear - STOCK_CURVE_FROM) / span) * WIDTH;
   return (
-    <figure className="stock-curve-fig" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <figure className="stock-curve-fig">
       <svg role="img" aria-label={label} width="100%" height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none">
         <path d={`M0 80H${WIDTH}`} stroke="var(--syn-color-border-subtle)" vectorEffect="non-scaling-stroke" />
         <path className="stock-curve-area" d={`${path} L${WIDTH} 80 L0 80 Z`} />
