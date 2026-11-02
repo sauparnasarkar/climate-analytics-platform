@@ -28,7 +28,7 @@ describe('ClimateKpiStrip at the aligned year', () => {
     expect(within(info.closest('article')!).getAllByRole('button')).toHaveLength(1);
     fireEvent.click(info);
     const panel = within(info.closest('article')!).getByRole('region');
-    expect(panel.firstElementChild).toHaveTextContent('2025 is available: +1.45 °C (Berkeley Earth). Shown for 2024'); // the newer-data line first, then the baseline rows
+    expect(panel.firstElementChild).toHaveTextContent('2025 is available: +1.45 °C (Berkeley Earth). Shown for 2024 so all four cards refer to the same year.'); // the newer-data line first, then the baseline rows
     expect(panel).toHaveTextContent('Baseline1850–1900 average');
   });
 

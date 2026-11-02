@@ -57,7 +57,7 @@ function KpiCard({ tone, label, value, delta, deltaColor, spark, sparkCaption, c
 export function ClimateKpiStrip({ emissions, signal, mean5y, mean5ySeries = [] }: { emissions: ClimateKpiEmissions; signal: ClimateSignal | null; mean5y: { value: number; year: number } | null; mean5ySeries?: YearValue[] }) {
   const { baselineYear, series } = emissions;
   // The four steps share one year (the earliest of the three latest). Without the climate signal the emissions cards stand alone at their own latest year.
-  const chain = buildAlignedChain(signal, series, mean5ySeries);
+  const chain = buildAlignedChain(signal, series, mean5ySeries, 'cards');
   const year = chain?.year ?? emissions.year;
   // At the emissions' own latest year the Overview's figures are used as they are; only when the aligned year is an earlier one are they read from the series.
   const atOwnLatest = year === emissions.year || !chain?.emissions;

@@ -6,6 +6,9 @@ import type { WorldMapTimeSeries } from '../api/types';
 // the three series' latest years, so it moves by itself when emissions (usually the slowest) gain a year. A series with a newer year keeps it in its own
 // sparkline and says so behind an ⓘ note. Nothing here is typed in: every year and value is read from the series.
 
+/** Where the aligned values are shown: the chain's steps (Home, Correlation) or the Overview's KPI cards. */
+export type ChainNoun = 'steps' | 'cards';
+
 export type ChainStepName = 'emissions' | 'concentration' | 'temperature';
 
 export interface ChainStep {
@@ -49,17 +52,19 @@ interface StepInput {
   aligned: number;
   format: (v: number) => string;
   source: string;
+  /** What the four things are called where this is shown: steps of the chain, or the Overview's cards */
+  noun: ChainNoun;
   /** One extra sentence when the newer value differs markedly; computed from the series or null */
   context?: (newer: YearValue, atAligned: number) => string | null;
 }
 
-function step({ series, aligned, format, source, context }: StepInput): ChainStep | null {
+function step({ series, aligned, format, source, noun, context }: StepInput): ChainStep | null {
   const latest = series[series.length - 1];
   if (!latest) return null;
   const at = valueAt(series, aligned);
   if (at == null) return { value: latest.value, year: latest.year, note: null };
   const note = latest.year > aligned
-    ? [`${latest.year} is available: ${format(latest.value)} (${source}). Shown for ${aligned} so all four steps refer to the same year.`, context?.(latest, at)].filter(Boolean).join(' ')
+    ? [`${latest.year} is available: ${format(latest.value)} (${source}). Shown for ${aligned} so all four ${noun} refer to the same year.`, context?.(latest, at)].filter(Boolean).join(' ')
     : null;
   return { value: at, year: aligned, note };
 }
@@ -75,12 +80,12 @@ function temperatureContext(series: ReadonlyArray<YearValue>, mean5y: ReadonlyAr
 }
 
 /** The chain at the aligned year, or null when there is no climate signal. `emissions` is the world's annual total per year (Mt), possibly empty. */
-export function buildAlignedChain(signal: ClimateSignal | null, emissions: ReadonlyArray<YearValue>, mean5y: ReadonlyArray<YearValue> = []): AlignedChain | null {
+export function buildAlignedChain(signal: ClimateSignal | null, emissions: ReadonlyArray<YearValue>, mean5y: ReadonlyArray<YearValue> = [], noun: ChainNoun = 'steps'): AlignedChain | null {
   if (!signal) return null;
   const year = alignedYear([emissions[emissions.length - 1]?.year, signal.concentration.year, signal.temperature.year]);
   if (year == null) return null;
-  const concentration = step({ series: signal.series.concentration, aligned: year, format: (v) => `${v.toFixed(1)} ppm`, source: 'NOAA GML' });
-  const temperature = step({ series: signal.series.temperature, aligned: year, format: fmtAnomaly, source: 'Berkeley Earth', context: temperatureContext(signal.series.temperature, mean5y, year) });
+  const concentration = step({ series: signal.series.concentration, aligned: year, format: (v) => `${v.toFixed(1)} ppm`, source: 'NOAA GML', noun });
+  const temperature = step({ series: signal.series.temperature, aligned: year, format: fmtAnomaly, source: 'Berkeley Earth', noun, context: temperatureContext(signal.series.temperature, mean5y, year) });
   if (!concentration || !temperature) return null;
-  return { year, emissions: step({ series: emissions, aligned: year, format: (v) => `${fmtInt(v)} MtCO₂`, source: 'OWID' }), concentration, temperature };
+  return { year, emissions: step({ series: emissions, aligned: year, format: (v) => `${fmtInt(v)} MtCO₂`, source: 'OWID', noun }), concentration, temperature };
 }

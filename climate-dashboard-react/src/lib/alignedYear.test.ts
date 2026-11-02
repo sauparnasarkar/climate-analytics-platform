@@ -33,6 +33,12 @@ describe('buildAlignedChain', () => {
     expect(c.concentration.note).toBe('2025 is available: 427.0 ppm (NOAA GML). Shown for 2024 so all four steps refer to the same year.');
   });
 
+  it('says "cards" where the Overview asks for it, and "steps" by default', () => {
+    const sig = signal([[2024, 424], [2025, 427]], [[2024, 1.6], [2025, 1.4]]);
+    expect(buildAlignedChain(sig, emissions, [], 'cards')!.concentration.note).toContain('so all four cards refer to the same year.');
+    expect(buildAlignedChain(sig, emissions)!.concentration.note).toContain('so all four steps refer to the same year.');
+  });
+
   it('moves when emissions gain a year, and the notes disappear', () => {
     const c = buildAlignedChain(signal([[2024, 424], [2025, 427]], [[2024, 1.6], [2025, 1.4]]), [...emissions, { year: 2025, value: 120 }])!;
     expect(c.year).toBe(2025);
