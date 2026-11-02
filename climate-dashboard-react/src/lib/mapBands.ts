@@ -35,7 +35,7 @@ export const MOVES_DOWN = 3;
 
 /**
  * The countries that changed band between two years of the same mode: the largest moves up (`MOVES_UP`), then the largest down (`MOVES_DOWN`); the size of a move
- * is the number of bands crossed, ties broken by the larger value now. A country with no value in either year is left out (there is nothing to compare).
+ * is the number of bands crossed, ties broken by the larger value now. A country with no value in either year is left out (there is nothing to compare); a real zero is a value, in the lowest band.
  * `before` and `now` are values by country, parallel to `isos` and `names`.
  */
 export function bandMoves(
@@ -48,7 +48,7 @@ export function bandMoves(
   const moves: BandMove[] = [];
   now.forEach((value, i) => {
     const v0 = before[i];
-    if (value == null || !(value > 0) || v0 == null || !(v0 > 0)) return;
+    if (value == null || !(value >= 0) || v0 == null || !(v0 >= 0)) return;
     const from = bandIndex(v0, breaks);
     const to = bandIndex(value, breaks);
     if (from !== to) moves.push({ iso: isos[i], name: names[i], from, to, steps: to - from, value });

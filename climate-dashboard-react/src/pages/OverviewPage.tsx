@@ -251,10 +251,11 @@ function AnimatedWorldMap({
   const activeValues: ReadonlyArray<ReadonlyArray<number | null>> = isCumulative ? cumMatrixMt : worldMapSeries.values;
   const cumulativeFrom = cumulative?.from ?? null;
 
-  // The map takes the values of the year in view, by country code; a country with no value (or none above zero) is drawn as no data. The map keeps
-  // its zoom when the year or the selection changes, since only these inputs change.
+  // The map takes the values of the year in view, by country code; a country with no value is drawn as no data (cumulative: none emitted yet, see buildCumulative). A real
+  // zero (Antarctica reports 0.0) is a value, in the lowest band: only the log scale it replaced could not draw one. The map keeps its zoom when the year or the
+  // selection changes, since only these inputs change.
   const valuesForYear = useMemo(
-    () => Object.fromEntries(worldMapSeries.iso_codes.flatMap((code, i) => { const v = activeValues[yearIdx]?.[i]; return v == null || v <= 0 ? [] : [[code, v]]; })) as Record<string, number>,
+    () => Object.fromEntries(worldMapSeries.iso_codes.flatMap((code, i) => { const v = activeValues[yearIdx]?.[i]; return v == null || !(v >= 0) ? [] : [[code, v]]; })) as Record<string, number>,
     [worldMapSeries, activeValues, yearIdx],
   );
 

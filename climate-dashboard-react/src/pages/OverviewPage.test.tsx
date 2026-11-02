@@ -1101,6 +1101,15 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(screen.queryByText(/^Hatched: no CO₂ data reported for that country in 2024\./)).not.toBeInTheDocument();
   });
 
+  it('gives the map a real zero (Antarctica reports 0.0) as a value, for the lowest band, and still leaves a missing value out', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'ATA', 'XXX'], countries: ['China', 'Antarctica', 'Nowhere'], values: [[14350, 0, null], [25324, 0, null]] });
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
+    const map = await screen.findByTestId('choropleth');
+    expect(JSON.parse(map.getAttribute('data-values')!)).toEqual({ CHN: 25324, ATA: 0 });
+  });
+
   it('draws the map in eight fixed bands on the map panel, with each mode\'s own breaks and labels', async () => {
     mountFullRange(2024);
     const map = await screen.findByTestId('choropleth');

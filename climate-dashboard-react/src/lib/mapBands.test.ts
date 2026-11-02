@@ -23,8 +23,14 @@ describe('bandMoves', () => {
   });
 
   it('leaves out a country that stayed in its band, or has no value in either year', () => {
-    const moves = bandMoves([20, null, 5, 0], [90, 600, null, 700], isos(4), names(4), ABS);
+    const moves = bandMoves([20, null, 5, null], [90, 600, null, 700], isos(4), names(4), ABS);
     expect(moves).toEqual([]);
+  });
+
+  it('counts a real zero as a value in the lowest band (Antarctica reports 0.0), both before and now', () => {
+    expect(bandMoves([0], [30], ['ATA'], ['Antarctica'], ABS)).toEqual([{ iso: 'ATA', name: 'Antarctica', from: 0, to: 2, steps: 2, value: 30 }]);
+    expect(bandMoves([30], [0], ['ATA'], ['Antarctica'], ABS)[0]).toMatchObject({ from: 2, to: 0, steps: -2 });
+    expect(bandMoves([0], [0.5], ['ATA'], ['Antarctica'], ABS)).toEqual([]); // still in the lowest band
   });
 
   it('orders the largest moves up first (4), then down (3), by bands crossed, ties by the larger value now', () => {
