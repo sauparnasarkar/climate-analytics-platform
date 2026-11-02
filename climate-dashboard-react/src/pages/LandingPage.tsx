@@ -6,6 +6,7 @@ import { useAsync } from '../hooks/useAsync';
 import { useStableViewportHeight, useViewportHeight } from '../hooks/useViewportHeight';
 import { useInView } from '../hooks/useInView';
 import { useYearAnimation } from '../hooks/useYearAnimation';
+import { StockStories } from '../components/landing/StockStories';
 import { RankRace } from '../components/landing/RankRace';
 import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
 import { CAROUSEL_STYLES, HeroCarousel, type PageAnchor } from '../components/landing/HeroCarousel';
@@ -18,7 +19,7 @@ import { KPI_STRIP_STYLES, KpiStrip } from '../components/landing/KpiStrip';
 import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
-import { fmtInt, fmtPct, GLOBE_LABEL_COUNT, GLOBE_LABEL_COUNT_PHONE, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, RACE_SIZE, sparklinePath, topEmitterLabels, type Story } from '../lib/landingData';
+import { fmtInt, fmtPct, GLOBE_LABEL_COUNT, GLOBE_LABEL_COUNT_PHONE, growthPhrase, latestTopShare, phoneGlobeMax, RACE_SIZE, topEmitterLabels } from '../lib/landingData';
 import { cumulativeBaseFrom, cumulativeSeriesMt, worldTotalsFrom } from '../lib/cumulative';
 import { NAV_ITEMS } from '../navigation';
 import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
@@ -132,7 +133,7 @@ const STYLES = `
 // The sections under the hero, in page order, as the carousel's "On this page" links (the chain band is there only with the climate signal).
 const PAGE_ANCHORS: PageAnchor[] = [
   { href: '#chain-heading', label: 'Chain reaction' },
-  { href: '#stories-heading', label: 'Three stories' },
+  { href: '#stock-heading', label: 'The stock keeps growing' },
   { href: '#race-heading', label: 'Top 10 emitters' },
   { href: '#features-heading', label: 'Explore the data' },
 ];
@@ -316,66 +317,6 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
   );
 }
 
-// `to`/`cta` take the story's country: the first two links deep-link (?country= / ?countries=, see
-// useCountrySelection) so the card's promise -- "Open China's profile" -- is what actually opens.
-// The last has no country parameter: the Overview's % Change chart covers the *selected* countries,
-// and one country isn't a comparison.
-const STORY_COPY: Record<Story['kind'], { kicker: string; text: (n: number, since: number) => string; cta: (c: string) => string; to: (c: string) => string }> = {
-  'largest-rise': { kicker: 'largest absolute rise', text: (n, since) => `MtCO₂ added since ${since}, the largest increase of any top-${n} emitter.`, cta: (c) => `Open ${c}’s profile`, to: (c) => `/country-profile?country=${encodeURIComponent(c)}` },
-  'fastest-growth': { kicker: 'fastest growth', text: (n, since) => `The fastest percentage growth among the top-${n} emitters since ${since}.`, cta: (c) => `See ${c} in Historical Trends`, to: (c) => `/historical?countries=${encodeURIComponent(c)}` },
-  'steepest-decline': { kicker: 'steepest decline', text: (n, since) => `The steepest cut among the top-${n} emitters since ${since}.`, cta: () => 'See % change on the Overview', to: () => '/overview#pct-change' },
-};
-
-function StoryCard({ story, topN, firstYear, lastYear }: { story: Story; topN: number; firstYear: number; lastYear: number }) {
-  const copy = STORY_COPY[story.kind];
-  const color = story.sentiment === 'increase' ? NEGATIVE_COLOR : POSITIVE_COLOR;
-  const path = sparklinePath(story.series);
-  return (
-    <article style={{ ...cardStyle, padding: 32, gap: 16 }}>
-      <div className="syn-caption" style={{ letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--syn-color-text-muted)' }}>
-        {story.country} · {copy.kicker}
-      </div>
-      <div style={{ fontSize: 'clamp(2rem, 3.4vw, 3rem)', fontWeight: 600, lineHeight: 1.15, color, fontVariantNumeric: 'tabular-nums' }}>{story.headline}</div>
-      <div className="syn-text-lg">{copy.text(topN, firstYear)}</div>
-      {path && (
-        <svg width="100%" height="64" viewBox="0 0 300 64" preserveAspectRatio="none" role="img" aria-label={`${story.country} CO₂ emissions, ${firstYear} to ${lastYear}`}>
-          <path d={path} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        </svg>
-      )}
-      {story.from != null && story.to != null && (
-        <div className="syn-caption" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--syn-color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-          <span>{firstYear} · {fmtInt(story.from)}</span>
-          <span>{lastYear} · {fmtInt(story.to)}</span>
-        </div>
-      )}
-      <Link to={copy.to(story.country)} style={{ fontWeight: 600, color: 'var(--syn-color-accent-text, inherit)' }}>{copy.cta(story.country)} →</Link>
-    </article>
-  );
-}
-
-function Stories({ overview, map }: { overview: OverviewResponse; map: WorldMapTimeSeries }) {
-  const stories = useMemo(() => pickStories(overview.headline_movers, map), [overview.headline_movers, map]);
-  if (stories.length === 0) return null;
-  const firstYear = map.years[0];
-  const lastYear = map.years[map.years.length - 1];
-  const topN = overview.headline_movers.length;
-  return (
-    <section aria-labelledby="stories-heading" style={{ padding: 'var(--landing-pad-y) var(--landing-pad-x)', background: 'var(--syn-color-surface-raised)', display: 'flex', flexDirection: 'column', gap: 32 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <h2 id="stories-heading" className="landing-h2" style={{ margin: 0 }}>
-          {stories.length === 3 ? 'Three' : stories.length === 2 ? 'Two' : 'One'} {stories.length === 1 ? 'story' : 'stories'} in {map.years.length} years of data
-        </h2>
-        <p className="syn-text-lg" style={{ margin: 0, color: 'var(--syn-color-text-muted)' }}>
-          Among the {topN} largest emitters of {lastYear}, {firstYear} → {lastYear}.
-        </p>
-      </div>
-      <div className="landing-grid3">
-        {stories.map((s) => <StoryCard key={s.kind} story={s} topN={topN} firstYear={firstYear} lastYear={lastYear} />)}
-      </div>
-    </section>
-  );
-}
-
 function featureText(id: string, overview: OverviewResponse, map: WorldMapTimeSeries): string {
   const first = map.years[0];
   const last = map.years[map.years.length - 1];
@@ -511,7 +452,7 @@ export default function LandingPage() {
               }}
             />
           )}
-          <Stories overview={overview.data!} map={map!} />
+          <StockStories latestYear={overview.data!.all_countries.latest_year} baselineYear={BASELINE_YEAR} />
           {cumulativeMap && <RankRace series={cumulativeMap} worldTotals={worldCumulativeMt} cumulativeFrom={cumulativeBase?.from ?? null} />}
           <Features overview={overview.data!} map={map!} />
           <BuiltOn />

@@ -246,34 +246,13 @@ describe('LandingPage', () => {
     expect(api.worldMapSeries).toHaveBeenCalledWith(1970);
   });
 
-  it('picks the three stories from the headline movers, with their figures and deep links', async () => {
+  it('replaces "three stories" with "The stock keeps growing", drawn from the share rankings', async () => {
     mount();
-    const stories = await screen.findByRole('heading', { name: /three stories in 3 years of data/i });
-    const section = stories.closest('section')!;
-    expect(within(section).getByText('Among the 4 largest emitters of 2024, 2022 → 2024.')).toBeInTheDocument();
-    const cards = within(section).getAllByRole('article');
-    expect(cards).toHaveLength(3);
-    expect(within(cards[0]).getByText('Beta · largest absolute rise')).toBeInTheDocument();
-    expect(within(cards[0]).getByText('+250')).toBeInTheDocument();
-    expect(within(cards[1]).getByText('Beta · fastest growth')).toBeInTheDocument();
-    expect(within(cards[1]).getByText('+500.0%')).toBeInTheDocument();
-    expect(within(cards[2]).getByText('Delta · steepest decline')).toBeInTheDocument();
-    expect(within(cards[2]).getByText('−83.3%')).toBeInTheDocument();
-    expect(within(cards[0]).getByRole('link', { name: 'Open Beta’s profile →' })).toHaveAttribute('href', '/country-profile?country=Beta');
-    expect(within(cards[1]).getByRole('link', { name: 'See Beta in Historical Trends →' })).toHaveAttribute('href', '/historical?countries=Beta');
-    expect(within(cards[2]).getByRole('link', { name: /See % change on the Overview/ })).toHaveAttribute('href', '/overview#pct-change');
-  });
-
-  it('drops the decline card (and retitles the section) when nothing declined', async () => {
-    mount(overview({ headline_movers: [mover('Alpha', 10, 20), mover('Beta', 10, 15)] }));
-    expect(await screen.findByRole('heading', { name: /two stories in 3 years of data/i })).toBeInTheDocument();
-    expect(screen.queryByText(/steepest decline/i)).not.toBeInTheDocument();
-  });
-
-  it('renders no stories section at all when no mover has usable figures', async () => {
-    mount(overview({ headline_movers: [{ country: 'X', co2_1990: null, co2_latest: null, absolute_change: null, pct_change: null }] }));
-    await screen.findByTestId('globe');
+    const heading = await screen.findByRole('heading', { name: 'The stock keeps growing' });
+    expect(within(heading.closest('section')!).getAllByRole('article').length).toBeGreaterThan(0);
     expect(screen.queryByRole('heading', { name: /stories/i })).not.toBeInTheDocument();
+    expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 2024, allCountries: true });
+    expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 1990, allCountries: true });
   });
 
   it('shows the real final-year cumulative ranking and its share of the world total', async () => {
@@ -434,8 +413,8 @@ describe('LandingPage — climate-signal carousel', () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((l) => l.textContent)).toEqual(['Chain reaction', 'Three stories', 'Top 10 emitters', 'Explore the data']);
-    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#chain-heading', '#stories-heading', '#race-heading', '#features-heading']);
+    expect(links.map((l) => l.textContent)).toEqual(['Chain reaction', 'The stock keeps growing', 'Top 10 emitters', 'Explore the data']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#chain-heading', '#stock-heading', '#race-heading', '#features-heading']);
     for (const l of links) expect(document.getElementById(l.getAttribute('href')!.slice(1))).not.toBeNull();
   });
 
