@@ -414,7 +414,7 @@ describe('LandingPage — climate-signal carousel', () => {
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
     await screen.findByRole('heading', { name: 'The stock keeps growing' }); // the section loads its own rankings, after the page
     const links = within(nav).getAllByRole('link');
-    expect(links.map((l) => l.textContent)).toEqual(['Chain reaction', 'The stock keeps growing', 'Top 10 emitters', 'Explore the data']);
+    expect(links.map((l) => l.textContent)).toEqual(['Chain reaction', 'The CO₂ stock', 'Top 10 emitters', 'Explore the data']);
     expect(links.map((l) => l.getAttribute('href'))).toEqual(['#chain-heading', '#stock-heading', '#race-heading', '#features-heading']);
     for (const l of links) expect(document.getElementById(l.getAttribute('href')!.slice(1))).not.toBeNull();
   });

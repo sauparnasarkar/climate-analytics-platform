@@ -133,7 +133,7 @@ const STYLES = `
 // The sections under the hero, in page order, as the carousel's "On this page" links (the chain band is there only with the climate signal).
 const PAGE_ANCHORS: PageAnchor[] = [
   { href: '#chain-heading', label: 'Chain reaction' },
-  { href: '#stock-heading', label: 'The stock keeps growing' },
+  { href: '#stock-heading', label: 'The CO₂ stock' },
   { href: '#race-heading', label: 'Top 10 emitters' },
   { href: '#features-heading', label: 'Explore the data' },
 ];
