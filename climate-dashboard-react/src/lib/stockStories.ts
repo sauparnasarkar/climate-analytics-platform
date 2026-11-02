@@ -34,7 +34,7 @@ export interface StockCandidate {
   annualChangePct: number | null;
   /** Share of the stock emitted after the baseline, % */
   emittedAfterPct: number | null;
-  /** Yearly emissions now are below both the baseline year's and the middle year's; null when either is unknown */
+  /** Yearly emissions now are positive (still adding) and below both the baseline year's and the middle year's; null when either is unknown */
   fellAndStayedDown: boolean | null;
 }
 
@@ -59,7 +59,7 @@ export function stockCandidates(latest: CorrelationCountryShareResponse | null |
       stockGrowthPct: bStock !== null && r.cumulative_mt > 0 ? (r.cumulative_mt / bStock - 1) * 100 : null,
       annualChangePct: bAnnual !== null && finite(r.annual_mt) ? (r.annual_mt / bAnnual - 1) * 100 : null,
       emittedAfterPct: bStock !== null && r.cumulative_mt > 0 ? (1 - bStock / r.cumulative_mt) * 100 : null,
-      fellAndStayedDown: bAnnual !== null && mAnnual !== null && finite(r.annual_mt) ? r.annual_mt < bAnnual && r.annual_mt < mAnnual : null,
+      fellAndStayedDown: bAnnual !== null && mAnnual !== null && finite(r.annual_mt) ? r.annual_mt > 0 && r.annual_mt < bAnnual && r.annual_mt < mAnnual : null,
     };
   });
 }

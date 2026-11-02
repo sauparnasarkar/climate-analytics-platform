@@ -14,8 +14,10 @@ export interface BaselineSpec {
 }
 
 /** The ⓘ button next to a KPI or chart title; opens a small panel listing the baseline details.
- * A disclosure (aria-expanded), closed by Escape or an outside click. */
-export function BaselineInfo({ spec, label }: { spec: BaselineSpec; label: string }) {
+ * A disclosure (aria-expanded), closed by Escape or an outside click.
+ * `note`: the newer-data line (aligned-year cards) -- shown first, in the same panel, and named in the one button's label.
+ * `anchorToParent`: the panel opens under the nearest positioned ancestor (the card), so it never covers the figure it explains. */
+export function BaselineInfo({ spec, label, note, anchorToParent }: { spec: BaselineSpec; label: string; note?: string | null; anchorToParent?: boolean }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -43,10 +45,10 @@ export function BaselineInfo({ spec, label }: { spec: BaselineSpec; label: strin
   ];
 
   return (
-    <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <span ref={rootRef} style={{ position: anchorToParent ? 'static' : 'relative', display: 'inline-block' }}>
       <button
         type="button"
-        aria-label={`Baseline details: ${label}`}
+        aria-label={note ? `Newer data and baseline details: ${label}` : `Baseline details: ${label}`}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
@@ -64,11 +66,12 @@ export function BaselineInfo({ spec, label }: { spec: BaselineSpec; label: strin
           role="region"
           aria-label={`Baseline for ${label}`}
           style={{
-            position: 'absolute', zIndex: 20, top: 30, right: 0, width: 280, padding: 12, borderRadius: 6, fontSize: 13,
+            position: 'absolute', zIndex: 20, ...(anchorToParent ? { top: '100%', left: 0, right: 0, margin: '6px 8px 0' } : { top: 30, right: 0, width: 280 }), padding: 12, borderRadius: 6, fontSize: 13,
             background: 'var(--syn-color-surface-raised)', color: 'var(--syn-color-text-secondary)',
             border: '1px solid var(--syn-color-border-default, currentColor)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
           }}
         >
+          {note && <p style={{ margin: '0 0 8px', color: 'var(--syn-color-text-primary)' }}>{note}</p>}
           <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
             {rows.map(([k, v]) => (
               <div key={k} style={{ display: 'contents' }}>

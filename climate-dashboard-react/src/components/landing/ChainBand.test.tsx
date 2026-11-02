@@ -1,7 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { ClimateSignal } from '../../lib/climateSignal';
+import { buildAlignedChain } from '../../lib/alignedYear';
 import { ChainBand } from './ChainBand';
 
 const SIGNAL: ClimateSignal = {
@@ -10,11 +11,55 @@ const SIGNAL: ClimateSignal = {
   series: { concentration: [{ year: 1850, value: 286.8 }, { year: 1959, value: 315.9 }, { year: 2024, value: 424.6 }], temperature: [{ year: 2023, value: 1.5 }, { year: 2024, value: 1.617 }] },
   spliceYear: 1959, ppm1850: 286.8, omittedYears: [], vintageCaveat: 'Based on Berkeley Earth file vintage 2025-01-10; a possible ~0.1 °C discrepancy is not yet reconciled.',
 };
-const EMISSIONS = { year: 2024, total: 37398.067 };
+const EMISSIONS = [{ year: 2023, value: 36800 }, { year: 2024, value: 37398.067 }];
 
-function renderBand(signal: ClimateSignal = SIGNAL) {
-  return render(<MemoryRouter><ChainBand signal={signal} emissions={EMISSIONS} /></MemoryRouter>);
+function renderBand(signal: ClimateSignal = SIGNAL, emissions = EMISSIONS) {
+  return render(<MemoryRouter><ChainBand signal={signal} chain={buildAlignedChain(signal, emissions)!} /></MemoryRouter>);
 }
+
+describe('ChainBand at the aligned year', () => {
+  const NEWER = { ...SIGNAL, concentration: { value: 427.4, year: 2025 }, temperature: { value: 1.45, year: 2025 }, series: { concentration: [...SIGNAL.series.concentration, { year: 2025, value: 427.4 }], temperature: [...SIGNAL.series.temperature, { year: 2025, value: 1.45 }] } };
+
+  it('says which year all four steps use', () => {
+    renderBand();
+    expect(screen.getByText(/All four steps for/).textContent).toBe('All four steps for 2024, the latest year every step has data.');
+  });
+
+  it('shows the aligned year\'s values, with an ⓘ on each series that has a newer year, and none on the others', () => {
+    renderBand(NEWER);
+    expect(screen.getByText('424.6')).toBeInTheDocument();
+    expect(screen.getByText('+1.62 °C')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /emissions/ })).not.toBeInTheDocument();
+    const conc = screen.getByRole('button', { name: 'Newer data available: concentration' });
+    expect(conc).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(conc);
+    expect(conc).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('note')).toHaveTextContent('2025 is available: 427.4 ppm (NOAA GML). Shown for 2024 so all four steps refer to the same year.');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Newer data available: temperature' })).toBeInTheDocument();
+  });
+
+  it('adds a computed record-year sentence only when the newer temperature differs markedly', () => {
+    renderBand(NEWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Newer data available: temperature' }));
+    expect(screen.getByRole('note').textContent).toContain('2025 is available: +1.45 °C (Berkeley Earth).');
+    expect(screen.getByRole('note').textContent).toContain('2024 was a record year.');
+  });
+
+  it('has no ⓘ at all when no series is newer', () => {
+    renderBand();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('moves to the next year when emissions gain one', () => {
+    renderBand(NEWER, [...EMISSIONS, { year: 2025, value: 37900 }]);
+    expect(screen.getByText(/All four steps for/).textContent).toContain('2025');
+    expect(screen.getByText('427.4')).toBeInTheDocument();
+    expect(screen.getByText('37,900')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+});
 
 describe('ChainBand', () => {
   it('is one ordered row of the four steps, labelled by its heading, in the order of the causal chain', () => {
@@ -60,6 +105,7 @@ describe('ChainBand', () => {
 
   it('omits "up x% on 1850" when the API did not supply the 1850 level', () => {
     renderBand({ ...SIGNAL, ppm1850: null });
-    expect(screen.getByText('2024')).toBeInTheDocument();
+    const cell = screen.getByText('02 · Concentration').closest('li')!;
+    expect(within(cell).getByText('2024')).toBeInTheDocument();
   });
 });

@@ -14,6 +14,7 @@ import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { ctaClass } from '../components/landing/cta';
 import { buildClimateSignal } from '../lib/climateSignal';
 import { sliceMapSeries, worldTotals } from '../lib/mapSeries';
+import { buildAlignedChain, emissionsYearValues } from '../lib/alignedYear';
 import { ChainBand } from '../components/landing/ChainBand';
 import { KPI_STRIP_STYLES, KpiStrip } from '../components/landing/KpiStrip';
 import {
@@ -426,6 +427,8 @@ export default function LandingPage() {
   const ready = coreReady && !cumulativeQuery.loading && (!climate.loading || climateGaveUp);
   // Once given up on, a late answer is ignored for good: adding the carousel then would remount the hero and restart the globe.
   const signal = climateGaveUp ? null : climate.data;
+  // The chain shows one year for all its steps: the earliest of the three latest years (SPEC §5.25).
+  const chain = useMemo(() => (signal && globe ? buildAlignedChain(signal, emissionsYearValues(globe)) : null), [signal, globe]);
 
   return (
     <div className="landing">
@@ -443,15 +446,7 @@ export default function LandingPage() {
           ) : (
             <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} />
           )}
-          {signal && (
-            <ChainBand
-              signal={signal}
-              emissions={{
-                year: overview.data!.all_countries.latest_year,
-                total: overview.data!.all_countries.latest_co2_total,
-              }}
-            />
-          )}
+          {signal && chain && <ChainBand signal={signal} chain={chain} />}
           <StockStories latestYear={overview.data!.all_countries.latest_year} baselineYear={BASELINE_YEAR} />
           {cumulativeMap && <RankRace series={cumulativeMap} worldTotals={worldCumulativeMt} cumulativeFrom={cumulativeBase?.from ?? null} />}
           <Features overview={overview.data!} map={map!} />

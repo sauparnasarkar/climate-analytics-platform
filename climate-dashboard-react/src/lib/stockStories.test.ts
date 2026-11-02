@@ -26,6 +26,13 @@ describe('pickStockStories', () => {
     expect(picks.map((p) => [p.archetype, p.candidate.country])).toEqual([['built', 'USA'], ['catching', 'CHN'], ['large-today', 'IND'], ['falling', 'DEU']]);
   });
 
+  it('does not call a country "still adding" when its latest emissions are zero or negative', () => {
+    const latest = ranking([['USA', 435000, 23.5, 4900, 12.7], ['CHN', 285000, 15.4, 12300, 31.8], ['IND', 66000, 3.6, 3200, 8.3], ['DEU', 95000, 5.1, -20, -0.1]]);
+    const base = ranking([['USA', 248000, 28, 5100, 22], ['CHN', 43000, 6, 2400, 10], ['IND', 11000, 1, 600, 3], ['DEU', 80000, 9, 1000, 4]]);
+    const mid = ranking([['USA', 340000, 25, 5900, 19], ['CHN', 130000, 10, 7000, 22], ['IND', 30000, 2, 1500, 5], ['DEU', 90000, 8, 800, 3]]);
+    expect(pickStockStories(stockCandidates(latest, base, mid)).map((p) => p.archetype)).toEqual(['built', 'catching', 'large-today']);
+  });
+
   it('derives the middle year from the other two', () => {
     expect(midYear(1990, 2024)).toBe(2007);
     expect(midYear(1990, 2025)).toBe(2008); // 2007.5 rounds up
