@@ -18,6 +18,10 @@
 #   SYN_DS_PATH        where the design system checkout lives; read by the setup script, vite (the build and the dev server) and vitest.
 #                      Not by the type check: tsc -b, which `npm run build` runs first, reads fixed ../../syena-design-system paths from
 #                      tsconfig.app.json and tsconfig.test.json, so the build needs the design system at that sibling position whatever this says.
+#   PREVIEW_LAUNCHD_PLIST  the launchd plist of the preview's own job, $HOME/Library/LaunchAgents/com.ghgemissions.preview.plist by default. When it exists,
+#                      is loaded, names this checkout's climate-dashboard-react as its working directory and the same port, the script restarts
+#                      that job (launchctl kickstart -k) instead of starting its own server. Any other case falls back to the pid-file server.
+#                      The production job's label is refused.
 #   DRY_RUN=1          print each step as "+ ..." and run nothing
 #   PRODUCTION_FRONTEND_PLIST  the launchd plist of the production front-end job, $HOME/Library/LaunchAgents/com.ghgemissions.vitepreview.plist by default;
 #                      the script refuses to run in the folder that plist names as its working directory (see the guard below)
@@ -63,6 +67,51 @@ if [[ "$dry" == 1 ]]; then
 else
   (cd "$app" && DEPLOY_BASE_PATH=/ SITE_ORIGIN="$site_origin" npm run build) > "$state/build.log" 2>&1 || { echo "build failed; see $state/build.log" >&2; exit 1; }
   echo "build ok"
+fi
+
+# The preview may be a launchd job (KeepAlive, so it comes back after a reboot). Then the job, not this script, owns the port: stopping a
+# server by pid would just be undone by launchd, and a second server would fail on --strictPort. Use the job only when it is plainly
+# this checkout's preview; otherwise fall back to starting a server here.
+job_plist="${PREVIEW_LAUNCHD_PLIST:-$HOME/Library/LaunchAgents/com.ghgemissions.preview.plist}"
+job_label=""
+if [[ -f "$job_plist" ]]; then
+  job_info="$(python3 - "$job_plist" <<'PY' 2>/dev/null || true
+import plistlib, sys
+d = plistlib.load(open(sys.argv[1], "rb"))
+args = d.get("ProgramArguments", [])
+port = args[args.index("--port") + 1] if "--port" in args and args.index("--port") + 1 < len(args) else ""
+print(d.get("Label", ""), port, d.get("WorkingDirectory", ""), sep="\t")
+PY
+)"
+  IFS=$'\t' read -r label_found job_port job_dir <<< "$job_info"
+  if [[ -z "$label_found" ]]; then
+    echo "warning: could not read $job_plist; starting a server here instead" >&2
+  elif [[ "$label_found" == "com.ghgemissions.vitepreview" ]]; then
+    echo "warning: $job_plist is the production front-end job; starting a server here instead" >&2
+  elif [[ "$job_port" != "$port" || -z "$job_dir" || ! -d "$job_dir" || "$(cd "$job_dir" && pwd -P)" != "$(cd "$app" && pwd -P)" ]]; then
+    echo "warning: $label_found does not serve this checkout on port $port; starting a server here instead" >&2
+  elif [[ "$dry" == 1 ]] || launchctl print "gui/$(id -u)/$label_found" >/dev/null 2>&1; then
+    job_label="$label_found"
+  else
+    echo "warning: $label_found is not loaded; starting a server here instead" >&2
+  fi
+fi
+
+if [[ -n "$job_label" ]]; then
+  run launchctl kickstart -k "gui/$(id -u)/$job_label"
+  if [[ "$dry" == 1 ]]; then
+    echo "+ curl http://127.0.0.1:$port/ until it answers"
+  else
+    sleep 2
+    for _ in $(seq 1 30); do
+      code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" || true)"
+      [[ "$code" == 200 ]] && { echo "preview restarted via $job_label, up on 127.0.0.1:$port (HTTP 200)"; exit 0; }
+      sleep 1
+    done
+    echo "preview did not answer on port $port after restarting $job_label; see ~/Library/Logs" >&2
+    exit 1
+  fi
+  exit 0
 fi
 
 # Stop the preview this script started earlier, and only that: the pid must still belong to a vite server on this port.
