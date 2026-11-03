@@ -109,7 +109,8 @@ if [[ -n "$job_label" ]]; then
       # An answer only counts while the server on the port is the job's own process: with the port taken by something else,
       # the job fails to bind (--strictPort) and that other server may still answer 200.
       job_pid="$(launchctl print "gui/$(id -u)/$job_label" 2>/dev/null | awk '$1 == "pid" && $2 == "=" {print $3; exit}')"
-      if [[ -n "$job_pid" ]] && lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | grep -qx -- "$job_pid"; then
+      # The address matters as much as the pid: the probe below goes to 127.0.0.1, so the job must be listening on exactly that.
+      if [[ -n "$job_pid" ]] && [[ -n "$(lsof -nP -a -p "$job_pid" -iTCP@127.0.0.1:"$port" -sTCP:LISTEN -t 2>/dev/null)" ]]; then
         code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" || true)"
         [[ "$code" == 200 ]] && { echo "preview restarted via $job_label (pid $job_pid), up on 127.0.0.1:$port (HTTP 200)"; exit 0; }
       fi

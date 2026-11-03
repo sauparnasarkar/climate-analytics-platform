@@ -266,12 +266,15 @@ def test_no_preview_job_means_the_server_is_started_here(tmp_path):
     assert any("vite preview" in l for l in steps(out))
 
 
-def job_run(tmp_path, listener_pid):
-    """A real run of the launchd path with stub launchctl (job pid 4242) and lsof (listener_pid on the port)."""
+def job_run(tmp_path, job_listens_on):
+    """A real run of the launchd path with stub launchctl (job pid 4242) and an lsof stub that, like the real one, answers only for the
+    pid and address it is asked about: it reports pid 4242 as a listener on `job_listens_on` (None: the job holds no listener at all)."""
     script, bins = make_stub_checkout(tmp_path, "exit 0\n")
     (bins / "launchctl").write_text('#!/bin/bash\n[ "$1" = print ] && printf \'\\tpid = 4242\\n\'\nexit 0\n')
     (bins / "launchctl").chmod(0o755)
-    (bins / "lsof").write_text(f"#!/bin/bash\necho {listener_pid}\n")
+    asked = '[ "$*" = "-nP -a -p 4242 -iTCP@127.0.0.1:4273 -sTCP:LISTEN -t" ]'
+    listens = "true" if job_listens_on == "127.0.0.1" else "false"
+    (bins / "lsof").write_text(f"#!/bin/bash\n{asked} && {listens} && echo 4242\nexit 0\n")
     (bins / "lsof").chmod(0o755)
     app = tmp_path / "repo" / "climate-dashboard-react"
     env = {"PATH": f"{bins}:{os.environ['PATH']}", "HOME": str(tmp_path), "NO_PULL": "1", "PREVIEW_STATE_DIR": str(tmp_path / "state"),
@@ -279,13 +282,19 @@ def job_run(tmp_path, listener_pid):
     return subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env, timeout=120)
 
 
-def test_the_restart_counts_only_when_the_jobs_own_process_holds_the_port(tmp_path):
-    out = job_run(tmp_path, 4242)
+def test_the_restart_counts_only_when_the_job_itself_listens_on_the_probed_address(tmp_path):
+    out = job_run(tmp_path, "127.0.0.1")
     assert out.returncode == 0, out.stderr
     assert "pid 4242" in out.stdout and "HTTP 200" in out.stdout
 
 
 def test_another_server_answering_on_the_port_does_not_make_the_restart_succeed(tmp_path):
-    out = job_run(tmp_path, 9999)  # the curl stub answers 200 as the squatter would
+    out = job_run(tmp_path, None)  # the job holds no listener; the curl stub answers 200 as the squatter would
+    assert out.returncode != 0
+    assert "up on" not in out.stdout and "not the one answering" in out.stderr
+
+
+def test_a_job_listening_on_another_address_does_not_count_while_127_0_0_1_answers(tmp_path):
+    out = job_run(tmp_path, "::1")  # job on ::1, an unrelated server on 127.0.0.1 supplies the 200
     assert out.returncode != 0
     assert "up on" not in out.stdout and "not the one answering" in out.stderr
