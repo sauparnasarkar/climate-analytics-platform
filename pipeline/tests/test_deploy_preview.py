@@ -39,7 +39,8 @@ def test_the_design_system_is_set_up_by_the_pin_script_not_cloned_by_hand(tmp_pa
 
 def test_the_build_bakes_in_the_root_base_path(tmp_path):
     _, out, _ = dry_run(tmp_path)
-    assert "DEPLOY_BASE_PATH=/ npm run build" in " ".join(steps(out))
+    build = steps(out)[index_of(steps(out), "npm run build")]
+    assert "DEPLOY_BASE_PATH=/" in build and build.endswith("npm run build")
 
 
 def test_the_pull_only_fast_forwards_and_can_be_skipped(tmp_path):
@@ -64,11 +65,13 @@ def test_it_refuses_the_production_front_ends_port(tmp_path):
     assert "production" in err and steps(out) == []
 
 
-def test_it_never_touches_the_launchd_jobs_or_rewrites_history_or_pushes(tmp_path):
+def test_it_never_rewrites_history_or_pushes_or_acts_on_the_production_jobs(tmp_path):
     _, out, _ = dry_run(tmp_path)
     text = open(SCRIPT).read() + out
-    for forbidden in ("launchctl", "reset --hard", "push", "checkout main"):
+    for forbidden in ("reset --hard", "push", "checkout main", "bootout", "unload", "launchctl stop", "launchctl remove"):
         assert forbidden not in text, forbidden
+    # launchctl is used for exactly one thing: kickstart of the preview's own job, never one labelled as production
+    assert [l for l in text.splitlines() if "launchctl" in l and not l.lstrip().startswith("#") and "kickstart" not in l and "launchctl print" not in l] == []
 
 
 def test_a_dry_run_changes_nothing_on_disk(tmp_path):
@@ -224,3 +227,74 @@ def test_the_comments_do_not_claim_the_type_check_reads_syn_ds_path():
     assert "type check read the same variable" not in setup and "tsc -b" in setup
     header = open(SCRIPT).read().split("set -euo pipefail")[0]
     assert "the build and the tests alike" not in header and "tsc -b" in header
+
+
+# ---------------------------------------------------------------- the preview as a launchd job
+
+def preview_job(tmp_path, working_directory=REPO_APP, port="4273", label="com.ghgemissions.preview"):
+    plist = tmp_path / "preview.plist"
+    plist.write_bytes(plistlib.dumps({"Label": label, "WorkingDirectory": working_directory,
+                                      "ProgramArguments": ["/node", "vite.js", "preview", "--port", port, "--strictPort", "--host", "127.0.0.1"]}))
+    return str(plist)
+
+
+def test_a_preview_job_for_this_checkout_is_restarted_instead_of_starting_a_second_server(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_LAUNCHD_PLIST=preview_job(tmp_path))
+    assert code == 0, err
+    lines = steps(out)
+    assert any(l.startswith("launchctl kickstart -k gui/") and l.endswith("/com.ghgemissions.preview") for l in lines)
+    assert not any("vite preview" in l or "kill" in l for l in lines)
+    assert index_of(lines, "npm run build") < index_of(lines, "kickstart")
+
+
+def test_a_job_for_another_folder_or_port_or_the_production_label_is_not_used(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    loose = tmp_path / "loose.plist"
+    loose.write_bytes(plistlib.dumps({"Label": "com.ghgemissions.preview", "WorkingDirectory": REPO_APP,
+                                      "ProgramArguments": ["/node", "vite.js", "preview", "--port", "4273"]}))
+    for plist in (preview_job(tmp_path, working_directory=str(other)), preview_job(tmp_path, port="4999"),
+                  preview_job(tmp_path, label="com.ghgemissions.vitepreview"), str(loose)):
+        code, out, err = dry_run(tmp_path, PREVIEW_LAUNCHD_PLIST=plist)
+        assert code == 0 and "warning" in err, err
+        assert any("vite preview" in l for l in steps(out)) and not any("kickstart" in l for l in steps(out))
+
+
+def test_no_preview_job_means_the_server_is_started_here(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0 and "warning" not in err
+    assert any("vite preview" in l for l in steps(out))
+
+
+def job_run(tmp_path, job_listens_on):
+    """A real run of the launchd path with stub launchctl (job pid 4242) and an lsof stub that, like the real one, answers only for the
+    pid and address it is asked about: it reports pid 4242 as a listener on `job_listens_on` (None: the job holds no listener at all)."""
+    script, bins = make_stub_checkout(tmp_path, "exit 0\n")
+    (bins / "launchctl").write_text('#!/bin/bash\n[ "$1" = print ] && printf \'\\tpid = 4242\\n\'\nexit 0\n')
+    (bins / "launchctl").chmod(0o755)
+    asked = '[ "$*" = "-nP -a -p 4242 -iTCP@127.0.0.1:4273 -sTCP:LISTEN -t" ]'
+    listens = "true" if job_listens_on == "127.0.0.1" else "false"
+    (bins / "lsof").write_text(f"#!/bin/bash\n{asked} && {listens} && echo 4242\nexit 0\n")
+    (bins / "lsof").chmod(0o755)
+    app = tmp_path / "repo" / "climate-dashboard-react"
+    env = {"PATH": f"{bins}:{os.environ['PATH']}", "HOME": str(tmp_path), "NO_PULL": "1", "PREVIEW_STATE_DIR": str(tmp_path / "state"),
+           "PREVIEW_LAUNCHD_PLIST": preview_job(tmp_path, working_directory=str(app))}
+    return subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env, timeout=120)
+
+
+def test_the_restart_counts_only_when_the_job_itself_listens_on_the_probed_address(tmp_path):
+    out = job_run(tmp_path, "127.0.0.1")
+    assert out.returncode == 0, out.stderr
+    assert "pid 4242" in out.stdout and "HTTP 200" in out.stdout
+
+
+def test_another_server_answering_on_the_port_does_not_make_the_restart_succeed(tmp_path):
+    out = job_run(tmp_path, None)  # the job holds no listener; the curl stub answers 200 as the squatter would
+    assert out.returncode != 0
+    assert "up on" not in out.stdout and "not the one answering" in out.stderr
+
+
+def test_a_job_listening_on_another_address_does_not_count_while_127_0_0_1_answers(tmp_path):
+    out = job_run(tmp_path, "::1")  # job on ::1, an unrelated server on 127.0.0.1 supplies the 200
+    assert out.returncode != 0
+    assert "up on" not in out.stdout and "not the one answering" in out.stderr
