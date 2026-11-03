@@ -80,14 +80,16 @@ import plistlib, sys
 d = plistlib.load(open(sys.argv[1], "rb"))
 args = d.get("ProgramArguments", [])
 port = args[args.index("--port") + 1] if "--port" in args and args.index("--port") + 1 < len(args) else ""
-print(d.get("Label", ""), port, d.get("WorkingDirectory", ""), sep="\t")
+print(d.get("Label", ""), port, "strict" if "--strictPort" in args else "", d.get("WorkingDirectory", ""), sep="|")
 PY
 )"
-  IFS=$'\t' read -r label_found job_port job_dir <<< "$job_info"
+  IFS='|' read -r label_found job_port job_strict job_dir <<< "$job_info"
   if [[ -z "$label_found" ]]; then
     echo "warning: could not read $job_plist; starting a server here instead" >&2
   elif [[ "$label_found" == "com.ghgemissions.vitepreview" ]]; then
     echo "warning: $job_plist is the production front-end job; starting a server here instead" >&2
+  elif [[ "$job_strict" != strict ]]; then
+    echo "warning: $label_found does not pass --strictPort, so it could end up on another port; starting a server here instead" >&2
   elif [[ "$job_port" != "$port" || -z "$job_dir" || ! -d "$job_dir" || "$(cd "$job_dir" && pwd -P)" != "$(cd "$app" && pwd -P)" ]]; then
     echo "warning: $label_found does not serve this checkout on port $port; starting a server here instead" >&2
   elif [[ "$dry" == 1 ]] || launchctl print "gui/$(id -u)/$label_found" >/dev/null 2>&1; then
@@ -104,11 +106,16 @@ if [[ -n "$job_label" ]]; then
   else
     sleep 2
     for _ in $(seq 1 30); do
-      code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" || true)"
-      [[ "$code" == 200 ]] && { echo "preview restarted via $job_label, up on 127.0.0.1:$port (HTTP 200)"; exit 0; }
+      # An answer only counts while the server on the port is the job's own process: with the port taken by something else,
+      # the job fails to bind (--strictPort) and that other server may still answer 200.
+      job_pid="$(launchctl print "gui/$(id -u)/$job_label" 2>/dev/null | awk '$1 == "pid" && $2 == "=" {print $3; exit}')"
+      if [[ -n "$job_pid" ]] && lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | grep -qx -- "$job_pid"; then
+        code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" || true)"
+        [[ "$code" == 200 ]] && { echo "preview restarted via $job_label (pid $job_pid), up on 127.0.0.1:$port (HTTP 200)"; exit 0; }
+      fi
       sleep 1
     done
-    echo "preview did not answer on port $port after restarting $job_label; see ~/Library/Logs" >&2
+    echo "preview job $job_label is not the one answering on port $port after the restart; see ~/Library/Logs and what holds the port (lsof -iTCP:$port)" >&2
     exit 1
   fi
   exit 0

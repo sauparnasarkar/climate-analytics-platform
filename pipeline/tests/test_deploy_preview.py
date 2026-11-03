@@ -234,7 +234,7 @@ def test_the_comments_do_not_claim_the_type_check_reads_syn_ds_path():
 def preview_job(tmp_path, working_directory=REPO_APP, port="4273", label="com.ghgemissions.preview"):
     plist = tmp_path / "preview.plist"
     plist.write_bytes(plistlib.dumps({"Label": label, "WorkingDirectory": working_directory,
-                                      "ProgramArguments": ["/node", "vite.js", "preview", "--port", port, "--host", "127.0.0.1"]}))
+                                      "ProgramArguments": ["/node", "vite.js", "preview", "--port", port, "--strictPort", "--host", "127.0.0.1"]}))
     return str(plist)
 
 
@@ -250,8 +250,11 @@ def test_a_preview_job_for_this_checkout_is_restarted_instead_of_starting_a_seco
 def test_a_job_for_another_folder_or_port_or_the_production_label_is_not_used(tmp_path):
     other = tmp_path / "elsewhere"
     other.mkdir()
+    loose = tmp_path / "loose.plist"
+    loose.write_bytes(plistlib.dumps({"Label": "com.ghgemissions.preview", "WorkingDirectory": REPO_APP,
+                                      "ProgramArguments": ["/node", "vite.js", "preview", "--port", "4273"]}))
     for plist in (preview_job(tmp_path, working_directory=str(other)), preview_job(tmp_path, port="4999"),
-                  preview_job(tmp_path, label="com.ghgemissions.vitepreview")):
+                  preview_job(tmp_path, label="com.ghgemissions.vitepreview"), str(loose)):
         code, out, err = dry_run(tmp_path, PREVIEW_LAUNCHD_PLIST=plist)
         assert code == 0 and "warning" in err, err
         assert any("vite preview" in l for l in steps(out)) and not any("kickstart" in l for l in steps(out))
@@ -261,3 +264,28 @@ def test_no_preview_job_means_the_server_is_started_here(tmp_path):
     code, out, err = dry_run(tmp_path, PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
     assert code == 0 and "warning" not in err
     assert any("vite preview" in l for l in steps(out))
+
+
+def job_run(tmp_path, listener_pid):
+    """A real run of the launchd path with stub launchctl (job pid 4242) and lsof (listener_pid on the port)."""
+    script, bins = make_stub_checkout(tmp_path, "exit 0\n")
+    (bins / "launchctl").write_text('#!/bin/bash\n[ "$1" = print ] && printf \'\\tpid = 4242\\n\'\nexit 0\n')
+    (bins / "launchctl").chmod(0o755)
+    (bins / "lsof").write_text(f"#!/bin/bash\necho {listener_pid}\n")
+    (bins / "lsof").chmod(0o755)
+    app = tmp_path / "repo" / "climate-dashboard-react"
+    env = {"PATH": f"{bins}:{os.environ['PATH']}", "HOME": str(tmp_path), "NO_PULL": "1", "PREVIEW_STATE_DIR": str(tmp_path / "state"),
+           "PREVIEW_LAUNCHD_PLIST": preview_job(tmp_path, working_directory=str(app))}
+    return subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env, timeout=120)
+
+
+def test_the_restart_counts_only_when_the_jobs_own_process_holds_the_port(tmp_path):
+    out = job_run(tmp_path, 4242)
+    assert out.returncode == 0, out.stderr
+    assert "pid 4242" in out.stdout and "HTTP 200" in out.stdout
+
+
+def test_another_server_answering_on_the_port_does_not_make_the_restart_succeed(tmp_path):
+    out = job_run(tmp_path, 9999)  # the curl stub answers 200 as the squatter would
+    assert out.returncode != 0
+    assert "up on" not in out.stdout and "not the one answering" in out.stderr
