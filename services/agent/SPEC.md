@@ -1257,7 +1257,7 @@ Everything below is **deterministic Python from tool results** — no new LLM ca
 - `get_country_profile`: `{country, year, co2_mt, per_capita_t, yoy_pct, first_year, multiple_of_first_year}`.
 - `get_historical_emissions`: `{gas, series: [{name, first_year, first_value, last_year, last_value, rank}]}` (rank by last value; ≤12 series).
 - `get_top_emitters`: `{year, top: [{rank, name, co2}], n_ranked, top_n_share_pct, total_mt}` — the last three need the `get_top_emitters` fields below.
-- Every other tool: none yet.
+- Every other tool: none yet at this step; `get_forecast_summary` was added in §15.15 and the forecast, model-comparison, change-summary, gas-by-decade and scenario tools in §15.16.
 
 **KPIs.** `get_country_profile` -> "CO₂ emissions · {year}" (Mt; `sub` = "Largest of {n_ranked} countries"/"#k of {n_ranked}" only when a `get_top_emitters` result in the same turn ranks the country), "Per capita · {year}" (t), "Change vs {year-1}" (%; `sub` "{x}× the {first_year} level"). `get_temperature_anomaly` / `get_co2_concentration` -> the latest reading, labelled with its year. `get_scenario_temperature` -> three cards (final-year implied level, `sub` = annual emissions that year, `series` set). No KPI for other tools.
 
@@ -1303,4 +1303,21 @@ Two starter-prompt answers were weak on the live agent; both are fixed by comput
 
 - **Forecast ranking.** `get_forecast_summary` gained a `rank_by` argument (mcp-server SPEC §5), and `summaries._forecast_summary` now gives the widget a `summary` -- `ranked_by`, `unit`, and the ten countries in that order with 2030/2040/2020 figures. `kpis._forecast_kpis` adds the three largest 2040 forecasts as cards, **only** when the ranking is by `forecast_2040` or nothing was capped (a cap by 2020 actuals would make the top three a guess).
 - **Cumulative units.** `get_emissions_temperature_relationship`'s summary states `pair_unit` (the raw points are in Mt) and a `cumulative` block already in GtCO₂ (rounded), so the lead never converts Mt itself (the model had written "2,751,504 GtCO₂", 1000x too high). `kpis._relationship_kpis` adds Cumulative emissions, Warming and Slope cards from the summary (slope with its 95% interval and R² in the sub-line).
+
+### 15.16 Summaries for the remaining Stage 1 tools (2026-11-04)
+
+Found while comparing local models (`OLLAMA_EVALUATION.md`): on forecast, scenario-comparison and model-comparison questions every model, Sonnet included, answered "no figures were provided". The compose step sees only each widget's `summary`, and these tools had none (§15.11 listed them as out of scope). `summaries.widget_summary` now builds one for each, deterministically from the tool result, and bounded:
+
+| Tool | Summary |
+|---|---|
+| `get_forecast`, `get_forecast_comparison` | per country: `last_observed_year`/`last_observed`, `forecast_2030` and `forecast_2040` (`mean`, `lower`, `upper`), `pct_change_to_forecast_year`, `interval` ("95% simulated interval", from Week 4's 2.5%/97.5% quantiles). The final year is quoted only when neither milestone year is in range (the far-end bound can go negative). ≤12 countries |
+| `get_model_comparison` | `metric`, `n_countries`, `best_model_counts`, and `by_country` (`best_model` and each model's MAE) |
+| `get_emissions_change_summary` | the counts, `baseline_year`/`latest_year`, and the named `top_increases`/`top_decreases` (country, % change, absolute change), ≤10 each |
+| `get_gas_composition_by_decade` | `decades` and `share_by_gas` (% share per decade) |
+| `compare_scenarios_across_countries` | per country: `final_year`, `final_by_scenario`, and `starting_year`/`starting_value` (the last year the pathways coincide). That point is the projection's start (2025), **not** the last observed year, and is never labelled observed |
+| `get_scenario_cumulative_impact` | ≤10 rows: cumulative and 2040 values per scenario, `current_level`, and the tool's `scope_note` |
+
+Also changed: `get_historical_emissions`' summary omits `rank` for a single series. A rank is among the series shown, and a lone `rank: 1` was read as a world rank (a model called India "the world's largest annual emitter"; it is third).
+
+Effect, on `gpt-oss:20b` over the 36-case battery (`evals/run_battery.py`): answers saying a figure was "not provided in the widget" went from 4 to 0, with no ungrounded numbers, and the India answer now ranks India third. One flaw remains that data cannot fix: a small model can misread the `best_model_counts` in prose.
 
