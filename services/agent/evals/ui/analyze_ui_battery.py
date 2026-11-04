@@ -38,6 +38,21 @@ def infer(widgets, text):
     return ("off_topic" if text.strip() == OFF_TOPIC_RESPONSE.strip() else "opinion"), []
 
 
+def _plain(s: str) -> str:
+    """Markdown- and typography-insensitive form for matching raw answer text against the rendered page: link/image syntax reduced
+    to its label and per-line list markers dropped, then only letters and digits kept (so headings, list markers, emphasis, backticks, quotes and the various
+    spaces all fall away)."""
+    s = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", s)
+    s = re.sub(r"(?m)^\s*(?:[-*+]|\d+[.)])\s+", "", s)  # a list marker is rendered as a bullet/number, not as text
+    return re.sub(r"[\W_]+", "", s.casefold())
+
+
+def answer_in_page(answer: str, ui_text: str, n: int = 40) -> bool:
+    """True when the start of the answer (the first `n` letters/digits) appears in the rendered page text."""
+    head = _plain(answer)[:n]
+    return not head or head in _plain(ui_text)
+
+
 def score(rec):
     case = CASES[rec["id"]]
     out = {k: rec.get(k) for k in ("id", "group", "prompt", "http_status", "stream_seconds", "ui_seconds", "seconds", "screenshot")}
@@ -71,7 +86,7 @@ def score(rec):
             problems.append(f"widgets from tools on a {case.cls} query: {tools}")
         if not text.strip():
             problems.append("empty answer")
-        if text.strip() and " ".join(text.split())[:40].replace("**", "") not in " ".join(rec.get("ui_text", "").split()).replace("**", ""):
+        if text.strip() and not answer_in_page(text, rec.get("ui_text", "")):
             problems.append("answer text not found in the rendered page")
     out["problems"], out["ok"] = problems, not problems
     return out
