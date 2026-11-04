@@ -180,23 +180,38 @@ def _forecast_comparison_summary(r: dict) -> dict | None:
 _MODEL_MAE_COLUMNS = ("baseline_mae", "lr_mae", "rf_pc_mae", "rf_mae", "ets_mae")
 
 
+def _model_comparison_rows(rows: list) -> list[dict]:
+    """Per-country {country, best_model, mae: {model: value}} from either row shape the endpoint can serve.
+
+    The real artifact (Week 4's `df_comparison_full`, served unchanged) is wide: one row per country with a `*_mae` column per model
+    and a `best_model`. The API's own test fixture is long-form (`country`, `model`, `mae`, one row per country and model), and the
+    API passes whatever CSV it is given through, so both are read rather than assuming one.
+    """
+    if rows and "model" in rows[0]:
+        per_country: dict[str, dict[str, float]] = {}
+        for row in rows:
+            if row.get("country") and row.get("model") and isinstance(row.get("mae"), (int, float)):
+                per_country.setdefault(row["country"], {})[row["model"]] = row["mae"]
+        return [
+            {"country": c, "best_model": min(maes, key=maes.get), "mae": {m: _r1(v) for m, v in maes.items()}}
+            for c, maes in per_country.items()
+        ]
+    return [
+        {"country": row["country"], "best_model": row.get("best_model"), "mae": {c[: -len("_mae")]: _r1(row.get(c)) for c in _MODEL_MAE_COLUMNS}}
+        for row in rows
+        if row.get("country")
+    ]
+
+
 def _model_comparison_summary(r: dict) -> dict | None:
-    rows = [row for row in (r.get("rows") or [])[:MAX_COMPARISON_ROWS] if row.get("country")]
-    if not rows:
+    by_country = _model_comparison_rows((r.get("rows") or [])[:MAX_COMPARISON_ROWS])
+    if not by_country:
         return None
     counts: dict[str, int] = {}
-    for row in rows:
-        if row.get("best_model"):
+    for row in by_country:
+        if row["best_model"]:
             counts[row["best_model"]] = counts.get(row["best_model"], 0) + 1
-    return {
-        "metric": "holdout MAE, Mt CO\u2082",
-        "n_countries": len(rows),
-        "best_model_counts": counts,
-        "by_country": [
-            {"country": row["country"], "best_model": row.get("best_model"), "mae": {c[: -len("_mae")]: _r1(row.get(c)) for c in _MODEL_MAE_COLUMNS}}
-            for row in rows
-        ],
-    }
+    return {"metric": "holdout MAE, Mt CO\u2082", "n_countries": len(by_country), "best_model_counts": counts, "by_country": by_country}
 
 
 def _movers(rows: list) -> list[dict]:

@@ -1311,7 +1311,7 @@ Found while comparing local models (`OLLAMA_EVALUATION.md`): on forecast, scenar
 | Tool | Summary |
 |---|---|
 | `get_forecast`, `get_forecast_comparison` | per country: `last_observed_year`/`last_observed`, `forecast_2030` and `forecast_2040` (`mean`, `lower`, `upper`), `pct_change_to_forecast_year`, `interval` ("95% simulated interval", from Week 4's 2.5%/97.5% quantiles). The final year is quoted only when neither milestone year is in range (the far-end bound can go negative). ≤12 countries |
-| `get_model_comparison` | `metric`, `n_countries`, `best_model_counts`, and `by_country` (`best_model` and each model's MAE) |
+| `get_model_comparison` | `metric`, `n_countries`, `best_model_counts`, and `by_country` (`best_model` and each model's MAE). Reads both row shapes the endpoint can serve: the wide artifact Week 4 exports (one row per country, `*_mae` columns, `best_model`) and long-form rows (`country`, `model`, `mae`) |
 | `get_emissions_change_summary` | the counts, `baseline_year`/`latest_year`, and the named `top_increases`/`top_decreases` (country, % change, absolute change), ≤10 each |
 | `get_gas_composition_by_decade` | `decades` and `share_by_gas` (% share per decade) |
 | `compare_scenarios_across_countries` | per country: `final_year`, `final_by_scenario`, and `starting_year`/`starting_value` (the last year the pathways coincide). That point is the projection's start (2025), **not** the last observed year, and is never labelled observed |

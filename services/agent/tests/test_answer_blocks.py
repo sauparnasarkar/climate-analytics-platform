@@ -397,3 +397,16 @@ def test_historical_summary_gives_a_lone_series_no_rank_but_ranks_several():
     assert "rank" not in widget_summary(_rec("get_historical_emissions", one))["series"][0]
     two = {"gas": "co2", "series": one["series"] + [{"name": "China", "years": [1990, 2024], "values": [2483.5, 12289.0]}]}
     assert {r["name"]: r["rank"] for r in widget_summary(_rec("get_historical_emissions", two))["series"]} == {"China": 1, "India": 2}
+
+
+def test_model_comparison_summary_also_reads_the_long_form_rows_the_api_fixture_uses():
+    rows = [
+        {"country": "China", "model": "Linear Regression", "mae": 120.5, "rmse": 150.2},
+        {"country": "China", "model": "RF Pooled", "mae": 95.3, "rmse": 110.7},
+        {"country": "United States", "model": "Linear Regression", "mae": 80.1, "rmse": 95.4},
+    ]
+    s = widget_summary(_rec("get_model_comparison", {"columns": ["country", "model", "mae", "rmse"], "rows": rows}))
+    assert s["n_countries"] == 2  # two countries, not three rows
+    assert s["best_model_counts"] == {"RF Pooled": 1, "Linear Regression": 1}
+    china = next(c for c in s["by_country"] if c["country"] == "China")
+    assert china["best_model"] == "RF Pooled" and china["mae"] == {"Linear Regression": 120.5, "RF Pooled": 95.3}
