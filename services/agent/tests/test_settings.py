@@ -62,12 +62,17 @@ def test_resolve_falls_back_to_env_when_store_absent(monkeypatch):
     assert resolved.id == "ollama-qwen14b-ctx8k"
 
 
-def test_resolve_accepts_ctx32k_from_env(monkeypatch):
+def test_resolve_accepts_gpt_oss_from_env(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
-    monkeypatch.setenv("LOCAL_LLM_MODEL", "qwen2.5:14b-ctx32k")
+    monkeypatch.setenv("LOCAL_LLM_MODEL", "gpt-oss:20b-ctx32k")
 
     resolved = settings.resolve_active_choice()
-    assert resolved.id == "ollama-qwen14b-ctx32k"
+    assert resolved.id == "ollama-gpt-oss-20b-ctx32k"
+
+
+def test_allow_list_is_sonnet_qwen_and_gpt_oss_only():
+    assert [c.id for c in settings.ALLOWED_CHOICES] == ["anthropic-sonnet", "ollama-qwen14b-ctx8k", "ollama-gpt-oss-20b-ctx32k"]
+    assert settings.choice_by_id("ollama-qwen14b-ctx32k") is None  # the removed trial entry is no longer selectable
 
 
 def test_resolve_falls_back_to_code_default_when_nothing_set():

@@ -949,7 +949,7 @@ Exactly three provider/model combos, the first two validated for this graph's to
 |---|---|---|---|
 | `anthropic-sonnet` | `anthropic` | `claude-sonnet-5` | Claude Sonnet 5 (Anthropic) |
 | `ollama-qwen14b-ctx8k` | `ollama` | `qwen2.5:14b-ctx8k` | Qwen 2.5 14B (local, 8k ctx) |
-| `ollama-qwen14b-ctx32k` | `ollama` | `qwen2.5:14b-ctx32k` | Qwen 2.5 14B (local, 32k ctx) — trial on the Mac Studio, battery pending |
+| `ollama-gpt-oss-20b-ctx32k` | `ollama` | `gpt-oss:20b-ctx32k` | gpt-oss 20B (local, 32k ctx) — trial on the Mac Studio; evaluated in `OLLAMA_EVALUATION.md` (32/36 on the 36-case battery) |
 
 `qwen2.5-coder:7b` (tool_calls never populate in `AIMessage`) and `llama3.1:8b` — `llm.py`'s own
 `DEFAULT_OLLAMA_MODEL` — (list-typed tool args serialize as Python-repr strings, 0/4 on the
