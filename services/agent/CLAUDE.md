@@ -48,7 +48,7 @@ design changes here, not just this file.
   deployed instance (`qwen2.5:14b-ctx8k`) — see [`OLLAMA_EVALUATION.md`](OLLAMA_EVALUATION.md)
   for the model comparison, correctness/latency findings, and why this doesn't yet supersede the
   Sonnet default documented here.
-- **Admin LLM switch (`SPEC.md` §14).** Which of the two validated provider/model combos is live
+- **Admin LLM switch (`SPEC.md` §14).** Which of the allow-listed provider/model combos is live
   is a runtime, admin-panel-controlled setting, not just an env var — `GET`/`POST /admin/llm`,
   gated at the edge by a Cloudflare Access login policy (Google IdP, one allow-listed account;
   root `ARCHITECTURE.md` §8) and by the app's own check of the Access token (`access_auth.py`), which fails closed: every admin request is

@@ -62,6 +62,14 @@ def test_resolve_falls_back_to_env_when_store_absent(monkeypatch):
     assert resolved.id == "ollama-qwen14b-ctx8k"
 
 
+def test_resolve_accepts_ctx32k_from_env(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("LOCAL_LLM_MODEL", "qwen2.5:14b-ctx32k")
+
+    resolved = settings.resolve_active_choice()
+    assert resolved.id == "ollama-qwen14b-ctx32k"
+
+
 def test_resolve_falls_back_to_code_default_when_nothing_set():
     resolved = settings.resolve_active_choice()
     assert resolved is settings.DEFAULT_CHOICE

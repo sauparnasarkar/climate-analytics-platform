@@ -7,11 +7,12 @@ import { useAsync } from '../hooks/useAsync';
 // Mirrors services/agent/src/agent/settings.py's ALLOWED_CHOICES -- SPEC.md §14.2. Kept as a
 // small hand-synced copy rather than a shared import, matching this repo's established
 // "small per-sub-project copies over a shared import" convention (services/agent/SPEC.md
-// "Corrections applied" #15). Only two entries today; a third would be worth revisiting for a
+// "Corrections applied" #15). Three entries today; a fourth would be worth revisiting for a
 // Select dropdown instead of a SegmentedControl.
 const OPTIONS = [
   { id: 'anthropic-sonnet', provider: 'anthropic', model: 'claude-sonnet-5', label: 'Claude Sonnet 5 (Anthropic)' },
   { id: 'ollama-qwen14b-ctx8k', provider: 'ollama', model: 'qwen2.5:14b-ctx8k', label: 'Qwen 2.5 14B (local, 8k ctx)' },
+  { id: 'ollama-qwen14b-ctx32k', provider: 'ollama', model: 'qwen2.5:14b-ctx32k', label: 'Qwen 2.5 14B (local, 32k ctx)' },
 ];
 
 function idForChoice(choice: LlmChoice): string | undefined {
