@@ -111,3 +111,12 @@ to Anthropic on this evaluation's battery, materially slower in wall-clock time.
 one plist edit away (`LLM_PROVIDER=anthropic` in `com.ghgemissions.agent.plist`, then
 `launchctl bootout`/`bootstrap` to reload) as the fallback for client demos or if the trial
 doesn't hold up under real traffic.
+
+## Reproducing the battery
+
+The original 30-case script was not preserved. [`evals/run_battery.py`](evals/run_battery.py) is a
+reconstruction to the composition recorded above (plus the 6 real starter prompts), run in-process through the
+real graph so any provider/model can be compared on identical cases without touching the admin panel or hitting
+`/query`'s rate limit. It also records numbers in an answer that match no tool-result value (`ungrounded`); read the
+answers too, since a misread real figure passes that check. Its results are not directly comparable to the
+30/30 figures above.
