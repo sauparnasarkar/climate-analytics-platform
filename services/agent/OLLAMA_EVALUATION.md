@@ -188,3 +188,6 @@ real graph so any provider/model can be compared on identical cases without touc
 `/query`'s rate limit. It also records numbers in an answer that match no tool-result value (`ungrounded`); read the
 answers too, since a misread real figure passes that check. Its results are not directly comparable to the
 30/30 figures above.
+
+To run the same cases through the deployed app's real Ask page (and so compare models as a user would meet them), see
+[`evals/ui/`](evals/ui/README.md).

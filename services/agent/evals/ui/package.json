@@ -1,0 +1,9 @@
+{
+  "name": "agent-ui-battery",
+  "private": true,
+  "type": "module",
+  "description": "Playwright runner for the agent's 36-case battery, driven through the real Ask page (see README.md).",
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}
