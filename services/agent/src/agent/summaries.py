@@ -204,7 +204,9 @@ def _model_comparison_rows(rows: list) -> list[dict]:
 
 
 def _model_comparison_summary(r: dict) -> dict | None:
-    by_country = _model_comparison_rows((r.get("rows") or [])[:MAX_COMPARISON_ROWS])
+    # The bound is on countries, applied after grouping: long-form input has one row per country AND model, so capping the raw rows
+    # would cut countries off partway through their models and skew the counts.
+    by_country = _model_comparison_rows(r.get("rows") or [])[:MAX_COMPARISON_ROWS]
     if not by_country:
         return None
     counts: dict[str, int] = {}

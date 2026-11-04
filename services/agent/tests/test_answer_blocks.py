@@ -410,3 +410,12 @@ def test_model_comparison_summary_also_reads_the_long_form_rows_the_api_fixture_
     assert s["best_model_counts"] == {"RF Pooled": 1, "Linear Regression": 1}
     china = next(c for c in s["by_country"] if c["country"] == "China")
     assert china["best_model"] == "RF Pooled" and china["mae"] == {"Linear Regression": 120.5, "RF Pooled": 95.3}
+
+
+def test_model_comparison_summary_caps_countries_not_raw_long_form_rows():
+    models = ["Baseline", "Linear Regression", "RF Per-Country", "RF Pooled", "ETS"]
+    rows = [{"country": f"C{i:02d}", "model": m, "mae": float(j + 1), "rmse": 1.0} for i in range(60) for j, m in enumerate(models)]
+    s = widget_summary(_rec("get_model_comparison", {"rows": rows}))
+    assert s["n_countries"] == 50  # the cap, in countries
+    assert all(len(c["mae"]) == 5 for c in s["by_country"])  # none cut off partway through its models
+    assert sum(s["best_model_counts"].values()) == 50
