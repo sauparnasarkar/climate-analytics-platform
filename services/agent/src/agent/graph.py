@@ -30,9 +30,11 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import re
 import time
 from typing import Any, Literal
 
+from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -42,7 +44,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationError, field_validator
 
 from .cache import cache_key
 from .caveats import mandatory_notes
@@ -116,6 +118,13 @@ class _OpinionOutput(BaseModel):
         return [v] if isinstance(v, str) else v
 
 
+# Shown only when an opinion reply fails to parse AND carries no usable text -- not a normal path.
+OPINION_FALLBACK_TEXT = (
+    "I can't take a side on that, but I can show you what the data says. "
+    "Try asking how emissions have changed over time, or how countries compare."
+)
+
+
 class _CountryProfileSelection(BaseModel):
     include_chart: bool
 
@@ -183,10 +192,51 @@ async def opinion_node(state: AgentState, *, llm: BaseChatModel, mcp_tools: list
     system_prompt = OPINION_SYSTEM_PROMPT
     if mcp_tools:
         system_prompt = f"{OPINION_SYSTEM_PROMPT}\n\nCapability summary:\n{_capability_summary(mcp_tools)}"
-    result = await structured.ainvoke(
-        [SystemMessage(content=system_prompt), HumanMessage(content=state.current_query)]
-    )
+    try:
+        result = await structured.ainvoke(
+            [SystemMessage(content=system_prompt), HumanMessage(content=state.current_query)]
+        )
+    except (ValidationError, OutputParserException) as exc:
+        # The model answered in plain text instead of the schema. Seen on gpt-oss:120b: 4 of 9 runs of three opinion
+        # prompts with the real tool catalog in the prompt (2 of 10 opinion-type cases in the 2026-11-04 battery), e.g.
+        # "Do you think carbon taxes are fair?". The failure is raised inside the model call (ChatOpenAI parses the
+        # schema itself), so `include_raw=True` cannot catch it; the exception carries the model's text instead. That
+        # prose is already a valid opinion-style answer, so use it -- and a trailing "Suggested prompts" list, which these models write unprompted, is lifted back into the real field.
+        text, prompts = _split_suggested_prompts(_unparsed_text(exc) or OPINION_FALLBACK_TEXT)
+        logger.warning("opinion_node: model did not return the structured schema; using its plain-text reply (%d chars)", len(text))
+        return {"response_text": text, "suggested_prompts": prompts}
     return {"response_text": result.response_text, "suggested_prompts": result.suggested_prompts}
+
+
+_SUGGESTED_HEADING = re.compile(r"^\s*(?:#+\s*)?\**\s*suggested prompts\s*:?\s*\**\s*:?\s*$", re.IGNORECASE)
+_LIST_ITEM = re.compile(r"^\s*(?:\d+[.)]|[-*\u2022])\s+(.+?)\s*$")
+
+
+def _split_suggested_prompts(text: str) -> tuple[str, list[str]]:
+    """Splits a plain-text opinion reply into (answer, reframe prompts) when it ends in a "Suggested prompts" list;
+    anything else comes back unchanged with no prompts."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if not _SUGGESTED_HEADING.match(line):
+            continue
+        prompts = []
+        for item in lines[i + 1 :]:
+            m = _LIST_ITEM.match(item)
+            if m:
+                prompts.append(m.group(1).strip().strip("\u201c\u201d\"'").strip())
+        body = "\n".join(lines[:i]).strip()
+        return (body, prompts) if body and prompts else (text, [])
+    return text, []
+
+
+def _unparsed_text(exc: ValidationError | OutputParserException) -> str:
+    """The model's own text out of a structured-output parse failure; "" if it is not a plain string."""
+    if isinstance(exc, OutputParserException):
+        raw = exc.llm_output
+    else:
+        errors = exc.errors()
+        raw = errors[0].get("input") if errors else None
+    return raw.strip() if isinstance(raw, str) else ""
 
 
 async def general_climate_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:
