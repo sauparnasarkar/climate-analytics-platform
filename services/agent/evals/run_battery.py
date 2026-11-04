@@ -21,6 +21,7 @@ verdict), that no tools ran on non-data queries, and that the answer is non-empt
 records `ungrounded`: numbers in the answer that match no tool-result value. That catches fabricated figures,
 NOT a real figure misread (e.g. a 2024 annual value reported as a since-2000 total) -- read the answers.
 Per-case results (answer text, tools, timings) are written to the JSON file after every case.
+Exit status is 1 if any case fails (including coarse expected-tool misses -- read those), else 0.
 """
 
 from __future__ import annotations
@@ -202,7 +203,7 @@ async def main() -> int:
     ok = sum(r["ok"] for r in results)
     print(f"\nPASS {ok}/{len(results)}  total {total}s  slowest {max(r['seconds'] for r in results)}s", flush=True)
     out.write_text(json.dumps({"results": results, "total_seconds": total}, indent=1))
-    return 0
+    return 0 if ok == len(results) else 1  # like run_area2.py: nonzero on any failed case
 
 
 if __name__ == "__main__":
