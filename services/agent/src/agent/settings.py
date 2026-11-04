@@ -47,6 +47,12 @@ ALLOWED_CHOICES: list[AllowedChoice] = [
         model="qwen2.5:14b-ctx8k",
         label="Qwen 2.5 14B (local, 8k ctx)",
     ),
+    AllowedChoice(
+        id="ollama-qwen14b-ctx32k",
+        provider="ollama",
+        model="qwen2.5:14b-ctx32k",
+        label="Qwen 2.5 14B (local, 32k ctx)",
+    ),
 ]
 
 _CHOICES_BY_ID = {choice.id: choice for choice in ALLOWED_CHOICES}
