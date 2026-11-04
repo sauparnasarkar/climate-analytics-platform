@@ -15,7 +15,15 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool, ToolException
 from langgraph.checkpoint.memory import MemorySaver
 
-from agent.graph import MAX_TOOL_CALLS_PER_TURN, _capability_summary, _OpinionOutput, build_graph
+from agent.graph import (
+    MAX_TOOL_CALLS_PER_TURN,
+    OPINION_FALLBACK_TEXT,
+    _capability_summary,
+    _OpinionOutput,
+    _split_suggested_prompts,
+    _unparsed_text,
+    build_graph,
+)
 from agent.mcp_client import get_mcp_tools
 from agent.prompts import OFF_TOPIC_RESPONSE
 
@@ -97,6 +105,75 @@ async def test_opinion_routing_survives_a_bare_string_suggested_prompt_from_the_
     graph = await build_graph(llm=llm, mcp_tools=[])
     result = await graph.ainvoke({"current_query": "should China do more?"}, config=THREAD_CONFIG)
     assert result["suggested_prompts"] == ["How has China's trend changed?"]
+
+
+async def test_opinion_node_uses_the_models_plain_text_reply_when_it_ignores_the_schema():
+    # gpt-oss:120b answered some opinion queries in prose instead of the _OpinionOutput schema; the parse failure used
+    # to end the turn with the generic client-facing error. Now the prose is the answer (no reframe chips).
+    llm = ScriptedChatModel(
+        [
+            {"classification": "opinion"},
+            AIMessage(content="I can't weigh in on whether a carbon tax is fair, but I can show emissions trends."),
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[])
+    result = await graph.ainvoke({"current_query": "Do you think carbon taxes are fair?"}, config=THREAD_CONFIG)
+    assert result["response_text"] == "I can't weigh in on whether a carbon tax is fair, but I can show emissions trends."
+    assert result["suggested_prompts"] == []
+
+
+async def test_opinion_node_turns_the_plain_text_replys_prompt_list_into_suggested_prompts():
+    llm = ScriptedChatModel(
+        [
+            {"classification": "opinion"},
+            AIMessage(content="No view on that.\n\n**Suggested prompts**\n\n1. \u201cHow have emissions changed?\u201d\n2. \u201cWho emits most?\u201d"),
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[])
+    result = await graph.ainvoke({"current_query": "who is right?"}, config=THREAD_CONFIG)
+    assert result["response_text"] == "No view on that."
+    assert result["suggested_prompts"] == ["How have emissions changed?", "Who emits most?"]
+
+
+async def test_opinion_node_falls_back_to_canned_text_when_the_unparsed_reply_is_empty():
+    llm = ScriptedChatModel([{"classification": "opinion"}, AIMessage(content="   ")])
+    graph = await build_graph(llm=llm, mcp_tools=[])
+    result = await graph.ainvoke({"current_query": "who is right?"}, config=THREAD_CONFIG)
+    assert result["response_text"] == OPINION_FALLBACK_TEXT
+    assert result["suggested_prompts"] == []
+
+
+def test_unparsed_text_reads_the_text_off_either_parse_failure_type():
+    from langchain_core.exceptions import OutputParserException
+
+    assert _unparsed_text(OutputParserException("bad", llm_output="  prose reply ")) == "prose reply"
+    assert _unparsed_text(OutputParserException("bad", llm_output=None)) == ""
+    try:
+        _OpinionOutput.model_validate_json("prose reply")
+    except Exception as exc:  # noqa: BLE001 -- the pydantic ValidationError is the point
+        assert _unparsed_text(exc) == "prose reply"
+
+
+def test_split_suggested_prompts_lifts_a_trailing_list_out_of_the_answer():
+    text = (
+        "I\u2019m not able to provide personal opinions on that topic.\n\n**Suggested prompts**\n\n"
+        "1. \u201cWhat are the recent CO\u2082 trends?\u201d  \n2. \u201cHow have shares changed?\u201d\n"
+    )
+    body, prompts = _split_suggested_prompts(text)
+    assert body == "I\u2019m not able to provide personal opinions on that topic."
+    assert prompts == ["What are the recent CO\u2082 trends?", "How have shares changed?"]
+
+
+def test_split_suggested_prompts_accepts_bullets_and_a_plain_or_heading_style_label():
+    assert _split_suggested_prompts("No view.\n\nSuggested prompts:\n- a\n- b") == ("No view.", ["a", "b"])
+    assert _split_suggested_prompts("No view.\n## Suggested prompts\n* a") == ("No view.", ["a"])
+
+
+def test_split_suggested_prompts_leaves_other_text_alone():
+    assert _split_suggested_prompts("Just a refusal.") == ("Just a refusal.", [])
+    # a heading with no list items, or a list with no answer before it, is not worth splitting
+    assert _split_suggested_prompts("Refusal.\n\nSuggested prompts:") == ("Refusal.\n\nSuggested prompts:", [])
+    assert _split_suggested_prompts("Suggested prompts:\n1. a") == ("Suggested prompts:\n1. a", [])
 
 
 def test_capability_summary_uses_first_paragraph_only_never_the_tool_name():

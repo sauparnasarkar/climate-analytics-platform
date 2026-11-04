@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 
 
@@ -46,6 +47,10 @@ class ScriptedChatModel:
         if not self._responses:
             raise AssertionError("ScriptedChatModel ran out of scripted responses")
         value = self._responses.pop(0)
+        if self._schema is not None and isinstance(value, AIMessage):
+            # A scripted AIMessage stands for a model that replied in plain text instead of the schema: parsing it
+            # raises the same pydantic ValidationError (input = the text) that ChatOpenAI's structured output does.
+            return self._schema.model_validate_json(value.content)
         if self._schema is not None and not isinstance(value, self._schema):
             return self._schema(**value)
         return value
