@@ -48,10 +48,10 @@ ALLOWED_CHOICES: list[AllowedChoice] = [
         label="Qwen 2.5 14B (local, 8k ctx)",
     ),
     AllowedChoice(
-        id="ollama-qwen14b-ctx32k",
+        id="ollama-gpt-oss-20b-ctx32k",
         provider="ollama",
-        model="qwen2.5:14b-ctx32k",
-        label="Qwen 2.5 14B (local, 32k ctx)",
+        model="gpt-oss:20b-ctx32k",
+        label="gpt-oss 20B (local, 32k ctx)",
     ),
 ]
 
