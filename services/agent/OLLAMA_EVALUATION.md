@@ -113,7 +113,7 @@ panel, which takes precedence over the plist's environment variables), and the c
 
 ## Mac Studio re-evaluation (2026-11-04)
 
-The Mac Studio (Apple M5 Max, 128 GB unified memory) removed the 16 GB ceiling behind the `ctx8k` choice. Four
+The Mac Studio (Apple M5 Max, 128 GB unified memory) removed the 16 GB ceiling behind the `ctx8k` choice. Six
 models were run through the same 36-case battery ([`evals/run_battery.py`](evals/run_battery.py)), in-process
 through the real graph on the Studio, at temperature 0, single run each. Local models used a 32k context
 (`num_ctx 32768`); the Ollama default of one inference slot was unchanged.
@@ -124,6 +124,8 @@ through the real graph on the Studio, at temperature 0, single run each. Local m
 | `qwen2.5:14b-ctx32k` | 15 GB | 35/36 | 344 s | 14.6 s | 28.2 s |
 | `gpt-oss:20b-ctx32k` | 12 GB | 32/36 | 423 s | 16.7 s | 20.1 s |
 | `gpt-oss:120b-ctx32k` | 64 GB | 32/36 | 529 s | 22.1 s | 36.1 s |
+| `qwen3.8-27b-ctx32k` | 18 GB | 35/36 | 730 s | 29.5 s | 45.6 s |
+| `qwen3.6-35b-a3b-ctx32k` | 23 GB | 33/36 | 800 s | 35.9 s | 26.6 s |
 
 For scale, the old 30-case battery took ~20 minutes on the Mac Mini with `qwen2.5:14b-ctx8k`; that gain is
 mostly the hardware, not the context size (the 32k variant ran with no stalls or errors). These are not directly
@@ -138,6 +140,11 @@ number-grounding check.
 - *gpt-oss 20B:* `off4` (stock-picking question) classified `opinion`, not `off_topic`; `dq1`/`dq8` as Sonnet;
   `st2` called `get_emissions_change_summary` only, so it never gave India's figure.
 - *gpt-oss 120B:* `op4`, `bd3` **errored** (below); `dq1`/`dq8` as Sonnet.
+- *Qwen 3.8 27B:* `dq10` ("Which model forecasts Russia's emissions best?") classified `opinion`, so no tools ran and no
+  chart was shown. A real miss.
+- *Qwen 3.6 35B-A3B:* `op4` and `dq3` **errored** with `OpenAITimeoutError` at the 150 s per-call timeout
+  (`OLLAMA_REQUEST_TIMEOUT_SECONDS`); `dq1` as Sonnet. In production a timeout is the generic error message after a
+  2.5-minute wait.
 
 **Answer quality: read the answers, the pass count hides it.** No local model produced a number absent from its
 tool results (the `ungrounded` check). But a real figure can still be misread:
@@ -147,6 +154,10 @@ tool results (the `ungrounded` check). But a real figure can still be misread:
   This passes every automated check.
 - "How has the greenhouse-gas mix changed": Sonnet and gpt-oss 20B quoted figures (CO2 68% to 74-75%, methane
   24% to 17%); Qwen 14B and gpt-oss 120B gave vague answers with no numbers.
+- Qwen 3.8 27B did not answer the since-2000 question: it described annual values for 1990-2024. Its gas-mix
+  answer talked about "the widget" and gave no figures, and one number in `dq8` ("34") matched no tool result.
+- Qwen 3.6 35B-A3B picked the right tool for the since-2000 question (213.1 GtCO2 for China), but its gas-mix answer
+  leaked drafting language ("Once the complete `summary` statistics are available, I will draft a lead paragraph...").
 - Only 3 of the 16 data answers per model were read in full; a judge pass over all of them is still to do.
 
 **gpt-oss 120B structured-output failure (fixed, not deployed).** On 4 of 9 runs of three opinion prompts with the
@@ -160,12 +171,14 @@ should be checked for this class of failure, not just for tool calling.
 battery in 6-9 minutes. Faithfulness on the data answers is the gap. gpt-oss 20B is the closest to Sonnet on the
 answers read (cumulative-share choice, quoted figures) at the smallest footprint, but misclassified one case and
 skipped India's figure on a starter prompt. gpt-oss 120B is slower and no better. Qwen 2.5 14B passes the battery
-but misreads data. Sonnet remains the production default.
+but misreads data. The two newer Qwen models did not help: 3.8 27B takes about twice as long as 2.5 14B (730 s, likely
+its thinking mode, not isolated) and still gives vague or off-window answers; 3.6 35B-A3B timed out twice. A bigger or
+newer model has not closed the faithfulness gap, which points at the answer-writing step rather than the model.
+Sonnet remains the production default.
 
-**Newer Qwen candidates (not yet run).** The Ollama library now carries `qwen3.8:27b` (dense), `qwen3.6:35b-a3b`
-(MoE), `qwen3.5:122b-a10b` and `qwen3.8-flash-next:125b-a6b` (large MoE, q4 only), all within the Studio's memory.
-Check each for tool calling, list-argument serialization, the opinion/structured-output failure above, and
-thinking-mode latency before trusting a pass count.
+**Newer Qwen candidates.** `qwen3.8:27b` and `qwen3.6:35b-a3b` were run (above). Not run: `qwen3.5:122b-a10b`,
+`qwen3-next:80b` and `qwen3.8-flash-next:125b-a6b` (large MoE, q4 only), which overlap with what was tested and,
+by the gpt-oss 120B result, are unlikely to be better than a smaller model on this battery.
 
 ## Reproducing the battery
 
