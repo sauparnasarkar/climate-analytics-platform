@@ -121,12 +121,14 @@ def _floats(obj, out):
                 pass
 
 
-def ungrounded_numbers(answer: str, tool_calls) -> list[str]:
+def ungrounded_numbers(answer: str, tool_calls, widgets=()) -> list[str]:
     """Numbers >= 10 in the answer (not years) with no tool-result value within 1.5% (also allowing unit rescaling x1e3 / 1e-3 / 1e6 / 1e-6)."""
     vals: list[float] = []
     for r in tool_calls:
         _floats(r.result, vals)
         _floats(r.args, vals)
+    for w in widgets:  # a widget's summary holds derived figures (e.g. a percent change) the answer is meant to quote
+        _floats(w.summary, vals)
     bad = []
     for m in re.findall(r"\d[\d,]*\.?\d*", answer):
         try:
@@ -155,7 +157,7 @@ async def run_case(graph, case: Case) -> dict:
             tools=tools,
             tool_errors=failed,
             widgets=len(result["widgets"]),
-            ungrounded=ungrounded_numbers(result["response_text"], result["tool_calls"]) if case.cls == "data_query" else [],
+            ungrounded=ungrounded_numbers(result["response_text"], result["tool_calls"], result["widgets"]) if case.cls == "data_query" else [],
             scope_notes=result["scope_notes"],
             answer=result["response_text"],
         )

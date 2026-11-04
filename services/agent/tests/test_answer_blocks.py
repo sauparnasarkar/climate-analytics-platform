@@ -287,3 +287,135 @@ def test_warming_card_always_says_1850_1900_whatever_the_emissions_window():
     all_gas = {"summary": {**RELATIONSHIP["summary"], "source": "primap_ghg", "baseline": "1970", "window": [1970, 2024]}}
     warming = next(k for k in build_kpis([_rec("get_emissions_temperature_relationship", all_gas)]) if k.label == "Warming")
     assert warming.sub == "vs 1850\u20131900"
+
+
+# --- SPEC.md §15.16: summaries for the Stage 1 forecast / model / change / gas / scenario tools ---------------------------------
+
+
+def _years(a, b):
+    return list(range(a, b + 1))
+
+
+FORECAST = {
+    "country": "India",
+    "hist_years": _years(1990, 2018),
+    "hist_co2": [500.0 + i for i in range(29)],
+    "holdout_years": _years(2019, 2024),
+    "holdout_co2": [2600.0, 2500.0, 2800.0, 3000.0, 3100.0, 3193.54],
+    "forecast_years": _years(2019, 2043),
+    "forecast_mean": [3000.0 + 100 * i for i in range(25)],
+    "ci_lower": [2900.0 + 100 * i for i in range(25)],
+    "ci_upper": [3100.0 + 100 * i for i in range(25)],
+}
+
+
+def test_forecast_summary_quotes_milestone_years_and_the_change_from_the_last_observed_value():
+    s = widget_summary(_rec("get_forecast", FORECAST))
+    assert s["country"] == "India" and s["unit"] == "Mt CO\u2082"
+    assert (s["last_observed_year"], s["last_observed"]) == (2024, 3193.5)
+    assert s["forecast_2030"] == {"year": 2030, "mean": 4100.0, "lower": 4000.0, "upper": 4200.0}
+    assert s["forecast_2040"]["mean"] == 5100.0
+    assert s["pct_change_to_forecast_year"] == {"year": 2040, "pct": round((5100.0 - 3193.54) / 3193.54 * 100, 1)}
+    assert "final" not in s  # the far-end interval is only quoted when no milestone year exists
+
+
+def test_forecast_summary_falls_back_to_the_final_year_when_no_milestone_year_is_in_range():
+    short = {**FORECAST, "forecast_years": [2025, 2026], "forecast_mean": [1.0, 2.0], "ci_lower": [0.0, 1.0], "ci_upper": [2.0, 3.0]}
+    s = widget_summary(_rec("get_forecast", short))
+    assert s["final"]["year"] == 2026 and "forecast_2040" not in s
+
+
+def test_forecast_comparison_summary_has_one_entry_per_country():
+    s = widget_summary(_rec("get_forecast_comparison", {"forecasts": [FORECAST, {**FORECAST, "country": "China"}]}))
+    assert [f["country"] for f in s["forecasts"]] == ["India", "China"]
+    assert widget_summary(_rec("get_forecast_comparison", {"forecasts": []})) is None
+
+
+def test_model_comparison_summary_counts_the_best_model_and_keeps_each_countrys_mae():
+    rows = [
+        {"country": "Russia", "baseline_mae": 44.2, "lr_mae": 37.2, "rf_pc_mae": 45.1, "rf_mae": 34.0, "ets_mae": 40.8, "best_model": "RF"},
+        {"country": "Algeria", "baseline_mae": 9.5, "lr_mae": 9.3, "rf_pc_mae": 14.1, "rf_mae": 10.6, "ets_mae": 6.6, "best_model": "ETS"},
+    ]
+    s = widget_summary(_rec("get_model_comparison", {"columns": [], "rows": rows}))
+    assert s["n_countries"] == 2 and s["best_model_counts"] == {"RF": 1, "ETS": 1}
+    russia = next(c for c in s["by_country"] if c["country"] == "Russia")
+    assert russia["best_model"] == "RF" and russia["mae"] == {"baseline": 44.2, "lr": 37.2, "rf_pc": 45.1, "rf": 34.0, "ets": 40.8}
+    assert widget_summary(_rec("get_model_comparison", {"rows": []})) is None
+
+
+def test_change_summary_carries_the_counts_and_the_named_movers():
+    r = {
+        "scope": "sovereign", "baseline_year": 1990, "latest_year": 2024, "countries_with_data": 209,
+        "increased_count": 154, "decreased_count": 55,
+        "top_increases": [{"country": "India", "co2_1990": 578.0, "co2_latest": 3193.5, "absolute_change": 2615.5, "pct_change": 452.52}],
+        "top_decreases": [{"country": "Russia", "absolute_change": -755.76, "pct_change": -29.798}],
+    }
+    s = widget_summary(_rec("get_emissions_change_summary", r))
+    assert (s["increased_count"], s["decreased_count"], s["countries_with_data"]) == (154, 55, 209)
+    assert s["top_increases"] == [{"country": "India", "pct_change": 452.5, "absolute_change_mt": 2615.5}]
+    assert s["top_decreases"][0]["pct_change"] == -29.8
+
+
+def test_gas_by_decade_summary_maps_each_gas_to_its_shares_by_decade():
+    r = {"decades": [1990, 2000], "series": [{"gas": "co2", "gas_label": "CO\u2082", "share": [71.32, 78.96]}, {"gas": "bad", "share": [1.0]}]}
+    s = widget_summary(_rec("get_gas_composition_by_decade", r))
+    assert s == {"decades": [1990, 2000], "unit": "% share", "share_by_gas": {"CO\u2082": [71.3, 79.0]}}  # a series that does not line up is dropped
+
+
+def test_scenario_comparison_summary_labels_the_common_point_as_a_start_not_an_observation():
+    years = [2024, 2025, 2026]
+    r = {"countries": ["China"], "scenarios": {
+        "BAU": [{"name": "China", "years": years, "values": [12289.0, 12492.8, 13000.0]}],
+        "Aggressive": [{"name": "China", "years": years, "values": [12289.0, 12492.8, 11000.0]}],
+    }}
+    c = widget_summary(_rec("compare_scenarios_across_countries", r))["countries"][0]
+    assert c["final_by_scenario"] == {"BAU": 13000.0, "Aggressive": 11000.0} and c["final_year"] == 2026
+    assert (c["starting_year"], c["starting_value"]) == (2025, 12492.8)
+    assert "last_observed" not in c and "last_observed_year" not in c
+
+
+def test_cumulative_impact_summary_keeps_the_rows_and_the_scope_note():
+    r = {"sort_by": "BAU", "scenarios": ["BAU"], "scope_note": "Showing 1 of 40", "rows": [
+        {"country": "China", "values": {"BAU": 222817.0}, "year_2040": {"BAU": 15293.645}, "current_level": 12289.037}]}
+    s = widget_summary(_rec("get_scenario_cumulative_impact", r))
+    assert s["rows"][0]["year_2040_by_scenario"] == {"BAU": 15293.6} and s["scope_note"] == "Showing 1 of 40"
+
+
+def test_the_new_summaries_return_none_for_an_error_or_a_malformed_result():
+    for tool in ("get_forecast", "get_forecast_comparison", "get_model_comparison", "get_emissions_change_summary",
+                 "get_gas_composition_by_decade", "compare_scenarios_across_countries", "get_scenario_cumulative_impact"):
+        assert widget_summary(_rec(tool, {"error": "x"})) is None
+        assert widget_summary(_rec(tool, {})) is None
+
+
+def test_forecast_summary_states_the_interval_level_so_the_model_does_not_guess_it():
+    assert "95%" in widget_summary(_rec("get_forecast", FORECAST))["interval"]
+
+
+def test_historical_summary_gives_a_lone_series_no_rank_but_ranks_several():
+    one = {"gas": "co2", "series": [{"name": "India", "years": [1990, 2024], "values": [578.0, 3193.5]}]}
+    assert "rank" not in widget_summary(_rec("get_historical_emissions", one))["series"][0]
+    two = {"gas": "co2", "series": one["series"] + [{"name": "China", "years": [1990, 2024], "values": [2483.5, 12289.0]}]}
+    assert {r["name"]: r["rank"] for r in widget_summary(_rec("get_historical_emissions", two))["series"]} == {"China": 1, "India": 2}
+
+
+def test_model_comparison_summary_also_reads_the_long_form_rows_the_api_fixture_uses():
+    rows = [
+        {"country": "China", "model": "Linear Regression", "mae": 120.5, "rmse": 150.2},
+        {"country": "China", "model": "RF Pooled", "mae": 95.3, "rmse": 110.7},
+        {"country": "United States", "model": "Linear Regression", "mae": 80.1, "rmse": 95.4},
+    ]
+    s = widget_summary(_rec("get_model_comparison", {"columns": ["country", "model", "mae", "rmse"], "rows": rows}))
+    assert s["n_countries"] == 2  # two countries, not three rows
+    assert s["best_model_counts"] == {"RF Pooled": 1, "Linear Regression": 1}
+    china = next(c for c in s["by_country"] if c["country"] == "China")
+    assert china["best_model"] == "RF Pooled" and china["mae"] == {"Linear Regression": 120.5, "RF Pooled": 95.3}
+
+
+def test_model_comparison_summary_caps_countries_not_raw_long_form_rows():
+    models = ["Baseline", "Linear Regression", "RF Per-Country", "RF Pooled", "ETS"]
+    rows = [{"country": f"C{i:02d}", "model": m, "mae": float(j + 1), "rmse": 1.0} for i in range(60) for j, m in enumerate(models)]
+    s = widget_summary(_rec("get_model_comparison", {"rows": rows}))
+    assert s["n_countries"] == 50  # the cap, in countries
+    assert all(len(c["mae"]) == 5 for c in s["by_country"])  # none cut off partway through its models
+    assert sum(s["best_model_counts"].values()) == 50
