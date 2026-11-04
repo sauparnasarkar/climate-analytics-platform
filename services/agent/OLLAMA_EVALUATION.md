@@ -1,9 +1,9 @@
 # Local LLM Evaluation (Ollama) — `services/agent`
 
-**Status:** local experiment, not a settled decision. `qwen2.5:14b-ctx8k` is live as an active
-trial on the deployed instance; Claude Sonnet 5 remains CLAUDE.md's documented production model
-and stays one plist edit away as the fallback. See `LLM_PROVIDER=ollama` in
-[`src/agent/llm.py`](src/agent/llm.py) for the switch itself.
+**Status:** local experiment, not a settled decision. Claude Sonnet 5 is the live production model (selected in the
+admin panel); the Ollama models below are selectable trials. The latest results, on the Mac Studio, are under
+"Mac Studio re-evaluation (2026-11-04)". The earlier sections describe the Mac Mini trial of `qwen2.5:14b-ctx8k` and
+are kept as history. See `LLM_PROVIDER=ollama` in [`src/agent/llm.py`](src/agent/llm.py) for the switch itself.
 
 ## Why
 
@@ -104,13 +104,68 @@ All merged to `main`:
   is what later let a slow query be diagnosed directly from server logs — confirming that LLM
   generation, not tool/API call volume, is where time actually goes on a local model.
 
-## Where things stand
+## Where things stand (Mac Mini era)
 
-`qwen2.5:14b-ctx8k` is live on the deployed instance as an active trial — correctness-equivalent
-to Anthropic on this evaluation's battery, materially slower in wall-clock time. Anthropic stays
-one plist edit away (`LLM_PROVIDER=anthropic` in `com.ghgemissions.agent.plist`, then
-`launchctl bootout`/`bootstrap` to reload) as the fallback for client demos or if the trial
-doesn't hold up under real traffic.
+As of the Mac Mini trial, `qwen2.5:14b-ctx8k` was correctness-equivalent to Anthropic on that evaluation's battery
+and materially slower in wall-clock time, with Anthropic one plist edit away as the fallback. That trial has since
+been superseded: the deployment moved to the Mac Studio, the live model is Claude Sonnet 5 (chosen in the admin
+panel, which takes precedence over the plist's environment variables), and the current comparison is below.
+
+## Mac Studio re-evaluation (2026-11-04)
+
+The Mac Studio (Apple M5 Max, 128 GB unified memory) removed the 16 GB ceiling behind the `ctx8k` choice. Four
+models were run through the same 36-case battery ([`evals/run_battery.py`](evals/run_battery.py)), in-process
+through the real graph on the Studio, at temperature 0, single run each. Local models used a 32k context
+(`num_ctx 32768`); the Ollama default of one inference slot was unchanged.
+
+| Model | Resident | Passed | Total time | Data-query avg | Starter-prompt avg |
+|---|---|---|---|---|---|
+| Claude Sonnet 5 | – | 34/36 | 327 s | 13.4 s | 20.1 s |
+| `qwen2.5:14b-ctx32k` | 15 GB | 35/36 | 344 s | 14.6 s | 28.2 s |
+| `gpt-oss:20b-ctx32k` | 12 GB | 32/36 | 423 s | 16.7 s | 20.1 s |
+| `gpt-oss:120b-ctx32k` | 64 GB | 32/36 | 529 s | 22.1 s | 36.1 s |
+
+For scale, the old 30-case battery took ~20 minutes on the Mac Mini with `qwen2.5:14b-ctx8k`; that gain is
+mostly the hardware, not the context size (the 32k variant ran with no stalls or errors). These are not directly
+comparable to the 30/30 figures above: the battery was reconstructed (see below), and the Sonnet run predates the
+number-grounding check.
+
+**Misses, by cause.**
+
+- *Sonnet:* `dq1`, `dq8` expected `get_historical_emissions`, called `get_country_cumulative_share`. A valid,
+  arguably better, tool for "total since year X"; counted as a miss only because the expected-tool sets are coarse.
+- *Qwen 14B:* `bd3` ("Climate change is a hoax, right?") classified `off_topic`, not `opinion`.
+- *gpt-oss 20B:* `off4` (stock-picking question) classified `opinion`, not `off_topic`; `dq1`/`dq8` as Sonnet;
+  `st2` called `get_emissions_change_summary` only, so it never gave India's figure.
+- *gpt-oss 120B:* `op4`, `bd3` **errored** (below); `dq1`/`dq8` as Sonnet.
+
+**Answer quality: read the answers, the pass count hides it.** No local model produced a number absent from its
+tool results (the `ungrounded` check). But a real figure can still be misread:
+
+- "China vs USA total since 2000": Sonnet, gpt-oss 20B and 120B returned the cumulative 213.1 GtCO2 (China) vs
+  138.2 (USA). **Qwen 14B reported China's 2024 annual value (12,289 Mt) as the "total since 2000"**, in both runs.
+  This passes every automated check.
+- "How has the greenhouse-gas mix changed": Sonnet and gpt-oss 20B quoted figures (CO2 68% to 74-75%, methane
+  24% to 17%); Qwen 14B and gpt-oss 120B gave vague answers with no numbers.
+- Only 3 of the 16 data answers per model were read in full; a judge pass over all of them is still to do.
+
+**gpt-oss 120B structured-output failure (fixed, not deployed).** On 4 of 9 runs of three opinion prompts with the
+real tool catalog in the prompt, it answered in prose instead of `_OpinionOutput` JSON. `ChatOpenAI` parses the
+schema inside the model call, so the `ValidationError` ended the turn with the generic client-facing error
+(`include_raw=True` does not catch it). `opinion_node` now catches the failure, uses the model's own text, and
+lifts a trailing "Suggested prompts" list into `suggested_prompts`; verified live, 9/9 OK. Any future local model
+should be checked for this class of failure, not just for tool calling.
+
+**Where this leaves the goal (avoiding API cost).** Local models are now fast enough: every one finishes the
+battery in 6-9 minutes. Faithfulness on the data answers is the gap. gpt-oss 20B is the closest to Sonnet on the
+answers read (cumulative-share choice, quoted figures) at the smallest footprint, but misclassified one case and
+skipped India's figure on a starter prompt. gpt-oss 120B is slower and no better. Qwen 2.5 14B passes the battery
+but misreads data. Sonnet remains the production default.
+
+**Newer Qwen candidates (not yet run).** The Ollama library now carries `qwen3.8:27b` (dense), `qwen3.6:35b-a3b`
+(MoE), `qwen3.5:122b-a10b` and `qwen3.8-flash-next:125b-a6b` (large MoE, q4 only), all within the Studio's memory.
+Check each for tool calling, list-argument serialization, the opinion/structured-output failure above, and
+thinking-mode latency before trusting a pass count.
 
 ## Reproducing the battery
 
