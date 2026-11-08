@@ -176,9 +176,61 @@ its thinking mode, not isolated) and still gives vague or off-window answers; 3.
 newer model has not closed the faithfulness gap, which points at the answer-writing step rather than the model.
 Sonnet remains the production default.
 
-**Newer Qwen candidates.** `qwen3.8:27b` and `qwen3.6:35b-a3b` were run (above). Not run: `qwen3.5:122b-a10b`,
-`qwen3-next:80b` and `qwen3.8-flash-next:125b-a6b` (large MoE, q4 only), which overlap with what was tested and,
-by the gpt-oss 120B result, are unlikely to be better than a smaller model on this battery.
+**Newer Qwen candidates.** `qwen3.8:27b` and `qwen3.6:35b-a3b` were run (above), and Qwen3.8-Flash-Next later
+through the UI battery (next section). Not run: `qwen3.5:122b-a10b` and `qwen3-next:80b` (large MoE, q4 only), which
+overlap with what was tested and, by the gpt-oss 120B result, are unlikely to be better than a smaller model on
+this battery.
+
+## UI battery comparison (2026-11-04 to 2026-11-08)
+
+The same 36 cases were then driven through the real Ask page with Playwright ([`evals/ui/`](evals/ui/README.md)),
+one fresh browser context per case, so the numbers include streaming and rendering as a user meets them. The
+public site was used for Sonnet 5, gpt-oss 20B, gpt-oss 120B and Qwen 3.8 27B, with the model switched through the
+stored admin choice. Single run each; classification and tools are inferred from the SSE stream.
+
+| Model | Passed | Total time | Slowest case | Data-query avg | Starter avg | Ungrounded numbers |
+|---|---|---|---|---|---|---|
+| Claude Sonnet 5 | 34/36 | 442 s | 31.7 s | 18.2 s | 21.9 s | none |
+| `gpt-oss:20b-ctx32k` | 32/36 | 458 s | 40.3 s | 17.7 s | 22.6 s | none |
+| `gpt-oss:120b-ctx32k` | 33/36 | 590 s | 55.5 s | 23.9 s | 37.2 s | none |
+| `qwen3.8-27b-ctx32k` | 33/36 | 807 s | 64.6 s | 31.6 s | 47.6 s | `dq7`, `dq8` |
+| Qwen3.8-Flash-Next Q3_K_XL, 32k | 32/36 | 1249 s | 131.8 s | 67.6 s | 58.9 s | `dq7` |
+| Qwen3.8-Flash-Next Q3_K_XL, 64k | 33/36 | 1543 s | 132.3 s | 68.3 s | 103.3 s | `dq7` |
+
+**Misses, by cause.**
+
+- *Sonnet:* `dq1`, `dq8` chose `get_country_cumulative_share` (the same coarse expected-tool sets as above).
+- *gpt-oss 20B:* `off4` classified `opinion`; `dq1`, `dq8` as Sonnet; `st2` called only `get_emissions_change_summary`.
+- *gpt-oss 120B:* `dq1`, `dq8`, `st2`, all the cumulative-share tool choice. No errors or parse failures.
+- *Qwen 3.8 27B:* `dq10` classified `opinion`, so no tools ran (same miss as the in-process run). `dq7` and `dq8` were
+  flagged for a number matching no tool result; in `dq7` the "46" is a percentage the model computed itself, so
+  it is probably a false positive (`dq8` not checked).
+- *Flash Next:* `dq7` flagged for "64.9", the model's own −64.9% 2040 change for the UK versus 2024 (a derived
+  percentage, so a false positive). At 32k, `st2` and `st4` **errored** because the request (35k and 39k tokens)
+  exceeded the context window; 64k fixed `st2`. `st3` and `st4` then timed out in the UI (126-132 s, three and two
+  tool calls), so the remaining failures are latency, not content.
+
+**Flash Next was served differently.** It is not in Ollama's library as a runnable GGUF; the only tag is a 105 GB
+MLX build with no way to keep its 29 GB n-gram table off the GPU, and Ollama rejects `override_tensor` as a
+Modelfile parameter. It was run on a separate llama.cpp `llama-server` (`UD-Q3_K_XL`, `--override-tensor
+per_layer_token_embd.weight=CPU`, one slot, reasoning effort `medium`, temperature 0.7) behind an isolated test agent
+and a local proxy to the same front-end build, so its latencies are not strictly like-for-like with the
+Cloudflare-fronted runs. Memory was never the constraint: no swap, and the pinned table was not resident.
+
+**Why Flash Next is slow, measured.** Decode took about three quarters of the run (1134 s of 1543 s) at a steady 42
+tokens per second, over about 100 LLM calls averaging 470 tokens; prompt processing was 879 tokens per second. A
+fixed-prompt benchmark showed the CPU-pinned table costs nothing (42 vs 42 tok/s with the table on the GPU) and
+forced flash attention changes nothing. N-gram speculative decoding (`--spec-type ngram-mod`) reached 182 tok/s on a
+prompt built to repeat its own figures, but gave no gain on real agent traffic (41.9 tok/s overall): acceptance was
+low on the model's thinking text and high only when restating figures. The model card's MTP draft head (quoted
+1.3-1.7x) needs a non-mainline llama.cpp build and was not tried. Evaluation of this model was stopped there.
+
+**Conclusion.** The UI battery agrees with the in-process one. Local models pass 32-33 of 36 against Sonnet's 34, with
+no ungrounded numbers beyond derived percentages, but none is faster than Sonnet and the larger or newer ones are
+slower: gpt-oss 120B about 1.3x Sonnet's total time, Qwen 3.8 27B about 1.8x, Flash Next 2.8-3.5x. gpt-oss 120B is no
+more accurate than 20B. gpt-oss 20B remains the practical local choice on speed and footprint, and Sonnet remains the
+production default. Per-case answers, raw SSE, rendered text and screenshots are saved outside the repo; the
+automated checks are coarse, so the answers themselves still need reading.
 
 ## Reproducing the battery
 
