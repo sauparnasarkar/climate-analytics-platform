@@ -825,6 +825,18 @@ def test_the_line_filter_drops_the_other_temperature_line_from_every_row(api, li
     assert j["line"] == line and (line == "both" or j["notes"])
 
 
+def test_the_paris_comparison_is_passed_through_for_the_selected_scenarios_and_line(api):
+    # SPEC.md §5.35 C: the pipeline's paris_reference and vs_paris, filtered like the rows, never recomputed
+    j = strict(api.get(ST))
+    assert j["paris_reference"]["goals_c"] == [1.5, 2.0] and j["paris_reference"]["edition"] == "Paris Agreement, 2015" and "20-year" in j["paris_reference"]["note"]
+    assert sorted(j["vs_paris"]) == ["Aggressive", "BAU", "Moderate"] and set(j["vs_paris"]["BAU"]) == {"headline", "fossil_only"}
+    g15 = j["vs_paris"]["BAU"]["headline"][0]
+    assert g15["goal_c"] == 1.5 and g15["implied_level_c"] == j["scenarios"]["BAU"][-1]["headline"]["level_c"]
+    assert {"margin_c", "implied_level_above_goal", "ci95_straddles_goal", "first_year_implied_level_at_or_above", "horizon_year"} <= set(g15)
+    k = api.get(ST + "?scenario=BAU&line=headline").json()
+    assert list(k["vs_paris"]) == ["BAU"] and list(k["vs_paris"]["BAU"]) == ["headline"]
+
+
 def test_scenario_validation_is_422_with_the_allowed_values(api):
     for q, frag in [("scenario=Nope", "BAU"), ("line=net", "headline"), ("scenario=bau", "BAU")]:
         r = api.get(ST + "?" + q)
