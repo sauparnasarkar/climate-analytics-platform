@@ -8,6 +8,7 @@ import { ALL_GAS_PAIR, COMPOSITION, CONCENTRATION, COUNTRY_SNAPSHOT, META, PAIR,
 import { shareResponse } from '../test/shareFixtures';
 import { SCENARIO_TEMPERATURE } from '../test/scenarioFixtures';
 import ClimateCorrelationPage from './ClimateCorrelationPage';
+import { stubSeriesColour } from '../test/slotColours';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
 vi.mock('../api/client', () => ({
@@ -16,6 +17,7 @@ vi.mock('../api/client', () => ({
 vi.mock('@syena/ds', async (orig) => ({
   ...(await orig<typeof import('@syena/ds')>()),
   scrollToJumpTarget: (id: string) => scrollSpy(id),
+  useSeriesColour: (slot: number) => stubSeriesColour(slot), // jsdom cannot resolve the theme's slot colours (src/test/slotColours.ts)
   Chart: (p: { ariaLabel?: string }) => <div data-testid="chart" aria-label={p.ariaLabel} />,
 }));
 

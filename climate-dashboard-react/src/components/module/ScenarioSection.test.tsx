@@ -5,11 +5,13 @@ import { PAIR } from '../../test/climateFixtures';
 import { SCENARIO_TEMPERATURE } from '../../test/scenarioFixtures';
 import { buildScenarioView } from '../../lib/scenarioView';
 import { ScenarioSection } from './ScenarioSection';
+import { SLOT_HEX, stubSeriesColour } from '../../test/slotColours';
 
 vi.mock('@syena/ds', async (orig) => ({
   ...(await orig<typeof import('@syena/ds')>()),
-  Chart: (p: { ariaLabel?: string; referenceX?: unknown; series: Array<{ name: string; dashed?: boolean; x: number[]; y: Array<number | null> }> }) => (
-    <div data-testid="chart" aria-label={p.ariaLabel} data-ref={JSON.stringify(p.referenceX)} data-series={JSON.stringify(p.series.map((s) => [s.name, !!s.dashed, s.x.length]))} data-nulls={JSON.stringify(Object.fromEntries(p.series.map((s) => [s.name, s.y.filter((v) => v === null).length])))} />
+  useSeriesColour: (slot: number) => stubSeriesColour(slot),
+  Chart: (p: { ariaLabel?: string; referenceX?: unknown; series: Array<{ name: string; dashed?: boolean; slot?: number; x: number[]; y: Array<number | null> }> }) => (
+    <div data-testid="chart" aria-label={p.ariaLabel} data-ref={JSON.stringify(p.referenceX)} data-series={JSON.stringify(p.series.map((s) => [s.name, !!s.dashed, s.x.length]))} data-slots={JSON.stringify(p.series.map((s) => [s.name, s.slot ?? null]))} data-nulls={JSON.stringify(Object.fromEntries(p.series.map((s) => [s.name, s.y.filter((v) => v === null).length])))} />
   ),
 }));
 afterEach(cleanup);
@@ -91,4 +93,26 @@ describe('ScenarioSection', () => {
     render(<ScenarioSection view={view()} />);
     expect(document.body.textContent).not.toMatch(/forecast|will warm|predict/i);
   });
+
+  // SPEC.md §5.34: every series pinned, the dashed pathways in slots 2-4, and the keys in the same slots as their lines.
+  it('pins every series to its slot, so no two lines share a colour, and the table and panel take the pathways\' slots', () => {
+    render(<ScenarioSection view={view()} />);
+    const [emissions, temperature] = screen.getAllByTestId('chart');
+    expect(JSON.parse(emissions.getAttribute('data-slots')!)).toEqual([['Observed', 1], ['Business as usual', 2], ['Moderate', 3], ['Aggressive', 4]]);
+    const temp = JSON.parse(temperature.getAttribute('data-slots')!) as Array<[string, number | null]>;
+    expect(temp).toEqual([['Observed (annual)', 1], ['5-year mean', 5], ['Business as usual', 2], ['Moderate', 3], ['Aggressive', 4], ['1.39 °C anchor', 1]]);
+    const lines = temp.filter(([name]) => !name.endsWith('anchor')).map(([, slot]) => slot);
+    expect(new Set(lines).size).toBe(lines.length);
+    const table = screen.getByRole('table');
+    for (const [label, slot] of [['Business as usual', 2], ['Moderate', 3], ['Aggressive', 4]] as const) {
+      const swatch = within(within(table).getByRole('rowheader', { name: label })).getByText('', { selector: 'span[aria-hidden]' });
+      expect(swatch.style.background).toBe(hexToRgb(SLOT_HEX[slot]));
+    }
+    expect(screen.getByText(/Reading note/).parentElement!.style.borderTop).toBe(`3px solid ${hexToRgb(SLOT_HEX[2])}`);
+  });
 });
+
+function hexToRgb(hex: string) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+}

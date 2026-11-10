@@ -293,6 +293,22 @@ describe('WidgetRenderer', () => {
   });
 });
 
+// SPEC.md §5.34: scenario lines take the pathways' slots whether or not the history is present, matching the KPI accents.
+describe('WidgetRenderer scenario projection slots', () => {
+  const scen = (name: string) => ({ name, years: [2025, 2040], values: [38, 40] });
+  const slots = (props: Record<string, unknown>) => {
+    render(<Themed><WidgetRenderer widget={widget({ intent: 'chart', chart_kind: 'line', source_tool_call: 'get_scenario_projection:{}', props })} /></Themed>);
+    return (JSON.parse(screen.getByTestId('chart').dataset.series!) as Array<{ name: string; slot?: number }>).map((s) => [s.name, s.slot]);
+  };
+  it('pins the history to slot 1 and BAU, Moderate and Aggressive to 2, 3 and 4', () => {
+    expect(slots({ historical: { name: 'Historical (1990–2024)', years: [2024], values: [38] }, scenarios: [scen('BAU'), scen('Moderate'), scen('Aggressive')] }))
+      .toEqual([['Historical (1990–2024)', 1], ['BAU', 2], ['Moderate', 3], ['Aggressive', 4]]);
+  });
+  it('keeps the pathways in their slots when there is no history, rather than BAU sliding into slot 1', () => {
+    expect(slots({ historical: null, scenarios: [scen('BAU'), scen('Aggressive')] })).toEqual([['BAU', 2], ['Aggressive', 4]]);
+  });
+});
+
 // Reported live: every chart in an answer showed its "Source: ..." line twice, once in the chart card's footer and again under the card.
 describe('WidgetRenderer source line', () => {
   const SOURCE = 'Source: OWID, 1990–2024 · territorial CO₂ from fossil fuels and cement; land-use change excluded';

@@ -12,7 +12,6 @@ export interface PathwayCard {
   emissionsMt: number;
   /** Implied temperature anomaly (°C above 1850–1900) in the horizon year: the anchor plus the slope × the cumulative increment. */
   levelC: number;
-  color: string;
 }
 
 export interface Pathways {
@@ -30,15 +29,14 @@ export interface Pathways {
   summary: string | null;
 }
 
-const META: Record<PathwayName, { label: string; method: (countries: number | null, startYear: number) => string; color: string }> = {
-  BAU: { label: 'Business as usual', method: (n) => `ETS trend, ${n ?? 'all'} covered countries`, color: '#B07A10' },
-  Moderate: { label: 'Moderate', method: (_, from) => `−2% a year from ${from}`, color: '#0A6E8C' },
-  Aggressive: { label: 'Aggressive', method: (_, from) => `−5% a year from ${from}`, color: '#1D726B' },
+const META: Record<PathwayName, { label: string; method: (countries: number | null, startYear: number) => string }> = {
+  BAU: { label: 'Business as usual', method: (n) => `ETS trend, ${n ?? 'all'} covered countries` },
+  Moderate: { label: 'Moderate', method: (_, from) => `−2% a year from ${from}` },
+  Aggressive: { label: 'Aggressive', method: (_, from) => `−5% a year from ${from}` },
 };
 const ORDER: PathwayName[] = ['BAU', 'Moderate', 'Aggressive'];
 
-/** The scenario line colour the module uses, so a KPI card for a pathway matches its line (undefined for a name that is not a pathway). */
-export const pathwayColor = (name: string): string | undefined => (META as Record<string, { color: string }>)[name]?.color;
+// A pathway's colour is its chart slot (lib/seriesSlots.ts, SPEC.md §5.34), not a colour of its own.
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
@@ -62,7 +60,7 @@ export function buildPathways(resp: CorrelationScenarioTemperatureResponse | nul
     const emissionsMt = num(row?.global_fossil_mt);
     const levelC = num(rec(row?.headline)?.level_c);
     if (emissionsMt === null || levelC === null) return null; // a scenario without its horizon figures: show nothing rather than a partial comparison
-    cards.push({ name, label: META[name].label, method: META[name].method(countries, startYear), emissionsMt, levelC, color: META[name].color });
+    cards.push({ name, label: META[name].label, method: META[name].method(countries, startYear), emissionsMt, levelC });
   }
   const facts = rec(resp.spread?.reading_note_facts);
   const ratio = num(facts?.emissions_ratio);

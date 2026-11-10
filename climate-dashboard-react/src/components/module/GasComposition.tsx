@@ -9,6 +9,7 @@ import { BaselineChip } from '../climate/BaselineChip';
 import { PurposeLine } from '../climate/PurposeLine';
 import { ShareBar } from '../overview/ShareSection';
 import { PRIMAP } from '../../lib/sources';
+import { useSlotColours } from '../../lib/seriesSlots';
 
 /**
  * How the mix of greenhouse gases has changed (requirements §1.3.3): a 100%-stacked area of CO₂, CH₄, N₂O and
@@ -33,7 +34,10 @@ export function GasComposition({ composition, embedded }: { composition: Composi
     setPicked(ahead.reduce((best, y) => (Math.abs(y - v) < Math.abs(best - v) ? y : best), ahead[0]));
   };
   const reduceMotion = useReducedMotion();
-  const order = gases.map((g) => ({ code: g.short, name: g.name, color: g.color }));
+  // One colour per gas: the chart series, the share bar and the table key all take the gas's slot (lib/seriesSlots.ts, SPEC.md §5.34).
+  const slotColour = useSlotColours();
+  const colourOf = (slot: number) => slotColour(slot) ?? 'var(--syn-color-border-default)';
+  const order = gases.map((g) => ({ code: g.short, name: g.name, color: colourOf(g.slot) }));
 
   return (
     <section id={ids.sectionId} aria-labelledby={ids.headingId} style={{ marginBottom: 24 }}>
@@ -45,7 +49,7 @@ export function GasComposition({ composition, embedded }: { composition: Composi
           yTitle="Share of CO₂-equivalent (%)"
           stackedAreaMode="percent"
           ariaLabel={`Stacked area chart of the share of each greenhouse gas in CO₂-equivalent, ${first} to ${last}. In ${last}: ${gases.map((g, i) => `${g.name} ${fmtShare(shares[years.length - 1][i])}`).join(', ')}.`}
-          series={gases.map((g, i) => ({ name: g.name, x: years, y: mt[i], kind: 'area' as const }))}
+          series={gases.map((g, i) => ({ name: g.name, x: years, y: mt[i], kind: 'area' as const, slot: g.slot }))}
         />
         <div style={{ margin: '12px 0 4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <span className="syn-caption">{year}</span>
@@ -67,7 +71,7 @@ export function GasComposition({ composition, embedded }: { composition: Composi
             {gases.map((g, i) => (
               <tr key={g.id} className="syn-text-lg" style={{ textAlign: 'right' }}>
                 <th scope="row" style={{ textAlign: 'left', fontWeight: 400 }}>
-                  <span aria-hidden style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: g.color, marginRight: 8 }} />
+                  <span aria-hidden style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: colourOf(g.slot), marginRight: 8 }} />
                   {g.name}
                 </th>
                 <td>{fmtShare(shares[yi][i])}</td>

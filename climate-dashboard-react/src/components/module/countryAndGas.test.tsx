@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildComposition } from '../../lib/gasComposition';
 import { COMPOSITION } from '../../test/climateFixtures';
 import { GasComposition } from './GasComposition';
+import { SLOT_HEX, stubSeriesColour } from '../../test/slotColours';
 
 vi.mock('@syena/ds', async (orig) => ({
   ...(await orig<typeof import('@syena/ds')>()),
-  Chart: (p: { ariaLabel?: string; stackedAreaMode?: string; series: Array<{ name: string; kind?: string; color?: string; y: Array<number | null> }> }) => (
-    <div data-testid="chart" aria-label={p.ariaLabel} data-stacked={p.stackedAreaMode} data-series={JSON.stringify(p.series.map((s) => [s.name, s.kind, s.color]))} />
+  useSeriesColour: (slot: number) => stubSeriesColour(slot),
+  Chart: (p: { ariaLabel?: string; stackedAreaMode?: string; series: Array<{ name: string; kind?: string; slot?: number; y: Array<number | null> }> }) => (
+    <div data-testid="chart" aria-label={p.ariaLabel} data-stacked={p.stackedAreaMode} data-series={JSON.stringify(p.series.map((s) => [s.name, s.kind, s.slot ?? null]))} />
   ),
 }));
 
@@ -33,7 +35,13 @@ describe('GasComposition', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Gas composition, 1970 onward' })).toBeInTheDocument();
     const chart = screen.getByTestId('chart');
     expect(chart).toHaveAttribute('data-stacked', 'percent');
-    expect(JSON.parse(chart.getAttribute('data-series')!).map((s: string[]) => [s[0], s[1]])).toEqual([['CO₂', 'area'], ['CH₄', 'area'], ['N₂O', 'area'], ['Fluorinated gases', 'area']]);
+    // each gas pinned to its slot by id (SPEC.md §5.34), and the table key in the same slot
+    expect(JSON.parse(chart.getAttribute('data-series')!)).toEqual([['CO₂', 'area', 1], ['CH₄', 'area', 2], ['N₂O', 'area', 3], ['Fluorinated gases', 'area', 4]]);
+    for (const [name, slot] of [['CO₂', 1], ['CH₄', 2], ['N₂O', 3], ['Fluorinated gases', 4]] as const) {
+      const swatch = screen.getByRole('row', { name: new RegExp(`^${name}`) }).querySelector('span[aria-hidden]') as HTMLElement;
+      const n = parseInt(SLOT_HEX[slot].slice(1), 16);
+      expect(swatch.style.background).toBe(`rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`);
+    }
     expect(screen.getByText('Greenhouse gases by share, 2024')).toBeInTheDocument();
     const row = screen.getByRole('row', { name: /^CO₂/ });
     expect(within(row).getByText('75.1%')).toBeInTheDocument();

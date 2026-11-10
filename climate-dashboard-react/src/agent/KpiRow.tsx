@@ -1,18 +1,19 @@
-import { pathwayColor } from '../lib/pathways';
+import { pathwaySlot, useSlotColours } from '../lib/seriesSlots';
 import { formatKpiValue } from './kpiFormat';
 import type { Kpi } from './types';
 
 /**
  * The answer's KPI row (up to three cards, each labelled with its data year). Every figure comes from the agent's
- * deterministic `kpis` block, which reads it from a tool result -- nothing is typed here. A scenario card takes the pathway's own line colour
- * as a top border (3px), so it reads as the same series as the chart beneath it.
+ * deterministic `kpis` block, which reads it from a tool result -- nothing is typed here. A scenario card takes the colour of its pathway's chart
+ * slot (lib/seriesSlots.ts) as a top border (3px), so it reads as the same series as the chart beneath it.
  */
 export function KpiRow({ kpis }: { kpis: Kpi[] }) {
+  const slotColour = useSlotColours();
   if (kpis.length === 0) return null;
   return (
     <ul aria-label="Key figures" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(kpis.length, 3)}, minmax(0, 1fr))`, gap: 12, margin: 0, padding: 0, listStyle: 'none' }} className="ask-kpi-row">
       {kpis.map((kpi) => {
-        const accent = kpi.series ? pathwayColor(kpi.series) : undefined;
+        const accent = kpi.series ? slotColour(pathwaySlot(kpi.series)) : undefined;
         return (
           <li
             key={`${kpi.label}-${kpi.year ?? ''}`}

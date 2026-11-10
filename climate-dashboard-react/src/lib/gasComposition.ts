@@ -1,5 +1,5 @@
 import type { CorrelationGhgCompositionResponse } from '../api/correlationTypes';
-import { SHARE_PALETTE } from './shareBars';
+import { gasSlot } from './seriesSlots';
 
 export const GAS_COMPOSITION_ANCHOR = 'gas-composition';
 
@@ -8,7 +8,8 @@ export interface GasInfo {
   name: string;
   /** Short label for a bar segment */
   short: string;
-  color: string;
+  /** The gas's chart slot (lib/seriesSlots.ts): the chart, the share bar and the table key all take this slot's colour */
+  slot: number;
 }
 
 export interface Composition {
@@ -30,12 +31,7 @@ export interface Composition {
   caveats: string[];
 }
 
-const GAS_STYLE: Record<string, { short: string; color: string }> = {
-  co2: { short: 'CO₂', color: '#FFB54D' },
-  ch4: { short: 'CH₄', color: '#5AB4AC' },
-  n2o: { short: 'N₂O', color: '#C89CFF' },
-  fgas: { short: 'F-gas', color: '#EA5B62' },
-};
+const GAS_SHORT: Record<string, string> = { co2: 'CO₂', ch4: 'CH₄', n2o: 'N₂O', fgas: 'F-gas' };
 
 // The trailing-year exclusion is stated beside the chart from `excluded_incomplete_years`, so its caveat is not repeated in the disclosure.
 const NEAR_CHART = /^(Excludes|Shares are each)/;
@@ -49,8 +45,7 @@ export function buildComposition(resp: CorrelationGhgCompositionResponse | null 
     const id = typeof g.id === 'string' ? g.id : null;
     const name = typeof g.name === 'string' ? g.name : null;
     if (!id || !name) return [];
-    const style = GAS_STYLE[id] ?? { short: name, color: SHARE_PALETTE[i % SHARE_PALETTE.length] };
-    return [{ id, name, ...style }];
+    return [{ id, name, short: GAS_SHORT[id] ?? name, slot: gasSlot(id, i) }];
   });
   if (gases.length === 0 || gases.length !== resp.gases.length) return null;
   const years: number[] = [];
