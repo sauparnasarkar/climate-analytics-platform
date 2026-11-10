@@ -65,11 +65,18 @@ def _historical_summary(r: dict) -> dict | None:
     if not rows:
         return None
     # A rank is among the series shown, so a lone series has none: "rank 1" would be read as a world rank (seen live: a model
-    # called India "the world's largest annual emitter" off a one-country chart).
+    # called India "the world's largest annual emitter" off a one-country chart). With several, the key and a note both say so:
+    # a plain `rank` was still quoted as a world rank (seen live on qwen3.8-27b: "Germany ... rank 4", "the UK ... rank 5"
+    # beside a world top-10, where they are 10th and 18th).
+    out = {"gas": r.get("gas"), "series": rows}
     if len(rows) > 1:
         for rank, row in enumerate(sorted(rows, key=lambda x: x["last_value"], reverse=True), start=1):
-            row["rank"] = rank
-    return {"gas": r.get("gas"), "series": rows}
+            row["rank_among_shown"] = rank
+        out["rank_note"] = (
+            f"rank_among_shown orders only these {len(rows)} countries by their latest value; it is not a world rank. "
+            "Do not quote it as a rank; say e.g. 'the largest of the countries shown'."
+        )
+    return out
 
 
 def _top_emitters_summary(r: dict) -> dict | None:

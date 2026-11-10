@@ -1255,7 +1255,7 @@ Everything below is **deterministic Python from tool results** — no new LLM ca
 **Widget `summary` (key figures)**
 - Area 2 tools: the tool's own `summary` (unchanged).
 - `get_country_profile`: `{country, year, co2_mt, per_capita_t, yoy_pct, first_year, multiple_of_first_year}`.
-- `get_historical_emissions`: `{gas, series: [{name, first_year, first_value, last_year, last_value, rank}]}` (rank by last value; ≤12 series).
+- `get_historical_emissions`: `{gas, series: [{name, first_year, first_value, last_year, last_value, rank_among_shown}], rank_note}` (rank by last value among the series shown, with a note saying it is not a world rank; both omitted for a single series; ≤12 series).
 - `get_top_emitters`: `{year, top: [{rank, name, co2}], n_ranked, top_n_share_pct, total_mt}` — the last three need the `get_top_emitters` fields below.
 - Every other tool: none yet at this step; `get_forecast_summary` was added in §15.15 and the forecast, model-comparison, change-summary, gas-by-decade and scenario tools in §15.16.
 
@@ -1317,7 +1317,7 @@ Found while comparing local models (`OLLAMA_EVALUATION.md`): on forecast, scenar
 | `compare_scenarios_across_countries` | per country: `final_year`, `final_by_scenario`, and `starting_year`/`starting_value` (the last year the pathways coincide). That point is the projection's start (2025), **not** the last observed year, and is never labelled observed |
 | `get_scenario_cumulative_impact` | ≤10 rows: cumulative and 2040 values per scenario, `current_level`, and the tool's `scope_note` |
 
-Also changed: `get_historical_emissions`' summary omits `rank` for a single series. A rank is among the series shown, and a lone `rank: 1` was read as a world rank (a model called India "the world's largest annual emitter"; it is third).
+Also changed: `get_historical_emissions`' summary omits `rank` for a single series. A rank is among the series shown, and a lone `rank: 1` was read as a world rank (a model called India "the world's largest annual emitter"; it is third). Later (2026-11-10) the key became `rank_among_shown`, with a `rank_note` saying it is not a world rank: a plain `rank` on a five-country chart was still quoted as one (qwen3.8-27b: "Germany ... rank 4", "the United Kingdom ... rank 5" beside a world top-10, where they are 10th and 18th).
 
 Effect, on `gpt-oss:20b` over the 36-case battery (`evals/run_battery.py`): answers saying a figure was "not provided in the widget" went from 4 to 0, with no ungrounded numbers, and the India answer now ranks India third. One flaw remains that data cannot fix: a small model can misread the `best_model_counts` in prose.
 
