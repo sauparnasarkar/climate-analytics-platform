@@ -33,6 +33,7 @@ from .correlation import METHODOLOGY, PLAIN_LANGUAGE, _vintage
 from .harmonize import _LUC_LICENSE, _LUC_UNCERTAINTY
 from .owid import DATA_PATH as OWID_PATH
 from .pairing import CAUSATION_NOTE
+from .references import paris_goals
 from .step_check import AGGREGATE_TOL_PCT, check_step, step_messages
 
 SCHEMA_VERSION = 1
@@ -84,6 +85,34 @@ def translate(proj: pd.DataFrame, t0: int, covered_t0: float, world_t0: float, l
             rows.append(row)
         out[sc] = rows
     return {"rest_of_world_share": row_share, "scenarios": out}
+
+
+PARIS_LINES = ("headline", "fossil_only")
+
+
+def vs_paris(scenarios: dict, goals: list[float]) -> dict:
+    """Each scenario's implied level against each Paris goal, per line (SPEC.md §5.35 B). The level is one year of an illustrative translation, so the
+    fields say "implied level" and never "breached": the goals refer to long-term warming, which the IPCC assesses on 20-year averages."""
+    out: dict = {}
+    for name, rows in scenarios.items():
+        per_line: dict = {}
+        for line in PARIS_LINES:
+            pts = [(r["year"], r[line]) for r in rows if isinstance(r.get(line), dict) and r[line].get("level_c") is not None]
+            if not pts:
+                continue
+            horizon_year, last = pts[-1]
+            level, ci = last["level_c"], last.get("level_ci95") or [None, None]
+            per_line[line] = [{
+                "goal_c": g,
+                "horizon_year": horizon_year,
+                "implied_level_c": level,
+                "margin_c": round(level - g, 3),
+                "implied_level_above_goal": bool(level > g),
+                "ci95_straddles_goal": bool(ci[0] is not None and ci[1] is not None and ci[0] <= g <= ci[1]),
+                "first_year_implied_level_at_or_above": next((y for y, v in pts if v["level_c"] >= g), None),
+            } for g in goals]
+        out[name] = per_line
+    return out
 
 
 def _spread(scenarios: dict, t0: int, anchor: float, n_years_observed: int) -> tuple[dict, str | None]:
@@ -281,7 +310,7 @@ def _skeleton(vintage: dict, caveats: list[str]) -> dict:
     return {
         "schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "name": "Scenario temperature translation", "labels": LABELS, "note": CAUSATION_NOTE,
         "method": "implied warming = slope x cumulative emissions since the last observed year; level = anchor + implied warming",
-        "temperature_source_vintage": vintage, "caveats": caveats, "scenarios": None, "base": None, "covered_countries": None, "scenario_source": None, "spread": None, "reading_note": None,
+        "temperature_source_vintage": vintage, "caveats": caveats, "scenarios": None, "base": None, "covered_countries": None, "scenario_source": None, "spread": None, "reading_note": None, "paris_reference": None, "vs_paris": None,
         "inputs": {f: {"available": False} for f in INPUT_FILES}, "attribution": {},
         "assumptions": {
             "rest_of_world": {"rule": "held at its last-observed share of the World total, so rest-of-world emissions move proportionally with the covered-country pathway; "
@@ -301,7 +330,9 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
         metadata_errors.append(f"temperature vintage metadata: {type(e).__name__}: {e}")
         vintage = {"file_last_modified": None, "reconciled": False, "caveat": f"Berkeley Earth vintage metadata could not be read: {type(e).__name__}: {e}"}
     caveats = [PLAIN_LANGUAGE, METHODOLOGY, _LUC_UNCERTAINTY, _LUC_LICENSE, *([vintage["caveat"]] if vintage["caveat"] else [])]
+    paris = paris_goals()  # outside the try: a malformed reference registry fails this stage (last good output kept), it never nulls the translation
     out = _skeleton(vintage, caveats)
+    out["paris_reference"] = paris
     try:
         if metadata_errors:
             raise Unavailable(f"scenario metadata unavailable: {'; '.join(metadata_errors)}")
@@ -377,6 +408,7 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
         spread, reading_note = _spread(res["scenarios"], t0, anchor, t0 - 1850 + 1)
         filled = {
             "spread": _round(spread), "reading_note": reading_note,
+            "vs_paris": vs_paris(_round(res["scenarios"]), paris["goals_c"]),
             "scenarios": _round(res["scenarios"]),
             "base": {"last_observed_year": t0, "world_co2_mt": world_t0, "covered_co2_mt": covered_t0, "covered_share_of_world": covered_t0 / world_t0,
                      "world_cumulative_total_co2_since_1850_mt": float(w.loc[1850:t0, "total_co2_incl_luc_mt"].sum(skipna=False)), "world_cumulative_fossil_co2_mt": float(w.loc[t0, "cumulative_co2_mt"]),
@@ -396,7 +428,7 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
     except Exception as e:  # noqa: BLE001 -- whatever the cause: explicit nulls and a deviation, never a stale or partial translation
         if not isinstance(e, (Unavailable, OSError, ValueError, KeyError)):
             logging.exception("scenario_temperature: unexpected error")
-        out["scenarios"], out["base"], out["covered_countries"], out["spread"], out["reading_note"] = None, None, None, None, None  # a failure after partial work must leave no partial translation behind
+        out["scenarios"], out["base"], out["covered_countries"], out["spread"], out["reading_note"], out["vs_paris"] = None, None, None, None, None, None  # a failure after partial work must leave no partial translation behind
         out["unavailable_reason"] = e.args[0] if isinstance(e, Unavailable) else f"{type(e).__name__}: {e}"
         out, scrubbed = _scrub_non_finite(out)  # the metadata read before the failure may itself hold the non-finite value that caused it
         if scrubbed:

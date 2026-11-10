@@ -2105,8 +2105,10 @@ no two series on one chart sharing a colour. Reported as a before/after table in
 
 ### 5.35 Paris temperature goals and external reference values (Docs-first)
 
-**Status: Docs-first, awaiting approval.** Pipeline, API, MCP server, agent and front end, in that order; the scheduled search routine is set
-up after the registry has shipped.
+**Status: Approved 2026-11-10; in progress.** Pipeline, API, MCP server, agent and front end, in that order; the scheduled search routine is set
+up after the registry has shipped. Decided: the backstop dates as proposed (AR6 2028-06-30, Paris 2028-12-31); the Paris note only when the
+question names the goals; the search monthly with a heartbeat. **Pipeline part (A, B, G):** `pipeline/references.json`, `pipeline/references.py`
+and the `references` stage, AR6 read from the registry, `paris_reference` and `vs_paris` in the scenario stage.
 
 **Problem.**
 1. **The scenario answer cannot speak to the Paris goals.** Asked "What do the emissions projections indicate about our pathways to the Paris
@@ -2251,10 +2253,8 @@ re-check the training pages that quote the value (a line added to `docs/training
 
 #### Open questions
 
-1. The backstop `review_by` dates (G).
-2. Whether the Paris note shows only when the question names the goals (proposed) or on every scenario-temperature answer.
-
-Decided: the search runs monthly, with a heartbeat the refresh checks (G, H), rather than short review dates.
+None left. Decided 2026-11-10: the backstop dates as proposed (G); the Paris note only when the question names the goals (E); the search runs
+monthly, with a heartbeat the refresh checks (G, H), rather than short review dates.
 
 #### Verification
 

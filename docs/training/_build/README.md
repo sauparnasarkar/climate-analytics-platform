@@ -11,3 +11,8 @@ Requires `pandoc`, Google Chrome (macOS default path), `pypdf`, and internet acc
 Intermediate HTML and raw PDFs go to `_build/out/` (gitignored). `links.py` needs raw PDFs for **all** docs,
 so run a full `build.sh` before it. `build.sh` prints `PANDOC FAIL` / `CHROME FAIL` per file; `links.py`
 should end with `problems 0`.
+
+## After a reference update
+
+When an entry in `pipeline/references.json` changes (the IPCC AR6 TCRE range, the Paris temperature goals; SPEC.md §5.35), re-check the
+pages that quote it, in particular `functional/03-benchmarks/`, and regenerate their PDFs as above.

@@ -1,0 +1,34 @@
+{
+  "_about": "External reference values the platform compares its own figures against (SPEC.md §5.35). Not data: each comes from a dated publication and changes only with a new edition, through a reviewed PR (change the entry, rerun the stages that compare against it, re-check docs/training). The monthly refresh flags an entry past its review_by date, and a missed heartbeat of the monthly reference-search routine. Earlier values stay in git history.",
+  "heartbeat": {
+    "repo": "sauparnasarkar/climate-analytics-platform",
+    "issue": null,
+    "max_age_days": 45,
+    "_note": "issue: the number of the pinned 'Monthly reference check' issue the reference-search routine comments on every run (SPEC.md §5.35 H). null until the routine is set up; the refresh then only notes that the heartbeat is not configured."
+  },
+  "references": {
+    "ipcc_ar6_tcre": {
+      "values": {"best_estimate": 0.45, "very_likely_range": [0.27, 0.63], "as_per_1000_gtc": {"best_estimate": 1.65, "very_likely_range": [1.0, 2.3]}},
+      "unit": "°C per 1,000 GtCO2",
+      "citation": "IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (very likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).",
+      "edition": "IPCC AR6 WGI, 2021",
+      "published": "2021-08-09",
+      "what_it_is": "The IPCC's assessed transient climate response to cumulative CO2 emissions (TCRE): warming per 1,000 GtCO2 emitted.",
+      "what_it_is_not": "Derived from CO2-only forcing in Earth-system models with land-use emissions included; this platform's figure is a simplified, data-driven analog, not a restatement.",
+      "review_by": "2028-06-30",
+      "successor": "IPCC AR7 WGI"
+    },
+    "paris_temperature_goals": {
+      "values": {"goals_c": [1.5, 2.0]},
+      "unit": "°C above pre-industrial",
+      "baseline": "1850-1900, the IPCC's approximation of pre-industrial (the platform's temperature reference)",
+      "citation": "Paris Agreement (UNFCCC, 2015), Article 2.1(a): holding warming well below 2 °C above pre-industrial levels and pursuing efforts to limit it to 1.5 °C.",
+      "edition": "Paris Agreement, 2015",
+      "published": "2015-12-12",
+      "what_it_is": "The Paris Agreement's long-term temperature goals: well below 2 °C, pursuing 1.5 °C, above pre-industrial levels.",
+      "what_it_is_not": "The goals refer to long-term global warming, which the IPCC assesses on 20-year averages. An illustrative pathway's implied level for one year reaching 1.5 °C or 2 °C is not the goal being crossed.",
+      "review_by": "2028-12-31",
+      "successor": "a COP decision or IPCC assessment changing how the goals are assessed"
+    }
+  }
+}
