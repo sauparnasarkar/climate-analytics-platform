@@ -2127,7 +2127,7 @@ versioned with a review date and a reminder, not refreshed.
 
 Each entry: `id`; `values` and `unit`; `baseline` where one applies; `citation` and `edition` (for example "IPCC AR6 WGI, 2021"); `published`;
 `what_it_is` and `what_it_is_not` (one sentence each, quotable); `review_by` (a date); `successor` (what would replace it, for example "IPCC AR7
-WGI"). Sent/hand history is kept by git, as for `source_notices.json`.
+WGI"). Earlier values stay in git history.
 
 | `id` | Values | Notes |
 |---|---|---|
