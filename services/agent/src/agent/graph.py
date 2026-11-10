@@ -505,7 +505,7 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
 
     # SPEC.md §15.3 rule 1: deterministic climate-context statements, appended after the failure
     # notes so the order reads "what went wrong" then "how to read what came back".
-    scope_notes = [*scope_notes, *(n for n in mandatory_notes(state.tool_calls) if n not in scope_notes)]
+    scope_notes = [*scope_notes, *(n for n in mandatory_notes(state.tool_calls, state.current_query) if n not in scope_notes)]
 
     result: dict[str, Any] = {
         "widgets": widgets,

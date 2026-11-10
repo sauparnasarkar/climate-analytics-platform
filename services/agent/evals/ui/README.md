@@ -1,7 +1,7 @@
 # UI battery
 
-The agent's 36-case battery ([`../run_battery.py`](../run_battery.py): 5 off-topic, 5 opinion, 5 general climate,
-5 boundary, 10 data query, 6 starter prompts) driven through the **real Ask page** with Playwright, instead of calling
+The agent's 37-case battery ([`../run_battery.py`](../run_battery.py): 5 off-topic, 5 opinion, 5 general climate,
+5 boundary, 11 data query, 6 starter prompts; the 2026-11-04 runs below had 36, before `dq11`) driven through the **real Ask page** with Playwright, instead of calling
 the graph in-process. It exercises what a user actually hits: the page, the streamed `/query` response, the proxy and
 Cloudflare, the admission limiter, and whichever model the admin panel has selected. Use it to compare models on the
 deployed app; use `run_battery.py` to compare models without touching the deployment.
@@ -24,7 +24,7 @@ the analyzer adds `results.json` (scored) and a side-by-side `REVIEW.md`. `resul
 
 ## Things to know
 
-- **Each case gets a fresh browser context**, so no conversation thread carries over. A pass is 36 real queries against the app:
+- **Each case gets a fresh browser context**, so no conversation thread carries over. A pass is 37 real queries against the app:
   keep to one pass per model per hour, because the app admits 60 queries per client per hour (`limits.py`) and Cloudflare has an
   edge rule. Expect ~8 minutes on a local model.
 - **The stream is tapped from inside the page** (an init script wraps `window.fetch`, which `fetchEventSource` calls). Playwright's

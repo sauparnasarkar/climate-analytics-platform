@@ -1084,7 +1084,9 @@ could not quote a figure (the same reason `get_emissions_change_summary`'s title
    not-a-climate-model / not-proof-of-cause note on the relationship; the all-gas-is-not-the-headline
    note when `source=primap_ghg`; the "illustrative, partial-coverage translation" note on scenario
    temperatures; the composition scope note; the splice note (year read from the result) on
-   concentration; and the country-share tool's own `interpretation_note`. Failed calls contribute
+   concentration; the country-share tool's own `interpretation_note`; and, only when the question names the
+   Paris goals, 1.5 °C or 2 °C (`PARIS_QUESTION`), the scenario summary's `paris_note` from the reference registry
+   (root `SPEC.md` §5.35 E: the goals refer to long-term warming, so an implied level is never "breached"). Failed calls contribute
    nothing; notes are de-duplicated. **Deliberately not a pass-through of each result's raw envelope
    `caveats`** (a refinement of the 2026-10-08 design): those lists run to
    seven items per call and carry pipeline-internal and licence prose, some of it already outdated

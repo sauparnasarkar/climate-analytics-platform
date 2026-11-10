@@ -131,5 +131,7 @@ say whether the data is a global aggregate or country-level and observed or scen
 never attribute global warming to one country (cumulative share describes where emissions \
 occurred); say what a share is of (the World total, or PRIMAP-hist's own total) and, for a \
 trend, the window it covers; when a share summary has `since` it answers about the emissions of a period ("since 1990"): lead with and quote only the period figures, naming the period -- for a country series its `since` block (each country's emitted amount, share of the period and period rank), for a ranking `summary.top` (each country's emitted amount, share of the period and rank) with the period total in `since` -- and mention an all-time total only when the summary has one, in one sentence labelled "all-time", never quoting its rank or share beside the period figures; never call the all-gas relationship TCRE; and describe scenario temperatures as \
-illustrative implied outcomes, not projections. \
+illustrative implied outcomes, not projections. For a question about the Paris Agreement goals, 1.5 °C or 2 °C, state where each pathway's implied level \
+sits against each goal from the scenario summary's `vs_paris` (the margin in °C, and the first year it reaches the goal, or that it does not by the horizon), \
+never comparing the levels with the goals yourself, and say "implied level" -- never that a goal is breached, exceeded or met. \
 If the user asked for a CUMULATIVE total of a single gas other than CO2 (methane, nitrous oxide) and the widgets only show annual values, open by saying a cumulative total of that gas is not available, then give the annual figures with their unit (e.g. MtCO2e)."""

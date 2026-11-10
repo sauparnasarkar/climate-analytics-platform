@@ -13,6 +13,8 @@ mandatory (§3.4, §3.6).
 
 from __future__ import annotations
 
+import re
+
 from .state import ToolCallRecord
 
 PRELIMINARY_TEMPERATURE_NOTE = (
@@ -47,6 +49,10 @@ SHARE_COUNTED_FROM = "Cumulative totals count from each country's first record, 
 SHARE_SINCE = "Amounts for {period} are the emissions of those years: each country's cumulative total at the end year minus its total the year before {start}; shares are of the World's emissions in the period."
 SHARE_SINCE_OWN = "Amounts for {period} are the emissions of those years: each country's cumulative total at the end year minus its total the year before {start}; shares are of the source's own total in the period."
 
+# A question about the Paris goals (root SPEC.md §5.35 E): the scenario answer then carries the registry's note on what the goals refer to. Only then -- the
+# scenario answer already carries several notes.
+PARIS_QUESTION = re.compile(r"\bparis\b|\b1\.5\s*(?:°|º|deg|degree)|\b2(?:\.0)?\s*(?:°|º|deg|degree)|\btwo degrees\b|\bwell below 2\b", re.IGNORECASE)
+
 _TEMPERATURE_TOOLS = {"get_temperature_anomaly", "get_emissions_temperature_relationship", "get_scenario_temperature"}
 
 
@@ -70,7 +76,7 @@ def _share_is_world(result: dict, since: dict | None) -> bool:
     return isinstance(den, dict) and den.get("kind") == "world"
 
 
-def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
+def _notes_for(record: ToolCallRecord, result: dict, query: str | None = None) -> list[str]:
     name = record.tool_name
     notes: list[str] = []
     if name in _TEMPERATURE_TOOLS:
@@ -81,6 +87,9 @@ def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
             notes.append(ALL_GAS_NOTE)
     elif name == "get_scenario_temperature":
         notes.append(SCENARIO_NOTE)
+        paris_note = (result.get("summary") or {}).get("paris_note")
+        if query and isinstance(paris_note, str) and paris_note and PARIS_QUESTION.search(query):
+            notes.append(paris_note)
     elif name == "get_ghg_composition":
         notes.append(COMPOSITION_NOTE)
     elif name == "get_country_cumulative_share":
@@ -110,14 +119,14 @@ def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
     return notes
 
 
-def mandatory_notes(records: list[ToolCallRecord]) -> list[str]:
-    """Deduplicated, in order of first appearance; failed calls contribute nothing."""
+def mandatory_notes(records: list[ToolCallRecord], query: str | None = None) -> list[str]:
+    """Deduplicated, in order of first appearance; failed calls contribute nothing. `query` is the user's question, for notes that depend on it (the Paris note)."""
     out: list[str] = []
     for record in records:
         result = _ok(record)
         if result is None:
             continue
-        for note in _notes_for(record, result):
+        for note in _notes_for(record, result, query):
             if note not in out:
                 out.append(note)
     return out

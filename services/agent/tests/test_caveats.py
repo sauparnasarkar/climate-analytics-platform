@@ -51,3 +51,24 @@ def test_failed_calls_and_emissions_tools_contribute_nothing():
 def test_notes_are_deduplicated_across_calls_in_order():
     recs = [_rec("get_temperature_anomaly", {}), _rec("get_scenario_temperature", {}), _rec("get_temperature_anomaly", {})]
     assert mandatory_notes(recs) == [PRELIMINARY_TEMPERATURE_NOTE, SCENARIO_NOTE]
+
+
+# root SPEC.md §5.35 E: the registry's Paris note, only when the question names the goals
+_PARIS_RESULT = {"summary": {"paris_note": "The goals refer to long-term global warming, which the IPCC assesses on 20-year averages."}}
+
+
+def test_the_paris_note_is_added_only_to_a_question_about_the_goals():
+    from agent.caveats import PARIS_QUESTION  # noqa: F401 -- the pattern is part of the contract
+    rec = [_rec("get_scenario_temperature", _PARIS_RESULT)]
+    note = _PARIS_RESULT["summary"]["paris_note"]
+    for q in ("What do the projections mean for the Paris targets?", "Will we stay below 1.5°C?", "Is 2 °C still possible?", "Can we keep warming well below 2?",
+              "Are we on track for 1.5 degrees?"):
+        assert note in mandatory_notes(rec, q), q
+    for q in ("How do temperature outcomes vary based on different emissions pathways?", "Emissions fell 1.5% in 2020", None):
+        assert note not in mandatory_notes(rec, q), q
+
+
+def test_no_paris_note_when_the_summary_has_none_or_the_tool_failed():
+    q = "What about the Paris goals?"
+    assert mandatory_notes([_rec("get_scenario_temperature", {"summary": {}})], q) == mandatory_notes([_rec("get_scenario_temperature", {})])
+    assert mandatory_notes([_rec("get_scenario_temperature", {"error": "x"})], q) == []

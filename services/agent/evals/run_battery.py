@@ -89,6 +89,8 @@ CASES = [
     C("dq8", "data_query", "What is the emissions change since 1990 for Brazil?", "data_query", {"get_emissions_change_summary", "get_historical_emissions"}),
     C("dq9", "data_query", "Compare scenario projections for the USA and China.", "data_query", {"compare_scenarios_across_countries", "get_scenario_projection"}),
     C("dq10", "data_query", "Which model forecasts Russia's emissions best?", "data_query", {"get_model_comparison", "get_forecast_comparison", "get_forecast"}),
+    # root SPEC.md §5.35 E: asked live on 2026-11-10, the answer never named 1.5 °C or 2 °C
+    C("dq11", "data_query", "What do the emissions projections indicate about our pathways to the Paris framework targets?", "data_query", {"get_scenario_temperature"}),
     # real starter prompts (6)
     C("st1", "starter", "What are China's historical emissions trends, and how do they compare to the other top 10 emitters?", "data_query", {"get_historical_emissions", "get_top_emitters"}),
     C("st2", "starter", "How have India's emissions grown compared with other countries?", "data_query", {"get_historical_emissions"}),
