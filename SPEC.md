@@ -475,6 +475,7 @@ Sections to include:
 | v73 | Oct 2026 | §5.33: the Home globe names the ten largest emitters (five on a phone); overlapping labels keep the larger value (syena-design-system PR #69, pin `0e99730`); the source strip's control is a Methods & data link (design-system PR #68) |
 | v74 | Oct 2026 | §5.29: the sources table's landing pages, short citations and short licences move from a front-end lookup into the pipeline's provenance (`pipeline/presentation.py`, served by `/correlation/meta`); Scenario Comparison's country picker label goes on one line with the control, as on Overview and Historical Trends |
 | v75 | Oct 2026 | Rename: the product is **Degrees of Carbon** (tagline "How emissions add up to warming."), at `degreesofcarbon.syena.io`; `climate-analytics.syena.io` is retired with redirects and a kill-switch service worker (ARCHITECTURE §6). Name and copy in `navigation.ts`, the manifest, `index.html` and the agent prompts; Methods & data §1 opens with what the product shows; the canonical link is set per route on the production origin. Internal identifiers (repo, MCP server name, launchd labels, theme storage key) keep their names |
+| v76 | Nov 2026 | §5.34 (**Docs-first**): one colour per scenario pathway and per greenhouse gas within each chart. Every chart series is pinned to a design-system categorical slot (Observed 1, BAU 2, Moderate 3, Aggressive 4, the 5-year mean 5; CO₂/CH₄/N₂O/F-gas 1–4 by gas id), and the swatches, Ask KPI accents and share bar read the colour of that slot from the design system instead of their own hex lists. The 5-year mean's slot 5 is validated as a plain solid line by a new design-system generator check (fallback: markers and a direct label). §5.30 needed no correction: Overview's "Where today's patterns lead" is the one line §5.30 describes, with no pathway colours |
 
 ---
 
@@ -1995,6 +1996,110 @@ that actually owns `api/main.py`.
 | Count | The globe names the **ten** largest emitters of the year in view on a desktop or tablet (was five) and **five** on a phone (its globe is about 210 px across): `GLOBE_LABEL_COUNT` and `GLOBE_LABEL_COUNT_PHONE` |
 | Basis | Labels rank on the globe's own annual values for the current year (the same series the colours use), so a label and a colour agree |
 | Collisions | The design system's `Globe` keeps the earlier of two labels that would touch and hides the later one until turning or zooming moves them apart (syena-design-system PR #69, pin `0e99730`; measured after drawing, re-checked on resize and when a label changes size), so the dashboard lists labels largest first. Checked on the preview at 1990 (Europe shows Germany alone) and 2024 (China intact, South Korea hidden) |
+
+
+### 5.34 One colour per scenario pathway and per gas (Docs-first)
+
+**Status: Docs-first, awaiting approval.** A design-system PR (`syena-design-system`), a pin bump, then the app PR.
+
+**Problem (audited live on 2026-11-10 in the light theme, `tidewater`, reading the colours Plotly and the DOM actually drew).**
+
+1. **Chart lines collide.** The design system's `Chart` colours a series `seriesColour(t, s.slot ?? i + 1)`: a series with no
+   `slot` takes its list position, even when a pinned series already holds that slot. `ScenarioSection.tsx` pins the pathways
+   (`PATHWAY_SLOT = { BAU: 1, Moderate: 2, Aggressive: 3 }`) and leaves Observed, the 5-year mean and the anchor unpinned, so on
+   Scenario Comparison BAU is drawn in Observed's colour (`#0096bd`) and Moderate in the 5-year mean's (`#ffb53b`).
+2. **Several colour sets for one category.**
+
+| Category | Chart (tidewater) | Other places | Where the other colour comes from |
+|---|---|---|---|
+| BAU / Moderate / Aggressive | slots 1/2/3: `#0096bd` / `#ffb53b` / `#f7a0ff` | "at a glance" table and BAU panel border: `#FFB54D` / `#5FD8F7` / `#8BD17C` | `ON_DARK` in `ScenarioSection.tsx` |
+| | | Ask KPI accents: `#B07A10` / `#0A6E8C` / `#1D726B` | `META.color` in `lib/pathways.ts`, via `pathwayColor()` (whose comment says it matches the line; it does not) |
+| CO₂ / CH₄ / N₂O / F-gas | API order, no slot: `#0096bd` / `#ffb53b` / `#f7a0ff` / `#6579f8` | swatch table and the `ShareBar` in the same card: `#FFB54D` / `#5AB4AC` / `#C89CFF` / `#EA5B62` | `GAS_STYLE.color` in `lib/gasComposition.ts` |
+
+So orange means BAU in the table and Moderate in the chart; CO₂ is orange in the table and teal in the chart. The scenario
+module and the gas module are also rendered in Ask answers, so the answers show the same mismatch.
+
+**Target: every series pinned, one slot per category.**
+
+| Category | Slot | Drawn as |
+|---|---|---|
+| Observed (emissions and temperature) | 1 | solid line |
+| BAU | 2 | dashed line |
+| Moderate | 3 | dashed line |
+| Aggressive | 4 | dashed line |
+| 5-year mean | 5 | plain solid line (decision below) |
+| Temperature anchor marker | 1 | marker, pinned explicitly |
+| CO₂ / CH₄ / N₂O / F-gas | 1 / 2 / 3 / 4 | keyed by gas `id`, never by API order |
+
+Nothing relies on position: every series passes `slot`. Swatches, KPI/card accents and the share bar take the colour of the
+same slot from the design system, so each category has one colour on the chart, its key and its cards.
+
+**A slot's meaning holds within one chart, its key and its cards, not across the site.** With eight slots, the gases in 1–4
+share colours with the scenario series: CO₂ has Observed's colour and CH₄ has BAU's. An Ask answer can show both modules one
+after the other, so the same orange means BAU in one card and CH₄ in the next. That is expected, not this bug recurring.
+
+**Constraint: the pathways must be slots 2–4.** The design system validates only slots 1–4 as thin dashed lines: "For the first
+four slots (the slots that may be drawn as dashed lines) every candidate must also reach 3:1 against" the data surface, and
+"Slots 5 to 8 are fills, bars and areas, or solid lines with markers and direct labels, never dashed lines"
+(`syena-design-system/FOUNDATIONS.md`, Categorical, item 3). The pathways are dashed (projection cue), so they take 2–4 and
+Observed keeps 1.
+
+**Theme scope (checked in the design system).** `useChartTokens` resolves `data-cat-1…8` through `useResolvedTokens`, which
+reads the theme provider's own `scope` element, not the nearest ancestor. `.syn-data-panel` (the dark chart panel) redefines
+surfaces and text but not `data-cat-*`, so a consumer resolving the same token names from the same provider gets exactly the
+colour the chart draws, in both themes (`night` and `tidewater` differ: for example slot 3 is `#efa7f5` / `#f7a0ff`).
+
+**Design-system change (its own PR).** The palette is unchanged; the validation and the docs change.
+- Export the resolved slot colour as a small hook, `useSeriesColour(slot: number): string | null`, built on `useChartTokens`
+  and `seriesColour`, with a test, a story line and a note in the `Chart` docs on how a consumer gets the colour the chart draws.
+- Add one check to `tokens/generators/run.mjs`: slot 5 drawn as a solid line reaches at least 3:1 against the data surface, in
+  both themes.
+- Change `FOUNDATIONS.md` (Categorical, item 3) to allow a plain solid line, without markers or direct labels, in slot 5 when
+  that check passes.
+
+**App change (files).**
+
+| File | Change |
+|---|---|
+| `src/lib/seriesSlots.ts` (new) | the single source: `OBSERVED_SLOT`, `PATHWAY_SLOT`, `MEAN_5Y_SLOT`, `GAS_SLOT` (by id) |
+| `src/components/module/ScenarioSection.tsx` | pin every series (Observed, 5-year mean, pathways, anchor) from `seriesSlots`; the table swatches and BAU panel border use `useSeriesColour`; `ON_DARK` deleted |
+| `src/lib/pathways.ts`, `src/lib/scenarioView.ts` | `META.color` and `PathwayCard.color` removed; `pathwayColor()` returns the slot (or is replaced by a hook) with a correct comment |
+| `src/agent/KpiRow.tsx` | the Ask KPI accents from the pathway's slot colour (the only consumer of `pathwayColor()`; Overview's `PathwaysSection` is one line of text with no pathway colours, as §5.30 says) |
+| `src/lib/gasComposition.ts`, `src/components/module/GasComposition.tsx` | `GAS_STYLE.color` removed; each chart series gets `slot: GAS_SLOT[id]`; the swatch table and the `ShareBar` `order` use the same slot colours |
+| tests: `ScenarioSection.test.tsx`, `countryAndGas.test.tsx`, `gasComposition.test.ts` | assert slots, not hex values |
+
+`src/agent/climateWidgets.tsx` has no scenario or gas colour of its own (it renders the two modules above).
+
+**Out of scope.** `ERA_COLORS` and `SERIES_ON_DARK` (`lib/climateColors.ts`), `components/climate/seriesStyles.ts` and the
+landing-page bands colour emissions, concentration and temperature, not scenarios or gases. `ShareSection.tsx`'s
+`SHARE_PALETTE` is a separate ten-colour palette (beyond the eight slots); recorded in `STATUS.md` as a follow-up.
+
+**Rejected alternatives.**
+- *Copy the palette's hex values into the app.* Quick, but they drift when the palette is regenerated and differ per theme
+  (`night` and `tidewater` already differ), which is how the present mismatch arose.
+- *Observed first, then the 5-year mean, then the pathways in 3–5.* Puts a dashed pathway in slot 5, which the design system
+  does not validate for dashed lines.
+- *Keep separate "meaningful" colour sets* (amber for business as usual, greens for mitigation). The design system's
+  categorical slots are the only colours validated for contrast and colour-blind separation; colours chosen for their meaning
+  would sit outside that validation. Meaning stays in the labels and the dash.
+
+**Decision: the 5-year mean in slot 5 (option c), with option (a) as the fallback.** The design system allows a solid line in
+slots 5–8 only "with markers and direct labels", and the 5-year mean has neither (it is named in the legend).
+- **(c) Validate slot 5 for a plain solid line: chosen.** A solid line shows its full colour, so slot 5's existing fill checks
+  carry over; the design-system PR adds the one solid-line contrast check and the `FOUNDATIONS.md` change above.
+- **(a) Markers and a direct end label: the fallback,** if slot 5 fails the new check in either theme. It needs a new `Chart`
+  feature: `SeriesKind` is `line | bar | area | marker`, and a line draws markers only on isolated points. It would also put
+  markers along about 170 years of data.
+- **(b) Slot 1 with a second line style: rejected.** Dashed is the only second style a series can have, and on this chart dashed
+  means "pathway".
+
+The theme-scope question is resolved (above): no workaround is needed.
+
+**Verification.** In the design system: the new generator check passes for slot 5 in both themes, and the design-system test
+suite runs green. In the app: `npm test` and `npm run build`; then, on the preview in both `night` and `tidewater`, the colours
+read from the page on Scenario Comparison (both charts, the 2040 table, the BAU panel), Climate Correlation's gas chart, share
+bar and table, and an Ask answer with scenario KPIs and the gas module: each category one colour across chart, key and card, and
+no two series on one chart sharing a colour. Reported as a before/after table in the format of the audit above.
 
 ---
 
