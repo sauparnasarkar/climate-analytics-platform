@@ -8,7 +8,7 @@ import AdminPage from './AdminPage';
 vi.mock('../admin/adminClient', () => ({ adminApi: { getLlmChoice: vi.fn(), setLlmChoice: vi.fn() } }));
 
 const SONNET_CHOICE: LlmChoice = { provider: 'anthropic', model: 'claude-sonnet-5', label: 'Claude Sonnet 5 (Anthropic)', updated_at: '2026-01-01T00:00:00+00:00' };
-const OLLAMA_CHOICE: LlmChoice = { provider: 'ollama', model: 'qwen2.5:14b-ctx8k', label: 'Qwen 2.5 14B (local, 8k ctx)', updated_at: '2026-01-02T00:00:00+00:00' };
+const OLLAMA_CHOICE: LlmChoice = { provider: 'ollama', model: 'qwen3.8-27b-ctx32k', label: 'Qwen 3.8 27B (local, 32k ctx)', updated_at: '2026-01-02T00:00:00+00:00' };
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -34,7 +34,7 @@ describe('AdminPage', () => {
     render(<AdminPage />);
 
     const sonnetOption = await screen.findByRole('radio', { name: 'Claude Sonnet 5 (Anthropic)' });
-    const ollamaOption = screen.getByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' });
+    const ollamaOption = screen.getByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' });
     expect(sonnetOption).toBeChecked();
     expect(ollamaOption).not.toBeChecked();
   });
@@ -53,11 +53,11 @@ describe('AdminPage', () => {
     vi.mocked(adminApi.setLlmChoice).mockResolvedValue(OLLAMA_CHOICE);
     render(<AdminPage />);
 
-    await user.click(await screen.findByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' }));
+    await user.click(await screen.findByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' }));
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
-    await waitFor(() => expect(adminApi.setLlmChoice).toHaveBeenCalledWith('ollama-qwen14b-ctx8k'));
-    expect(await screen.findByText('Switched to Qwen 2.5 14B (local, 8k ctx).')).toBeInTheDocument();
+    await waitFor(() => expect(adminApi.setLlmChoice).toHaveBeenCalledWith('ollama-qwen3.8-27b-ctx32k'));
+    expect(await screen.findByText('Switched to Qwen 3.8 27B (local, 32k ctx).')).toBeInTheDocument();
   });
 
   it('after a successful apply, the newly-applied option is treated as current -- Apply goes disabled again, not stuck enabled against the stale initial choice', async () => {
@@ -66,11 +66,11 @@ describe('AdminPage', () => {
     vi.mocked(adminApi.setLlmChoice).mockResolvedValue(OLLAMA_CHOICE);
     render(<AdminPage />);
 
-    await user.click(await screen.findByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' }));
+    await user.click(await screen.findByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' }));
     await user.click(screen.getByRole('button', { name: 'Apply' }));
-    await screen.findByText('Switched to Qwen 2.5 14B (local, 8k ctx).');
+    await screen.findByText('Switched to Qwen 3.8 27B (local, 32k ctx).');
 
-    expect(screen.getByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
 
     // A second apply of the same (now-current) choice must not fire another request.
@@ -89,7 +89,7 @@ describe('AdminPage', () => {
 
     expect(await screen.findByText(/isn't one of the known options/)).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Claude Sonnet 5 (Anthropic)' })).not.toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' })).not.toBeChecked();
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
   });
 
@@ -99,7 +99,7 @@ describe('AdminPage', () => {
     vi.mocked(adminApi.setLlmChoice).mockRejectedValue(new Error('Could not switch models -- the new configuration failed to initialize. Still running: Claude Sonnet 5 (Anthropic).'));
     render(<AdminPage />);
 
-    await user.click(await screen.findByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' }));
+    await user.click(await screen.findByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' }));
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
     expect(await screen.findByText(/Could not switch models/)).toBeInTheDocument();

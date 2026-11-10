@@ -30,11 +30,11 @@ describe('adminApi', () => {
 
   it('setLlmChoice() POSTs the id as a JSON body', async () => {
     mockFetchOnce(CHOICE);
-    await adminApi.setLlmChoice('ollama-qwen14b-ctx8k');
+    await adminApi.setLlmChoice('ollama-qwen3.8-27b-ctx32k');
     expect(fetch).toHaveBeenCalledWith('/agent/admin/llm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'ollama-qwen14b-ctx8k' }),
+      body: JSON.stringify({ id: 'ollama-qwen3.8-27b-ctx32k' }),
     });
   });
 
