@@ -476,6 +476,7 @@ Sections to include:
 | v74 | Oct 2026 | §5.29: the sources table's landing pages, short citations and short licences move from a front-end lookup into the pipeline's provenance (`pipeline/presentation.py`, served by `/correlation/meta`); Scenario Comparison's country picker label goes on one line with the control, as on Overview and Historical Trends |
 | v75 | Oct 2026 | Rename: the product is **Degrees of Carbon** (tagline "How emissions add up to warming."), at `degreesofcarbon.syena.io`; `climate-analytics.syena.io` is retired with redirects and a kill-switch service worker (ARCHITECTURE §6). Name and copy in `navigation.ts`, the manifest, `index.html` and the agent prompts; Methods & data §1 opens with what the product shows; the canonical link is set per route on the production origin. Internal identifiers (repo, MCP server name, launchd labels, theme storage key) keep their names |
 | v76 | Nov 2026 | §5.34 (**Docs-first**): one colour per scenario pathway and per greenhouse gas within each chart. Every chart series is pinned to a design-system categorical slot (Observed 1, BAU 2, Moderate 3, Aggressive 4, the 5-year mean 5; CO₂/CH₄/N₂O/F-gas 1–4 by gas id), and the swatches, Ask KPI accents and share bar read the colour of that slot from the design system instead of their own hex lists. The 5-year mean's slot 5 is validated as a plain solid line by a new design-system generator check (fallback: markers and a direct label). §5.30 needed no correction: Overview's "Where today's patterns lead" is the one line §5.30 describes, with no pathway colours |
+| v77 | Nov 2026 | §5.34 marked Shipped. §5.35 (**Docs-first**): the Paris temperature goals and the IPCC AR6 TCRE range move into one registry of external references (`pipeline/references.json`) with edition, `review_by` date and successor; the scenario stage compares each pathway's implied level with 1.5 °C and 2 °C (`vs_paris`), served through the API and the MCP summary for the agent to quote; the front end reads the AR6 range from the API instead of its own copy; the monthly refresh flags a reference past its review date; a separate monthly cloud routine searches for new IPCC/UNFCCC material and opens a GitHub issue, never editing a value |
 
 ---
 
@@ -1998,9 +1999,9 @@ that actually owns `api/main.py`.
 | Collisions | The design system's `Globe` keeps the earlier of two labels that would touch and hides the later one until turning or zooming moves them apart (syena-design-system PR #69, pin `0e99730`; measured after drawing, re-checked on resize and when a label changes size), so the dashboard lists labels largest first. Checked on the preview at 1990 (Europe shows Germany alone) and 2024 (China intact, South Korea hidden) |
 
 
-### 5.34 One colour per scenario pathway and per gas (Docs-first)
+### 5.34 One colour per scenario pathway and per gas (Shipped)
 
-**Status: Docs-first, awaiting approval.** A design-system PR (`syena-design-system`), a pin bump, then the app PR.
+**Status: Shipped 2026-11-10.** syena-design-system #87 (`useSeriesColour`, the slot-5 solid-line check), pin bump #100, app #101; deployed to production as release `455a116` and checked live in both themes (the before/after table is on #101). The Ask `get_scenario_projection` chart was pinned too, found in that check. Follow-ups in `STATUS.md`: `SHARE_PALETTE` and the Ask country × scenario comparison chart.
 
 **Problem (audited live on 2026-11-10 in the light theme, `tidewater`, reading the colours Plotly and the DOM actually drew).**
 
@@ -2100,6 +2101,159 @@ suite runs green. In the app: `npm test` and `npm run build`; then, on the previ
 read from the page on Scenario Comparison (both charts, the 2040 table, the BAU panel), Climate Correlation's gas chart, share
 bar and table, and an Ask answer with scenario KPIs and the gas module: each category one colour across chart, key and card, and
 no two series on one chart sharing a colour. Reported as a before/after table in the format of the audit above.
+
+
+### 5.35 Paris temperature goals and external reference values (Docs-first)
+
+**Status: Docs-first, awaiting approval.** Pipeline, API, MCP server, agent and front end, in that order; the scheduled search routine is set
+up after the registry has shipped.
+
+**Problem.**
+1. **The scenario answer cannot speak to the Paris goals.** Asked "What do the emissions projections indicate about our pathways to the Paris
+   framework targets?", the agent (Qwen 3.8 27B, 2026-11-10) quoted the 2040 implied levels (BAU 1.69 °C, Moderate 1.64 °C, Aggressive 1.59 °C)
+   but never named 1.5 °C or 2 °C. Nothing in the platform holds those limits, so the only way to compare is for the model to do it from its
+   own knowledge, which the agent's guardrails avoid for figures.
+2. **External reference values have no single home and no update path.** The IPCC AR6 TCRE range is written in `pipeline/correlation.py`
+   (`AR6_TCRE`, served as `ar6_reference` with a computed `vs_ar6`), again in `climate-dashboard-react/src/lib/climateCopy.ts` (`AR6_TCRE`,
+   used by `Ar6Strip.tsx` and the Methods & data text, not read from the API), and in prose in `docs/training/functional/03-benchmarks/`. A
+   change means editing each copy by hand, and nothing says when a value may be out of date.
+
+**These are reference values, not data.** They come from dated publications and change only with a new edition: AR6 Working Group I (2021) is
+fixed until AR7's Working Group I report; the Paris goals are fixed by the treaty (Article 2.1(a): well below 2 °C, pursuing 1.5 °C, above
+pre-industrial levels), and what can change is how crossing them is assessed (the IPCC uses 20-year means against 1850–1900). So they are
+versioned with a review date and a reminder, not refreshed.
+
+#### A. One registry: `pipeline/references.json`
+
+Each entry: `id`; `values` and `unit`; `baseline` where one applies; `citation` and `edition` (for example "IPCC AR6 WGI, 2021"); `published`;
+`what_it_is` and `what_it_is_not` (one sentence each, quotable); `review_by` (a date); `successor` (what would replace it, for example "IPCC AR7
+WGI"). Sent/hand history is kept by git, as for `source_notices.json`.
+
+| `id` | Values | Notes |
+|---|---|---|
+| `ipcc_ar6_tcre` | best 0.45, very likely 0.27–0.63 °C per 1,000 GtCO₂ (and the per-GtC form) | moved from `pipeline/correlation.py`'s `AR6_TCRE`, same values and wording |
+| `paris_temperature_goals` | 1.5 °C and 2 °C above 1850–1900 | Article 2.1(a); `what_it_is_not`: a single year's or a projection's level crossing a goal is not the long-term warming the goals refer to, which the IPCC assesses on 20-year means |
+
+A loader in the pipeline validates every entry (required fields, a valid `review_by`) and fails the stage on a malformed registry.
+`correlation.py` reads the AR6 entry from it and still writes `ar6_reference` (same fields, plus `edition`).
+
+#### B. The comparison, computed in the scenario stage
+
+`pipeline/scenario_temperature.py` writes `paris_reference` (the registry entry) and, per scenario and per line (`headline`, `fossil_only`), a
+`vs_paris` block for each goal:
+
+| Field | Meaning |
+|---|---|
+| `goal_c` | 1.5 or 2.0 |
+| `horizon_year`, `implied_level_c` | the last scenario year and that year's implied level, as already published |
+| `margin_c` | `implied_level_c − goal_c` (positive = above) |
+| `implied_level_above_goal` | `margin_c > 0` |
+| `ci95_straddles_goal` | whether that year's `level_ci95` contains the goal |
+| `first_year_implied_level_at_or_above` | the first scenario year whose implied level reaches the goal, or null |
+
+The names say "implied level" on purpose. The level is anchored on the observed 5-year mean (1.33 °C in 2024), so it is a smoothed level, but
+it is still one year of an illustrative translation, not the 20-year average the goals are assessed on; the block never says a goal is
+"breached" or "exceeded". It is recomputed on every run with the scenarios.
+
+#### C. API (pass-through)
+
+`/api/correlation/scenario-temperature` builds `CorrelationScenarioTemperatureResponse` field by field, so `api/schemas.py` and the router add
+`paris_reference` and each scenario's `vs_paris` (only for the line or lines the request selects, as for the levels). `/emissions-temperature`'s
+`ar6_reference` gains `edition`. No computation in the API.
+
+#### D. MCP server
+
+`get_scenario_temperature` (`services/mcp-server/src/mcp_server/tools/climate.py`) adds `summary.vs_paris` (per scenario, for the returned
+line or lines: the margin and the first year at or above each goal) and `summary.paris_note` (the registry's `what_it_is_not`), and its
+docstring tells the model to quote them for a question about the Paris goals, 1.5 °C or 2 °C.
+
+#### E. Agent
+
+- The answer-writing prompt (`services/agent/src/agent/prompts.py`): for a question about the Paris goals, 1.5 °C or 2 °C, state where each
+  pathway's implied level sits against each goal from `summary.vs_paris`, never compute it.
+- `caveats.py` appends `paris_note` as a fixed scope note when the scenario-temperature tool ran **and** the question names Paris, 1.5 °C or
+  2 °C: structural, like the other required statements (services/agent `SPEC.md` §15.3), and only when relevant, since the scenario answer
+  already carries several notes.
+- A battery case in `evals/run_battery.py` (and so the UI battery): the question above, expecting `get_scenario_temperature` and both goals
+  named.
+
+#### F. Front end: one copy of the AR6 range
+
+`Ar6Strip.tsx` and the Methods & data text read the range from the API's `ar6_reference` (served with the headline relationship);
+`climateCopy.ts`'s `AR6_TCRE` is deleted. Where the API leaves it out, the strip is not drawn rather than drawn from a stale constant. The
+strip's label carries the edition ("IPCC AR6 (2021)"). Drawing 1.5 °C and 2 °C lines on the implied-temperature chart needs a horizontal
+reference in the design system's `Chart` (it has `referenceX` only) and is a separate, optional change.
+
+#### G. The reminder: in the monthly refresh
+
+`pipeline.run` checks every registry entry's `review_by`. One past its date is a **deviation** on a `references` source, so the existing
+notification reports "Area 2 pipeline: deviations flagged" at high priority (`build_notification` in `pipeline/run.py`) without failing the
+refresh. No network access. Proposed dates (open question 1): `ipcc_ar6_tcre` 2028-06-30 (AR7 WGI is expected late in the decade);
+`paris_temperature_goals` 2027-12-31, then yearly after each COP.
+
+#### H. The search: a separate monthly cloud routine
+
+A scheduled Claude Code routine (cloud, not on the Mac Studio) runs monthly:
+- reads `pipeline/references.json` from `main`;
+- searches for anything that would affect an entry: a new IPCC assessment or special report (in particular AR7 Working Group I), an erratum
+  to AR6 Working Group I touching the TCRE range, a COP decision or IPCC statement changing how the Paris goals are assessed;
+- when it finds a credible candidate, opens a GitHub issue labelled `reference-review` naming the entry, what changed and the sources, unless
+  an open issue already covers it; otherwise does nothing.
+
+It **never edits** the registry or any value: an update is a reviewed PR. It is kept out of the refresh because the refresh is deterministic
+and unattended on the production host, and a web search adds a dependency that can fail or hang it and results it cannot judge. Expect
+occasional false positives (news coverage of the existing report); an issue is cheap to close.
+
+#### Updating a reference
+
+A normal PR: change the registry entry (values, `edition`, `published`, a new `review_by`); re-run the affected stages (`correlate` for AR6,
+`scenario_temperature` for Paris); check the outputs that compare against it (`vs_ar6`, `vs_paris`) and the pages and answers that show them;
+re-check the training pages that quote the value (a line added to `docs/training/_build/README.md`).
+
+#### Files
+
+| Area | File | Change |
+|---|---|---|
+| Pipeline | `pipeline/references.json` (new), a loader (for example in `pipeline/common.py`) | the registry and its validation |
+| | `pipeline/correlation.py` | AR6 from the registry; `ar6_reference` gains `edition` |
+| | `pipeline/scenario_temperature.py` | `paris_reference` and `vs_paris` |
+| | `pipeline/run.py` | the `review_by` check as a deviation |
+| API | `api/schemas.py`, `api/routers/correlation.py` | pass `paris_reference`, `vs_paris`, `edition` through |
+| MCP | `services/mcp-server/src/mcp_server/tools/climate.py` | `summary.vs_paris`, `summary.paris_note`, docstring |
+| Agent | `services/agent/src/agent/prompts.py`, `caveats.py`, `evals/run_battery.py` | the rule, the conditional note, the battery case |
+| Front end | `src/lib/climateCopy.ts`, `src/components/module/Ar6Strip.tsx`, the Methods & data text | read `ar6_reference`; delete the constant |
+| Docs | this section; services/agent `SPEC.md` §15.3; `services/mcp-server/SPEC.md` tool catalog; `pipeline/README.md`; `docs/training/_build/README.md` | |
+
+#### Out of scope
+
+- The agent's general-knowledge answers (for example the Paris answer calling the climate-finance goal "being renegotiated" when it was
+  agreed at COP29): they come from the model's training, not the registry.
+- The scenario source line that names a fossil-only second line the chart does not draw (`services/agent/src/agent/source_lines.py`), the
+  clipped 2040 label and the repeated "illustrative" caveat: separate fixes.
+
+#### Rejected alternatives
+
+- *Write the goals into the agent prompt or the front end.* A second copy that drifts, and the model doing the comparison.
+- *Compute `vs_paris` in the API or the MCP server.* Only the pipeline knows how the implied levels were made (anchor, baseline, slope).
+- *Search for updates inside the monthly refresh.* Puts a network dependency and unjudged results into the unattended production job.
+- *Apply found updates automatically.* A new edition must be read for what it measures before it replaces a value.
+- *Watch IPCC/UNFCCC pages for changes (hash the HTML).* Cosmetic page changes look like updates; the meaningful signal needs reading.
+
+#### Open questions
+
+1. The initial `review_by` dates (G).
+2. Whether the Paris note shows only when the question names the goals (proposed) or on every scenario-temperature answer.
+3. The routine's cadence: monthly (proposed) or quarterly; and whether a candidate also notifies through ntfy or only opens the issue.
+
+#### Verification
+
+- Pipeline tests: the registry loader (a missing field, a bad date), the AR6 values unchanged after the move, `vs_paris` margins and the first
+  year at or above for a pathway that crosses 1.5 °C, one that never reaches it, and a confidence interval that straddles it; a past
+  `review_by` producing a deviation and the "flagged" notification.
+- API and MCP tests for the new fields; the agent battery case passing on Sonnet and the local models; the live preview showing the AR6 strip
+  from the API with its edition.
+- The routine: one manual run that finds nothing for the current registry, and one against a test entry whose `successor` already exists
+  (opens an issue, does not duplicate it on a second run).
 
 ---
 
