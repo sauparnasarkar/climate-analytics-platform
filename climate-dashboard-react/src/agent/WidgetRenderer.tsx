@@ -53,16 +53,19 @@ function GridWidget({
   columns,
   rows,
   note,
+  source,
 }: {
   title: string;
   columns: DataTableColumn<Record<string, unknown>>[];
   rows: Record<string, unknown>[];
   note?: string;
+  source?: string | null;
 }) {
   return (
     <Card header={<CardHeader title={title} />}>
       {note && <InlineAlert variant="default">{note}</InlineAlert>}
       <DataTable caption={`Table of ${title}`} columns={columns} rows={rows} />
+      <SourceLine text={source} />
     </Card>
   );
 }
@@ -102,6 +105,7 @@ function HistoricalEmissionsWidget({ widget }: WidgetProps) {
     ];
     return (
       <GridWidget
+        source={widget.source_line}
         title={widget.title}
         columns={columns}
         rows={seriesChangeSummaryRows(rawSeries)}
@@ -146,7 +150,7 @@ function CompareScenariosWidget({ widget }: WidgetProps) {
       { key: 'country', header: 'Country' },
       ...scenarioNames.map((s) => ({ key: s, header: s })),
     ];
-    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(countries.length, 'countries')} />;
+    return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(countries.length, 'countries')} />;
   }
   const series: ChartSeries[] = Object.entries(scenarios).flatMap(([scenarioName, seriesList]) =>
     seriesList.map((s) => ({ name: `${s.name} — ${scenarioName}`, x: s.years, y: s.values, kind: 'line' as const })),
@@ -208,7 +212,7 @@ function ForecastComparisonWidget({ widget }: WidgetProps) {
       { key: 'latest_forecast', header: 'Forecasted' },
       { key: 'pct_change', header: '% Change' },
     ];
-    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(forecasts.length)} />;
+    return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(forecasts.length)} />;
   }
   const series: ChartSeries[] = forecasts.map((f) => {
     const [histYears, histCo2] = trimTrailingNulls(f.hist_years, f.hist_co2);
@@ -240,7 +244,7 @@ function TopEmittersWidget({ widget }: WidgetProps) {
 function ModelComparisonWidget({ widget }: WidgetProps) {
   const props = widget.props as { columns?: string[]; rows?: Record<string, unknown>[] };
   const columns: DataTableColumn<Record<string, unknown>>[] = (props.columns ?? []).map((c) => ({ key: c, header: humanize(c) }));
-  return <GridWidget title={widget.title} columns={columns} rows={props.rows ?? []} />;
+  return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={props.rows ?? []} />;
 }
 
 // api/schemas.py's MoverRow shape, reused as-is by /historical/change-summary's
@@ -271,7 +275,7 @@ function EmissionsChangeSummaryWidget({ widget }: WidgetProps) {
     { key: 'absolute_change', header: 'Change (Mt)' },
     { key: 'pct_change', header: '% Change' },
   ];
-  return <GridWidget title={widget.title} columns={columns} rows={rows} />;
+  return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={rows} />;
 }
 
 function GasCompositionWidget({ widget }: WidgetProps) {
@@ -287,7 +291,7 @@ function GasCompositionWidget({ widget }: WidgetProps) {
     { key: 'decade', header: 'Decade' },
     ...series.map((s) => ({ key: s.gas_label, header: s.gas_label })),
   ];
-  return <GridWidget title={widget.title} columns={columns} rows={rows} />;
+  return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={rows} />;
 }
 
 function ForecastSummaryWidget({ widget }: WidgetProps) {
@@ -300,7 +304,7 @@ function ForecastSummaryWidget({ widget }: WidgetProps) {
     'forecast_2040',
     'pct_change_2020_2040',
   ].map((field) => ({ key: field, header: humanize(field) }));
-  return <GridWidget title={widget.title} columns={columns} rows={props.rows ?? []} />;
+  return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={props.rows ?? []} />;
 }
 
 function ScenarioCumulativeWidget({ widget }: WidgetProps) {
@@ -319,7 +323,7 @@ function ScenarioCumulativeWidget({ widget }: WidgetProps) {
     { key: 'current_level', header: 'Current Level' },
     ...scenarios.map((s) => ({ key: `cumulative_${s}`, header: `${s} Cumulative` })),
   ];
-  return <GridWidget title={widget.title} columns={columns} rows={rows} />;
+  return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={rows} />;
 }
 
 function CountryProfileCardWidget({ widget }: WidgetProps) {
@@ -328,6 +332,7 @@ function CountryProfileCardWidget({ widget }: WidgetProps) {
   const latestPerCapita = lastDefined(props.co2_per_capita);
   const latestYoy = lastDefined(props.yoy_values);
   return (
+    <>
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
       <KpiStat label="CO₂ Emissions (Mt)" value={latestCo2 != null ? latestCo2.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'} />
       <KpiStat label="CO₂ per Capita (t)" value={latestPerCapita != null ? latestPerCapita.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} />
@@ -339,6 +344,8 @@ function CountryProfileCardWidget({ widget }: WidgetProps) {
         />
       )}
     </div>
+    <SourceLine text={widget.source_line} />
+    </>
   );
 }
 
@@ -362,6 +369,7 @@ function MethodologyNotesWidget({ widget }: WidgetProps) {
           </div>
         ))}
       </div>
+      <SourceLine text={widget.source_line} />
     </Card>
   );
 }
@@ -379,6 +387,7 @@ function TextAnswerWidget({ widget }: WidgetProps) {
   return (
     <Card header={<CardHeader title={widget.title} />}>
       <MarkdownText text={props.text ?? ''} />
+      <SourceLine text={widget.source_line} />
     </Card>
   );
 }
@@ -391,11 +400,12 @@ function TextAnswerWidget({ widget }: WidgetProps) {
 function GenericFallbackWidget({ widget }: WidgetProps) {
   if (widget.intent === 'grid') {
     const rows = Array.isArray(widget.props.rows) ? (widget.props.rows as Record<string, unknown>[]) : [];
-    return <GridWidget title={widget.title} columns={genericColumns(rows)} rows={rows} />;
+    return <GridWidget source={widget.source_line} title={widget.title} columns={genericColumns(rows)} rows={rows} />;
   }
   return (
     <Card header={<CardHeader title={widget.title} />}>
       <InlineAlert variant="warning">This result type isn&apos;t recognized yet.</InlineAlert>
+      <SourceLine text={widget.source_line} />
     </Card>
   );
 }
@@ -425,13 +435,10 @@ const RENDERERS: Record<string, (props: WidgetProps) => ReactElement> = {
   context_reuse: TextAnswerWidget,
 };
 
+// Each widget states its source exactly once, in its own card: a chart card in its footer (ChartCard's `source`), any other card
+// (a table, text, the KPI row) with a SourceLine inside it. A line added here as well showed every chart's source twice.
 export function WidgetRenderer({ widget }: WidgetProps) {
-  return (
-    <>
-      <WidgetBody widget={widget} />
-      <SourceLine text={widget.source_line} />
-    </>
-  );
+  return <WidgetBody widget={widget} />;
 }
 
 function WidgetBody({ widget }: WidgetProps) {

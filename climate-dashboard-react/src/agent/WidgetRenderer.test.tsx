@@ -292,3 +292,19 @@ describe('WidgetRenderer', () => {
     expect(screen.getByText(/recognized yet/)).toBeInTheDocument();
   });
 });
+
+// Reported live: every chart in an answer showed its "Source: ..." line twice, once in the chart card's footer and again under the card.
+describe('WidgetRenderer source line', () => {
+  const SOURCE = 'Source: OWID, 1990–2024 · territorial CO₂ from fossil fuels and cement; land-use change excluded';
+  const cases: Array<[string, Partial<WidgetSpec>]> = [
+    ['a line chart', { intent: 'chart', chart_kind: 'line', source_tool_call: 'get_historical_emissions:{}', props: { series: [{ name: 'China', years: [1990, 2024], values: [2483.5, 12289] }] } }],
+    ['a bar chart', { intent: 'chart', chart_kind: 'bar', source_tool_call: 'get_top_emitters:{}', props: { year: 2024, emitters: [{ country: 'China', iso_code: 'CHN', co2: 12289 }] } }],
+    ['the table a chart falls back to past the series cap', { intent: 'chart', chart_kind: 'line', source_tool_call: 'get_historical_emissions:{}', props: { series: Array.from({ length: 11 }, (_, i) => ({ name: `C${i}`, years: [1990, 2024], values: [i, i + 1] })) } }],
+    ['a table', { intent: 'grid', source_tool_call: 'get_model_comparison:{}', props: { columns: ['model', 'mae'], rows: [{ model: 'ETS', mae: 12.3 }] } }],
+    ['a country KPI card', { intent: 'card', source_tool_call: 'get_country_profile:{}', props: { years: [2023, 2024], co2: [100, 110], co2_per_capita: [7, 7.5], yoy_values: [1.2] } }],
+  ];
+  it.each(cases)('shows it exactly once for %s', (_label, overrides) => {
+    render(<Themed><WidgetRenderer widget={widget({ ...overrides, source_line: SOURCE })} /></Themed>);
+    expect(screen.getAllByText(SOURCE)).toHaveLength(1);
+  });
+});
