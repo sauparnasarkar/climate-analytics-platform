@@ -121,24 +121,64 @@ def _floats(obj, out):
                 pass
 
 
+_SCALES = (1, 1e-3, 1e3, 1e-6, 1e6, 100)
+
+
+def _is_year(x: float) -> bool:
+    return 1900 <= x <= 2100 and float(x).is_integer()
+
+
+def _derived(anchors: list[float], years: list[float]) -> set[float]:
+    """Arithmetic an answer may do on figures it quotes: the percent change and the difference between two anchors, and the
+    span between two years. Sums and ratios are left out on purpose: every extra operation grounds more wrong numbers."""
+    out: set[float] = set()
+    for a in anchors:
+        for b in anchors:
+            if a != b:
+                out.add(abs(a - b))
+                out.add(abs(a - b) / b * 100)
+    out.update(abs(a - b) for a in years for b in years if a != b)
+    return out
+
+
 def ungrounded_numbers(answer: str, tool_calls, widgets=()) -> list[str]:
-    """Numbers >= 10 in the answer (not years) with no tool-result value within 1.5% (also allowing unit rescaling x1e3 / 1e-3 / 1e6 / 1e-6)."""
+    """Numbers >= 10 in the answer (not years) that are neither a tool-result value nor arithmetic on figures the answer quotes.
+
+    Direct: a tool-result or widget-summary value within 1.5% (also allowing unit rescaling x1e3 / 1e-3 / 1e6 / 1e-6 / x100).
+    Derived: the percent change or difference between two numbers >= 10 that the answer itself quotes and that are directly
+    grounded ("fell from 1,054.8 to 572.3, about 46%"), or the span between two years the answer quotes ("34-year window").
+    The operands are deliberately only the answer's own figures. Taking them from every tool value, or from the widget
+    summaries, or allowing small numbers such as ranks, grounded about two thirds of the wrong numbers a mutation probe
+    planted in the saved 2026-11-04 UI runs; this rule catches 855 of 2,529 against 899 for the direct check alone.
+    A derived value must round to the quoted number at the answer's own precision ("17" for 16.7, "45.7" for 45.73).
+    Magnitudes only: the number regex drops the sign, so "-64.9%" is checked as 64.9.
+    """
     vals: list[float] = []
     for r in tool_calls:
         _floats(r.result, vals)
         _floats(r.args, vals)
     for w in widgets:  # a widget's summary holds derived figures (e.g. a percent change) the answer is meant to quote
         _floats(w.summary, vals)
-    bad = []
+
+    def direct(x: float) -> bool:
+        return any(abs(x - v * k) <= 0.015 * max(abs(x), 1e-9) for v in vals for k in _SCALES)
+
+    nums: list[tuple[str, float]] = []
     for m in re.findall(r"\d[\d,]*\.?\d*", answer):
         try:
-            x = float(m.replace(",", ""))
+            nums.append((m, float(m.replace(",", ""))))
         except ValueError:
             continue
-        if x < 10 or (1900 <= x <= 2100 and float(x).is_integer()):
+    derived = None  # built on first need: most answers ground every number directly
+    bad = []
+    for m, x in nums:
+        if x < 10 or _is_year(x) or direct(x):
             continue
-        ok = any(abs(x - v * k) <= 0.015 * max(abs(x), 1e-9) for v in vals for k in (1, 1e-3, 1e3, 1e-6, 1e6, 100))
-        if not ok:
+        if derived is None:
+            years = [y for _, y in nums if _is_year(y)]
+            derived = _derived([a for _, a in nums if a >= 10 and not _is_year(a) and direct(a)], years)
+        decimals = len(m.rstrip(".").split(".")[1]) if "." in m.rstrip(".") else 0
+        if not any(abs(x - d) <= 0.5 * 10**-decimals + 1e-9 for d in derived):
             bad.append(m)
     return bad
 

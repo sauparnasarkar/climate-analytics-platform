@@ -37,29 +37,29 @@ def test_read_stored_choice_off_allowlist_returns_none(tmp_path, monkeypatch):
 
 
 def test_write_then_read_round_trips():
-    choice = settings.LlmChoice(provider="ollama", model="qwen2.5:14b-ctx8k", updated_at=settings.now_iso())
+    choice = settings.LlmChoice(provider="ollama", model="qwen3.8-27b-ctx32k", updated_at=settings.now_iso())
     settings.write_stored_choice(choice)
     read_back = settings.read_stored_choice()
     assert read_back is not None
     assert read_back.provider == "ollama"
-    assert read_back.model == "qwen2.5:14b-ctx8k"
+    assert read_back.model == "qwen3.8-27b-ctx32k"
 
 
 def test_resolve_prefers_stored_choice_over_env(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "anthropic")
-    choice = settings.LlmChoice(provider="ollama", model="qwen2.5:14b-ctx8k", updated_at=settings.now_iso())
+    choice = settings.LlmChoice(provider="ollama", model="qwen3.8-27b-ctx32k", updated_at=settings.now_iso())
     settings.write_stored_choice(choice)
 
     resolved = settings.resolve_active_choice()
-    assert resolved.id == "ollama-qwen14b-ctx8k"
+    assert resolved.id == "ollama-qwen3.8-27b-ctx32k"
 
 
 def test_resolve_falls_back_to_env_when_store_absent(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
-    monkeypatch.setenv("LOCAL_LLM_MODEL", "qwen2.5:14b-ctx8k")
+    monkeypatch.setenv("LOCAL_LLM_MODEL", "qwen3.8-27b-ctx32k")
 
     resolved = settings.resolve_active_choice()
-    assert resolved.id == "ollama-qwen14b-ctx8k"
+    assert resolved.id == "ollama-qwen3.8-27b-ctx32k"
 
 
 def test_resolve_accepts_gpt_oss_from_env(monkeypatch):
@@ -71,8 +71,9 @@ def test_resolve_accepts_gpt_oss_from_env(monkeypatch):
 
 
 def test_allow_list_is_sonnet_qwen_and_gpt_oss_only():
-    assert [c.id for c in settings.ALLOWED_CHOICES] == ["anthropic-sonnet", "ollama-qwen14b-ctx8k", "ollama-gpt-oss-20b-ctx32k"]
+    assert [c.id for c in settings.ALLOWED_CHOICES] == ["anthropic-sonnet", "ollama-qwen3.8-27b-ctx32k", "ollama-gpt-oss-20b-ctx32k"]
     assert settings.choice_by_id("ollama-qwen14b-ctx32k") is None  # the removed trial entry is no longer selectable
+    assert settings.choice_by_id("ollama-qwen14b-ctx8k") is None  # replaced by Qwen 3.8 27B (2026-11-10)
 
 
 def test_resolve_falls_back_to_code_default_when_nothing_set():

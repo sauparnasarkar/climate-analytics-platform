@@ -155,7 +155,8 @@ tool results (the `ungrounded` check). But a real figure can still be misread:
 - "How has the greenhouse-gas mix changed": Sonnet and gpt-oss 20B quoted figures (CO2 68% to 74-75%, methane
   24% to 17%); Qwen 14B and gpt-oss 120B gave vague answers with no numbers.
 - Qwen 3.8 27B did not answer the since-2000 question: it described annual values for 1990-2024. Its gas-mix
-  answer talked about "the widget" and gave no figures, and one number in `dq8` ("34") matched no tool result.
+  answer talked about "the widget" and gave no figures, and one number in `dq8` ("34") matched no tool result
+  (probably the 1990-2024 year span, as in the UI run below; no saved output from this run was found, so it was not rescored).
 - Qwen 3.6 35B-A3B picked the right tool for the since-2000 question (213.1 GtCO2 for China), but its gas-mix answer
   leaked drafting language ("Once the complete `summary` statistics are available, I will draft a lead paragraph...").
 - Only 3 of the 16 data answers per model were read in full; a judge pass over all of them is still to do.
@@ -176,16 +177,75 @@ its thinking mode, not isolated) and still gives vague or off-window answers; 3.
 newer model has not closed the faithfulness gap, which points at the answer-writing step rather than the model.
 Sonnet remains the production default.
 
-**Newer Qwen candidates.** `qwen3.8:27b` and `qwen3.6:35b-a3b` were run (above). Not run: `qwen3.5:122b-a10b`,
-`qwen3-next:80b` and `qwen3.8-flash-next:125b-a6b` (large MoE, q4 only), which overlap with what was tested and,
-by the gpt-oss 120B result, are unlikely to be better than a smaller model on this battery.
+**Newer Qwen candidates.** `qwen3.8:27b` and `qwen3.6:35b-a3b` were run (above), and Qwen3.8-Flash-Next later
+through the UI battery (next section). Not run: `qwen3.5:122b-a10b` and `qwen3-next:80b` (large MoE, q4 only), which
+overlap with what was tested and, by the gpt-oss 120B result, are unlikely to be better than a smaller model on
+this battery.
+
+## UI battery comparison (2026-11-04 to 2026-11-08)
+
+The same 36 cases were then driven through the real Ask page with Playwright ([`evals/ui/`](evals/ui/README.md)),
+one fresh browser context per case, so the numbers include streaming and rendering as a user meets them. The
+public site was used for Sonnet 5, gpt-oss 20B, gpt-oss 120B and Qwen 3.8 27B, with the model switched through the
+stored admin choice. Single run each; classification and tools are inferred from the SSE stream.
+
+| Model | Passed | Total time | Slowest case | Data-query avg | Starter avg | Ungrounded numbers |
+|---|---|---|---|---|---|---|
+| Claude Sonnet 5 | 34/36 | 442 s | 31.7 s | 18.2 s | 21.9 s | none |
+| `gpt-oss:20b-ctx32k` | 32/36 | 458 s | 40.3 s | 17.7 s | 22.6 s | none |
+| `gpt-oss:120b-ctx32k` | 33/36 | 590 s | 55.5 s | 23.9 s | 37.2 s | none |
+| `qwen3.8-27b-ctx32k` | 35/36 | 807 s | 64.6 s | 31.6 s | 47.6 s | none |
+| Qwen3.8-Flash-Next Q3_K_XL, 32k | 33/36 | 1249 s | 131.8 s | 67.6 s | 58.9 s | none |
+| Qwen3.8-Flash-Next Q3_K_XL, 64k | 34/36 | 1543 s | 132.3 s | 68.3 s | 103.3 s | none |
+
+Rescored 2026-11-10 with the derived-figure check (below). The first scoring flagged four answers, Qwen 3.8 27B's
+`dq7` and `dq8` and Flash Next's `dq7` at both contexts, for numbers the model had computed correctly from its own
+tool results, so they counted as misses: Qwen 3.8 27B was 33/36 and Flash Next 32/36 and 33/36. Those four answers
+now pass, and no other verdict changed.
+
+**Misses, by cause.**
+
+- *Sonnet:* `dq1`, `dq8` chose `get_country_cumulative_share` (the same coarse expected-tool sets as above).
+- *gpt-oss 20B:* `off4` classified `opinion`; `dq1`, `dq8` as Sonnet; `st2` called only `get_emissions_change_summary`.
+- *gpt-oss 120B:* `dq1`, `dq8`, `st2`, all the cumulative-share tool choice. No errors or parse failures.
+- *Qwen 3.8 27B:* `dq10` classified `opinion`, so no tools ran (same miss as the in-process run). Its only miss.
+  The once-flagged `dq7` and `dq8` are correct arithmetic: "46" (and "48", "17") are Germany's (and the UK's,
+  Japan's) 1990-2024 cuts, 1 − 572.3/1,054.8 = 45.7%; "34" is the 1990-2024 span, next to 483.0 − 218.7 = "roughly
+  264" Mt. Both answers label the CO₂-only series "MtCO₂e", a unit slip the check does not catch.
+- *Flash Next:* the once-flagged "64.9" in `dq7` is the UK's 2040 change versus 2024 (109.8 against 312.9 Mt). At 32k, `st2` and `st4` **errored** because the request (35k and 39k tokens)
+  exceeded the context window; 64k fixed `st2`. `st3` and `st4` then timed out in the UI (126-132 s, three and two
+  tool calls), so the remaining failures are latency, not content.
+
+**Flash Next was served differently.** It is not in Ollama's library as a runnable GGUF; the only tag is a 105 GB
+MLX build with no way to keep its 29 GB n-gram table off the GPU, and Ollama rejects `override_tensor` as a
+Modelfile parameter. It was run on a separate llama.cpp `llama-server` (`UD-Q3_K_XL`, `--override-tensor
+per_layer_token_embd.weight=CPU`, one slot, reasoning effort `medium`, temperature 0.7) behind an isolated test agent
+and a local proxy to the same front-end build, so its latencies are not strictly like-for-like with the
+Cloudflare-fronted runs. Memory was never the constraint: no swap, and the pinned table was not resident.
+
+**Why Flash Next is slow, measured.** Decode took about three quarters of the run (1134 s of 1543 s) at a steady 42
+tokens per second, over about 100 LLM calls averaging 470 tokens; prompt processing was 879 tokens per second. A
+fixed-prompt benchmark showed the CPU-pinned table costs nothing (42 vs 42 tok/s with the table on the GPU) and
+forced flash attention changes nothing. N-gram speculative decoding (`--spec-type ngram-mod`) reached 182 tok/s on a
+prompt built to repeat its own figures, but gave no gain on real agent traffic (41.9 tok/s overall): acceptance was
+low on the model's thinking text and high only when restating figures. The model card's MTP draft head (quoted
+1.3-1.7x) needs a non-mainline llama.cpp build and was not tried. Evaluation of this model was stopped there.
+
+**Conclusion.** The UI battery agrees with the in-process one on speed. Local models pass 32-35 of 36 against Sonnet's
+34, with no ungrounded numbers. Qwen 3.8 27B's 35 is the highest, but Sonnet's two misses are the coarse
+expected-tool sets (a valid tool not on the list), so that is not a lead in accuracy. None is faster than Sonnet, and
+the larger or newer ones are slower: gpt-oss 120B about 1.3x Sonnet's total time, Qwen 3.8 27B about 1.8x, Flash Next 2.8-3.5x. gpt-oss 120B is no
+more accurate than 20B. gpt-oss 20B remains the practical local choice on speed and footprint, and Sonnet remains the
+production default. Per-case answers, raw SSE, rendered text and screenshots are saved outside the repo; the
+automated checks are coarse, so the answers themselves still need reading.
 
 ## Reproducing the battery
 
 The original 30-case script was not preserved. [`evals/run_battery.py`](evals/run_battery.py) is a
 reconstruction to the composition recorded above (plus the 6 real starter prompts), run in-process through the
 real graph so any provider/model can be compared on identical cases without touching the admin panel or hitting
-`/query`'s rate limit. It also records numbers in an answer that match no tool-result value (`ungrounded`); read the
+`/query`'s rate limit. It also records numbers in an answer that are neither a tool-result value nor a percent change,
+difference or year span between figures the answer itself quotes (`ungrounded`); read the
 answers too, since a misread real figure passes that check. Its results are not directly comparable to the
 30/30 figures above.
 
