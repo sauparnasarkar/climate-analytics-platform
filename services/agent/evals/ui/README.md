@@ -33,7 +33,8 @@ the analyzer adds `results.json` (scored) and a side-by-side `REVIEW.md`. `resul
   otherwise stalls the whole run; the case is then recorded as a UI error and the run continues.
 - **The SSE `result` event carries no classification or tool list**, so both are inferred from the widgets (see the analyzer's
   docstring). The expected-tool sets are coarse: a different but valid tool shows as a FAIL to read, not a verdict.
-- The "numbers not in the tool data" check treats a narrow/no-break/thin space between digits as a thousands separator
-  (`2 615.5` is 2,615.5). It catches fabricated figures, not a real figure misread: **read the answers in `REVIEW.md`**.
+- The "numbers not in the tool data" check (`run_battery.py`'s `ungrounded_numbers`) also accepts a percent change, difference
+  or year span between figures the answer itself quotes, so "fell from 1,054.8 to 572.3, about 46%" passes.
+  It treats a narrow/no-break/thin space between digits as a thousands separator (`2 615.5` is 2,615.5). It catches fabricated figures, not a real figure misread: **read the answers in `REVIEW.md`**.
 - The runner finds the input by its accessible name, `Ask about climate emissions` (`AgentPage.tsx`'s `PromptBar`); rename it
   there and this fails at the first case.
