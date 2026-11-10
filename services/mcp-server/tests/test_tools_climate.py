@@ -236,6 +236,19 @@ async def test_scenario_summary_has_final_year_levels_and_gap_vs_bau(climate_cli
     assert gap["Aggressive"] <= 0  # a more aggressive pathway never implies a warmer outcome than BAU
 
 
+async def test_scenario_summary_carries_the_paris_comparison_for_quoting(climate_client):
+    # SPEC.md §5.35 D: compacted from the pipeline's vs_paris, keyed by goal, for the line(s) returned
+    s = (await get_scenario_temperature())["summary"]
+    assert s["paris_goals_c"] == [1.5, 2.0] and "20-year" in s["paris_note"]
+    bau = s["vs_paris"]["BAU"]
+    assert set(bau) == {"headline", "fossil_only"} and set(bau["headline"]) == {"1.5", "2"}
+    g = bau["headline"]["1.5"]
+    assert g["implied_level_c"] == s["final_year_by_scenario"]["BAU"]["headline_level_c"]
+    assert g["margin_c"] == pytest.approx(g["implied_level_c"] - 1.5, abs=1e-3) and isinstance(g["implied_level_above_goal"], bool)
+    only = (await get_scenario_temperature(scenarios=["BAU"], line="headline"))["summary"]["vs_paris"]
+    assert list(only) == ["BAU"] and list(only["BAU"]) == ["headline"]
+
+
 async def test_scenario_names_are_case_insensitive_and_unknown_ones_rejected(climate_client):
     body = await get_scenario_temperature(scenarios=["aggressive"], line="headline")
     assert body["selected_scenarios"] == ["Aggressive"]
