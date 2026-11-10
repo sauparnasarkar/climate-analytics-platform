@@ -39,8 +39,13 @@ interface WidgetProps {
 
 const asResult = <T,>(widget: WidgetSpec): T => widget.props as unknown as T;
 
-function Unavailable({ children }: { children: string }) {
-  return <InlineAlert variant="warning">{children}</InlineAlert>;
+function Unavailable({ children, source }: { children: string; source?: string | null }) {
+  return (
+    <>
+      <InlineAlert variant="warning">{children}</InlineAlert>
+      <SourceLine text={source} />
+    </>
+  );
 }
 
 // --- emissions vs temperature -----------------------------------------------------------------------------------
@@ -115,7 +120,7 @@ export function GhgCompositionWidget({ widget }: WidgetProps): ReactElement {
       </Card>
     );
   }
-  if (!composition) return <Unavailable>The greenhouse-gas mix could not be drawn from this result.</Unavailable>;
+  if (!composition) return <Unavailable source={widget.source_line}>The greenhouse-gas mix could not be drawn from this result.</Unavailable>;
   return <WithAgentSource widget={widget}><GasComposition composition={composition} embedded /></WithAgentSource>;
 }
 
@@ -130,7 +135,7 @@ export function ScenarioTemperatureWidget({ widget }: WidgetProps): ReactElement
     [result, fossil.data, climate.temperatureSeries, climate.mean5ySeries],
   );
   if (!climate.settled || fossil.loading) return <Spinner />;
-  if (!view) return <Unavailable>The scenario temperatures could not be drawn from this result.</Unavailable>;
+  if (!view) return <Unavailable source={widget.source_line}>The scenario temperatures could not be drawn from this result.</Unavailable>;
   // The agent flags a lead that already carries the pipeline's reading note (services/agent SPEC §15.11); the section's own "Reading note" panel
   // would then repeat the same paragraph directly beneath it, so it is left out. When the lead was composed across tools it keeps its panel.
   const leadHasNote = (widget.summary as { lead_includes_reading_note?: boolean } | null | undefined)?.lead_includes_reading_note === true;
@@ -141,9 +146,9 @@ export function ScenarioTemperatureWidget({ widget }: WidgetProps): ReactElement
 
 /** `/country-share` answers a year outside its coverage (or a country with no rows) with HTTP 200 and nothing to draw, plus a note: say so, naming the
  * year and the coverage, instead of an empty chart -- the same wording the module's country view uses. */
-function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
+function NoShares({ result, source }: { result: CorrelationCountryShareResponse; source?: string | null }) {
   const [lo, hi] = result.coverage ?? [];
-  return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${result.notes.length ? ` ${result.notes.join(' ')}` : ''}`}</Unavailable>;
+  return <Unavailable source={source}>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${result.notes.length ? ` ${result.notes.join(' ')}` : ''}`}</Unavailable>;
 }
 
 /**
@@ -323,7 +328,7 @@ export function CountryShareWidget({ widget }: WidgetProps): ReactElement {
   const result = asResult<CorrelationCountryShareResponse>(widget);
   if (result.mode !== 'series' && (result.since_rows ?? []).length > 0) return <SinceRankingView widget={widget} result={result} />;
   const nothing = result.mode === 'series' ? !(result.series ?? []).some((s) => s.points.length > 0) : (result.rows ?? []).length === 0;
-  if (nothing) return <NoShares result={result} />;
+  if (nothing) return <NoShares result={result} source={widget.source_line} />;
   // A view that cannot be drawn honestly (no World total for a PRIMAP-hist share, no annual share, no points) falls through to the lines below.
   if (result.mode === 'series' && widget.view === 'cumulative_area' && shareToCumulative(result, sinceRebase(widget.summary))) return <ShareAreaView widget={widget} result={result} />;
   if (result.mode === 'series' && widget.view === 'emitted_lines' && sinceEmittedLines(result, sinceRebase(widget.summary))) return <SinceLinesView widget={widget} result={result} />;

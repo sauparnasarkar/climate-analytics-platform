@@ -22,6 +22,7 @@ vi.mock('@syena/ds', async (orig) => ({
 }));
 
 const FOSSIL = { ...HEADLINE_PAIR, variant: 'fossil', fit: { ...HEADLINE_PAIR.fit, slope: 0.797 } };
+const SOURCE = 'Source: OWID, 1990–2024 · territorial CO₂ from fossil fuels and cement; land-use change excluded';
 
 beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -119,6 +120,12 @@ describe('the greenhouse-gas mix', () => {
     // AG Grid renders no header or cell text in jsdom (same as every DataTable widget here): the card wiring is checked, the rows below.
   });
 
+  it('keeps the source line when the result cannot be drawn', () => {
+    mount(widget('get_ghg_composition', { gases: [], years: [] }, { source_line: SOURCE }));
+    expect(screen.getByText(/could not be drawn/)).toBeInTheDocument();
+    expect(screen.getAllByText(SOURCE)).toHaveLength(1);
+  });
+
   it('builds the single-year rows with a dash, not zero, for a gas with no value', () => {
     const rows = singleYearRows({ years: [{ year: 2024, gases_included: [], values: [{ gas: 'co2', name: 'CO₂', mtco2e: 37500.4, share_pct: 74.96 }, { gas: 'fgas', name: 'Fluorinated gases', mtco2e: null, share_pct: null }] }] } as never);
     expect(rows).toEqual([{ gas: 'CO₂', mtco2e: '37,500', share: '75.0%' }, { gas: 'Fluorinated gases', mtco2e: '—', share: '—' }]);
@@ -154,8 +161,9 @@ describe('scenario temperatures', () => {
   });
 
   it('says so, rather than drawing nothing, when the result cannot be drawn', async () => {
-    mount(widget('get_scenario_temperature', { scenarios: {}, base: {}, assumptions: {} }));
+    mount(widget('get_scenario_temperature', { scenarios: {}, base: {}, assumptions: {} }, { source_line: SOURCE }));
     expect(await screen.findByText(/could not be drawn/)).toBeInTheDocument();
+    expect(screen.getAllByText(SOURCE)).toHaveLength(1);
   });
 });
 
@@ -343,16 +351,18 @@ describe('country shares', () => {
 
   it('a ranking outside the data\'s coverage (200 with no rows) says so instead of drawing an empty chart', () => {
     const r = { ...shareResponse([]), mode: 'ranking', year: 1500, coverage: [1750, 2024], rows: [], notes: ['no data for 1500: coverage is 1750-2024'] };
-    mount(widget('get_country_cumulative_share', r));
+    mount(widget('get_country_cumulative_share', r, { source_line: SOURCE }));
     expect(screen.queryByTestId('chart')).toBeNull();
     expect(screen.getByText(/No country shares are available for 1500\. Coverage is 1750–2024\./)).toBeInTheDocument();
     expect(screen.getByText(/no data for 1500: coverage is 1750-2024/)).toBeInTheDocument();
+    expect(screen.getAllByText(SOURCE)).toHaveLength(1);
   });
 
   it('a series for countries with no points is unavailable too, not an empty chart', () => {
-    mount(widget('get_country_cumulative_share', shareResponse([])));
+    mount(widget('get_country_cumulative_share', shareResponse([]), { source_line: SOURCE }));
     expect(screen.queryByTestId('chart')).toBeNull();
     expect(screen.getByText(/No country shares are available/)).toBeInTheDocument();
+    expect(screen.getAllByText(SOURCE)).toHaveLength(1);
   });
 
   it('a ranking is one bar series', () => {
