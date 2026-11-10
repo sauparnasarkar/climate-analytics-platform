@@ -37,7 +37,7 @@ def test_historical_summary_ranks_series_by_latest_value_and_skips_null_ends():
         {"name": "Empty", "years": [1990], "values": [None]},
     ]}
     rows = {r["name"]: r for r in widget_summary(_rec("get_historical_emissions", result))["series"]}
-    assert rows["China"]["last_year"] == 2023 and rows["China"]["rank"] == 1 and rows["India"]["rank"] == 2 and "Empty" not in rows
+    assert rows["China"]["last_year"] == 2023 and rows["China"]["rank_among_shown"] == 1 and rows["India"]["rank_among_shown"] == 2 and "Empty" not in rows
 
 
 def test_top_emitters_summary_carries_the_share_fields_when_present_and_omits_them_when_not():
@@ -394,9 +394,20 @@ def test_forecast_summary_states_the_interval_level_so_the_model_does_not_guess_
 
 def test_historical_summary_gives_a_lone_series_no_rank_but_ranks_several():
     one = {"gas": "co2", "series": [{"name": "India", "years": [1990, 2024], "values": [578.0, 3193.5]}]}
-    assert "rank" not in widget_summary(_rec("get_historical_emissions", one))["series"][0]
+    lone = widget_summary(_rec("get_historical_emissions", one))
+    assert not any(k.startswith("rank") for k in lone["series"][0]) and "rank_note" not in lone
     two = {"gas": "co2", "series": one["series"] + [{"name": "China", "years": [1990, 2024], "values": [2483.5, 12289.0]}]}
-    assert {r["name"]: r["rank"] for r in widget_summary(_rec("get_historical_emissions", two))["series"]} == {"China": 1, "India": 2}
+    s = widget_summary(_rec("get_historical_emissions", two))
+    assert {r["name"]: r["rank_among_shown"] for r in s["series"]} == {"China": 1, "India": 2}
+
+
+def test_historical_ranks_are_labelled_as_among_the_series_shown_not_world_ranks():
+    # seen live: "Germany ... rank 4" quoted beside a world top-10 (it is 10th in the world) off a plain `rank` key
+    two = {"gas": "co2", "series": [{"name": "Germany", "years": [1990, 2024], "values": [1054.8, 572.3]},
+                                    {"name": "United Kingdom", "years": [1990, 2024], "values": [601.9, 312.9]}]}
+    s = widget_summary(_rec("get_historical_emissions", two))
+    assert all("rank" not in row for row in s["series"])
+    assert "not a world rank" in s["rank_note"] and "2 countries" in s["rank_note"]
 
 
 def test_model_comparison_summary_also_reads_the_long_form_rows_the_api_fixture_uses():
