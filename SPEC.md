@@ -476,7 +476,7 @@ Sections to include:
 | v74 | Oct 2026 | §5.29: the sources table's landing pages, short citations and short licences move from a front-end lookup into the pipeline's provenance (`pipeline/presentation.py`, served by `/correlation/meta`); Scenario Comparison's country picker label goes on one line with the control, as on Overview and Historical Trends |
 | v75 | Oct 2026 | Rename: the product is **Degrees of Carbon** (tagline "How emissions add up to warming."), at `degreesofcarbon.syena.io`; `climate-analytics.syena.io` is retired with redirects and a kill-switch service worker (ARCHITECTURE §6). Name and copy in `navigation.ts`, the manifest, `index.html` and the agent prompts; Methods & data §1 opens with what the product shows; the canonical link is set per route on the production origin. Internal identifiers (repo, MCP server name, launchd labels, theme storage key) keep their names |
 | v76 | Nov 2026 | §5.34 (**Docs-first**): one colour per scenario pathway and per greenhouse gas within each chart. Every chart series is pinned to a design-system categorical slot (Observed 1, BAU 2, Moderate 3, Aggressive 4, the 5-year mean 5; CO₂/CH₄/N₂O/F-gas 1–4 by gas id), and the swatches, Ask KPI accents and share bar read the colour of that slot from the design system instead of their own hex lists. The 5-year mean's slot 5 is validated as a plain solid line by a new design-system generator check (fallback: markers and a direct label). §5.30 needed no correction: Overview's "Where today's patterns lead" is the one line §5.30 describes, with no pathway colours |
-| v77 | Nov 2026 | §5.34 marked Shipped. §5.35 (**Docs-first**): the Paris temperature goals and the IPCC AR6 TCRE range move into one registry of external references (`pipeline/references.json`) with edition, `review_by` date and successor; the scenario stage compares each pathway's implied level with 1.5 °C and 2 °C (`vs_paris`), served through the API and the MCP summary for the agent to quote; the front end reads the AR6 range from the API instead of its own copy; the monthly refresh flags a reference past its review date; a separate monthly cloud routine searches for new IPCC/UNFCCC material and opens a GitHub issue, never editing a value |
+| v77 | Nov 2026 | §5.34 marked Shipped. §5.35 (**Docs-first**): the Paris temperature goals and the IPCC AR6 TCRE range move into one registry of external references (`pipeline/references.json`) with edition, `review_by` date and successor; the scenario stage compares each pathway's implied level with 1.5 °C and 2 °C (`vs_paris`), served through the API and the MCP summary for the agent to quote; the front end reads the AR6 range from the API instead of its own copy; a separate monthly cloud routine searches for new IPCC/UNFCCC material, opens a GitHub issue (never editing a value) and leaves a heartbeat comment each run; the monthly refresh flags a missed heartbeat (over 45 days) or a reference past its long backstop review date |
 
 ---
 
@@ -2184,25 +2184,35 @@ docstring tells the model to quote them for a question about the Paris goals, 1.
 strip's label carries the edition ("IPCC AR6 (2021)"). Drawing 1.5 °C and 2 °C lines on the implied-temperature chart needs a horizontal
 reference in the design system's `Chart` (it has `referenceX` only) and is a separate, optional change.
 
-#### G. The reminder: in the monthly refresh
+#### G. Detection is monthly; the refresh watches that it happens
 
-`pipeline.run` checks every registry entry's `review_by`. One past its date is a **deviation** on a `references` source, so the existing
-notification reports "Area 2 pipeline: deviations flagged" at high priority (`build_notification` in `pipeline/run.py`) without failing the
-refresh. No network access. Proposed dates (open question 1): `ipcc_ar6_tcre` 2028-06-30 (AR7 WGI is expected late in the decade);
-`paris_temperature_goals` 2027-12-31, then yearly after each COP.
+The monthly search (H) is what catches an update, within about a month, whatever the review dates say. The risk is that the search silently
+stops (the routine is disabled or expires, or its runs fail), so the monthly data refresh checks that it ran, and keeps a long review date only
+as a last resort. Nothing here makes the refresh fail.
+
+- **Heartbeat check.** `pipeline.run` reads the last comment on the pinned `reference-review` tracking issue (H) through GitHub's REST API.
+  The repository is public, so this is an unauthenticated, read-only call; no token is stored on the host. A last comment older than **45 days**
+  is a **deviation** on a `references` source, so the existing notification reports "Area 2 pipeline: deviations flagged" at high priority
+  (`build_notification` in `pipeline/run.py`). Not being able to reach GitHub is a deviation too, never a failure.
+- **`review_by` as a backstop.** An entry past its `review_by` date is also a deviation. The dates are long and tied to the edition, not a
+  cadence: a monthly date would flag every refresh, and a warning that is always on is ignored. Proposed (open question 1): `ipcc_ar6_tcre`
+  2028-06-30 (AR7 WGI is expected late in the decade); `paris_temperature_goals` 2028-12-31.
 
 #### H. The search: a separate monthly cloud routine
 
-A scheduled Claude Code routine (cloud, not on the Mac Studio) runs monthly:
+A scheduled Claude Code routine (cloud, not on the Mac Studio) runs **monthly**:
 - reads `pipeline/references.json` from `main`;
 - searches for anything that would affect an entry: a new IPCC assessment or special report (in particular AR7 Working Group I), an erratum
   to AR6 Working Group I touching the TCRE range, a COP decision or IPCC statement changing how the Paris goals are assessed;
 - when it finds a credible candidate, opens a GitHub issue labelled `reference-review` naming the entry, what changed and the sources, unless
-  an open issue already covers it; otherwise does nothing.
+  an open issue already covers it;
+- **on every run**, found or not, adds a short comment to one pinned tracking issue (`reference-review`, "Monthly reference check"): the date,
+  the entries checked and the outcome ("nothing found" or the issue it opened). That comment is the heartbeat G checks.
 
 It **never edits** the registry or any value: an update is a reviewed PR. It is kept out of the refresh because the refresh is deterministic
 and unattended on the production host, and a web search adds a dependency that can fail or hang it and results it cannot judge. Expect
-occasional false positives (news coverage of the existing report); an issue is cheap to close.
+occasional false positives (news coverage of the existing report); an issue is cheap to close. A candidate opens an issue only (GitHub
+notifies the owner); the refresh's own notification covers a missed month.
 
 #### Updating a reference
 
@@ -2217,7 +2227,7 @@ re-check the training pages that quote the value (a line added to `docs/training
 | Pipeline | `pipeline/references.json` (new), a loader (for example in `pipeline/common.py`) | the registry and its validation |
 | | `pipeline/correlation.py` | AR6 from the registry; `ar6_reference` gains `edition` |
 | | `pipeline/scenario_temperature.py` | `paris_reference` and `vs_paris` |
-| | `pipeline/run.py` | the `review_by` check as a deviation |
+| | `pipeline/run.py` | the heartbeat and `review_by` checks as deviations |
 | API | `api/schemas.py`, `api/routers/correlation.py` | pass `paris_reference`, `vs_paris`, `edition` through |
 | MCP | `services/mcp-server/src/mcp_server/tools/climate.py` | `summary.vs_paris`, `summary.paris_note`, docstring |
 | Agent | `services/agent/src/agent/prompts.py`, `caveats.py`, `evals/run_battery.py` | the rule, the conditional note, the battery case |
@@ -2241,19 +2251,21 @@ re-check the training pages that quote the value (a line added to `docs/training
 
 #### Open questions
 
-1. The initial `review_by` dates (G).
+1. The backstop `review_by` dates (G).
 2. Whether the Paris note shows only when the question names the goals (proposed) or on every scenario-temperature answer.
-3. The routine's cadence: monthly (proposed) or quarterly; and whether a candidate also notifies through ntfy or only opens the issue.
+
+Decided: the search runs monthly, with a heartbeat the refresh checks (G, H), rather than short review dates.
 
 #### Verification
 
 - Pipeline tests: the registry loader (a missing field, a bad date), the AR6 values unchanged after the move, `vs_paris` margins and the first
   year at or above for a pathway that crosses 1.5 °C, one that never reaches it, and a confidence interval that straddles it; a past
-  `review_by` producing a deviation and the "flagged" notification.
+  `review_by`, a heartbeat older than 45 days and an unreachable GitHub each producing a deviation and the "flagged" notification (never a
+  failure).
 - API and MCP tests for the new fields; the agent battery case passing on Sonnet and the local models; the live preview showing the AR6 strip
   from the API with its edition.
-- The routine: one manual run that finds nothing for the current registry, and one against a test entry whose `successor` already exists
-  (opens an issue, does not duplicate it on a second run).
+- The routine: one manual run that finds nothing for the current registry and leaves its heartbeat comment, and one against a test entry
+  whose `successor` already exists (opens an issue, does not duplicate it on a second run); then the refresh reading that heartbeat.
 
 ---
 
