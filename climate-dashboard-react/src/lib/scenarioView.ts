@@ -8,7 +8,6 @@ export const SCENARIOS_ANCHOR = 'implied-temperature';
 export interface PathwayLine {
   name: PathwayName;
   label: string;
-  color: string;
   method: string;
   /** Global annual CO₂ in GtCO₂, from the first scenario year to the horizon */
   emissions: YearValue[];
@@ -75,7 +74,7 @@ export function buildScenarioView(
       if (mt !== null) emissions.push({ year, value: mt / 1000 });
       if (level !== null) temp.push({ year, value: level });
     }
-    return { name: card.name, label: card.label, color: card.color, method: card.method, emissions, temperature: temp };
+    return { name: card.name, label: card.label, method: card.method, emissions, temperature: temp };
   });
   // A pathway is only drawable as a pathway if it covers its start year to the horizon, in both emissions and implied temperature: otherwise the
   // output is incomplete and the section is left out rather than shown as single dots or a partial comparison.

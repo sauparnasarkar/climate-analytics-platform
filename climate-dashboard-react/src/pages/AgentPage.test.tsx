@@ -9,6 +9,10 @@ import { PageChromeContext } from '../layouts/PageChrome';
 import { AgentPage } from './AgentPage';
 import { useAgentStream } from '../agent/useAgentStream';
 import type { AgentQueryResult } from '../agent/types';
+import { stubSeriesColour } from '../test/slotColours';
+
+// jsdom cannot resolve the theme's slot colours; a fixed colour per slot stands in (src/test/slotColours.ts).
+vi.mock('@syena/ds', async (orig) => ({ ...(await orig<typeof import('@syena/ds')>()), useSeriesColour: (slot: number) => stubSeriesColour(slot) }));
 
 vi.mock('../agent/useAgentStream', () => ({ useAgentStream: vi.fn() }));
 

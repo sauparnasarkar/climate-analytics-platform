@@ -11,3 +11,7 @@ Follow-ups recorded so they are not lost. Not a changelog: `SPEC.md` has the his
 - **Left unchanged on purpose:** repo and folder names, the MCP server name (`ghg-emissions-analysis-mcp...`), launchd labels (`com.ghgemissions.*`), service names, the pipeline's HTTP `User-Agent` (`pipeline/common.py`, a pipeline file), the generic phrase "climate analytics platform" in README and CLAUDE.md, and test fixtures using the old host as an example URL.
 - **Checks that name a hostname:** none. The front-end health check and the uptime script probe loopback; the monthly data refresh does not use the public hostname.
 - **Still to repoint by hand:** `~/Library/Application Support/Claude/claude_desktop_config.json` (remote MCP, still `https://climate-analytics.syena.io/mcp`) and `~/.claude/settings.json` line 71 (descriptive text). The Cloudflare redirect rule answers a POST with a 301, which many clients turn into a GET, so the MCP client may stop working until it is repointed to `https://degreesofcarbon.syena.io/mcp` (a 308 in the rule would keep the method).
+
+## Chart colours: follow-ups from §5.34 (2026-11-10)
+
+- **`SHARE_PALETTE`** (`climate-dashboard-react/src/lib/shareBars.ts`, used by `ShareSection.tsx` on Overview's share view) is a separate ten-colour palette, beyond the design system's eight categorical slots, so it was left out of §5.34. Its colours are not validated by the design system and do not follow the theme. Revisit if the share view needs to match a chart's key.

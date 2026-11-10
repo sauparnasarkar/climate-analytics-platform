@@ -4,11 +4,12 @@ import { COMPOSITION } from '../test/climateFixtures';
 import { buildComposition } from './gasComposition';
 
 describe('buildComposition', () => {
-  it('builds per-gas series in MtCO₂e and per-year shares, with a fixed colour per gas', () => {
+  it('builds per-gas series in MtCO₂e and per-year shares, with a fixed chart slot per gas', () => {
     const c = buildComposition(COMPOSITION)!;
     expect(c.years).toEqual([1970, 2000, 2024]);
     expect(c.gases.map((g) => [g.id, g.short])).toEqual([['co2', 'CO₂'], ['ch4', 'CH₄'], ['n2o', 'N₂O'], ['fgas', 'F-gas']]);
-    expect(new Set(c.gases.map((g) => g.color)).size).toBe(4);
+    // keyed by gas id (SPEC.md §5.34), so the chart, the share bar and the key agree whatever order the API sends
+    expect(c.gases.map((g) => g.slot)).toEqual([1, 2, 3, 4]);
     expect(c.mt[0]).toEqual([15000, 26000, 37974]);
     expect(c.shares[2][0]).toBeCloseTo(75.08, 1);
     c.shares.forEach((row) => expect(row.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 6));

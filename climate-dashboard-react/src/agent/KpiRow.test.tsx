@@ -1,8 +1,12 @@
 import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { KpiRow } from './KpiRow';
 import { formatKpiValue } from './kpiFormat';
 import type { Kpi } from './types';
+import { stubSeriesColour } from '../test/slotColours';
+
+// jsdom cannot resolve the theme's slot colours; a fixed colour per slot stands in (src/test/slotColours.ts).
+vi.mock('@syena/ds', async (orig) => ({ ...(await orig<typeof import('@syena/ds')>()), useSeriesColour: (slot: number) => stubSeriesColour(slot) }));
 
 const k = (over: Partial<Kpi>): Kpi => ({ label: 'CO₂ emissions', value: 12289, unit: 'Mt', decimals: 0, year: 2024, sub: null, series: null, ...over });
 
@@ -33,10 +37,11 @@ describe('KpiRow', () => {
     expect(cards[1]).toHaveTextContent('8.66 t');
   });
 
-  it('gives a scenario card its pathway colour as a top border, and a plain card none', () => {
-    render(<KpiRow kpis={[k({ label: 'BAU', series: 'BAU', value: 1.68, unit: '°C', decimals: 2 }), k({})]} />);
-    const [bau, plain] = screen.getAllByRole('listitem');
-    expect(bau.style.borderTop).toContain('3px solid');
+  it('gives a scenario card its pathway\'s chart-slot colour as a top border (BAU 2, Aggressive 4), and a plain card none', () => {
+    render(<KpiRow kpis={[k({ label: 'BAU', series: 'BAU', value: 1.68, unit: '°C', decimals: 2 }), k({ label: 'Aggressive', series: 'Aggressive', value: 1.59, unit: '°C', decimals: 2 }), k({})]} />);
+    const [bau, aggressive, plain] = screen.getAllByRole('listitem');
+    expect(bau.style.borderTop).toBe('3px solid rgb(0, 0, 2)');
+    expect(aggressive.style.borderTop).toBe('3px solid rgb(0, 0, 4)');
     expect(plain.style.borderTop).toContain('1px solid');
   });
 });

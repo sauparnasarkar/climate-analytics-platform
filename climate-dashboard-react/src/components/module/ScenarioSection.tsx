@@ -1,14 +1,12 @@
 import { ChartCard, Chart } from '@syena/ds';
 import { useSectionIds } from './useSectionIds';
 import { SCENARIO_LABEL } from '../../lib/climateCopy';
-import type { PathwayName } from '../../lib/pathways';
 import { SCENARIOS_ANCHOR, type ScenarioView } from '../../lib/scenarioView';
 import { BaselineChip } from '../climate/BaselineChip';
 import { PurposeLine } from '../climate/PurposeLine';
 import { SCENARIOS } from '../../lib/sources';
+import { ANCHOR_SLOT, MEAN_5Y_SLOT, OBSERVED_SLOT, PATHWAY_SLOT, useSlotColours } from '../../lib/seriesSlots';
 
-const PATHWAY_SLOT: Record<PathwayName, number> = { BAU: 1, Moderate: 2, Aggressive: 3 };
-const ON_DARK: Record<PathwayName, string> = { BAU: '#FFB54D', Moderate: '#5FD8F7', Aggressive: '#8BD17C' };
 
 const panel = { background: 'var(--syn-color-surface-raised)', border: '1px solid var(--syn-color-border-subtle)', borderRadius: 8 } as const;
 
@@ -23,6 +21,8 @@ const EMBEDDED_STACK = '.module-embedded-grid[data-embedded] { grid-template-col
 export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedded?: boolean }) {
   const ids = useSectionIds(embedded, SCENARIOS_ANCHOR, 'scenarios-heading');
   const Heading = embedded ? 'h3' : 'h2'; // inside an answer the question is the h2
+  // Every series is pinned to its slot (lib/seriesSlots.ts), and the table and panel take those slots' colours, so a key matches its line.
+  const slotColour = useSlotColours();
   const { startYear, horizon, pathways, observedEmissions, observedTemperature, observedMean5y, anchor, horizonGapC, readingNote, labels, assumptions } = view;
   const last = (xs: Array<{ year: number; value: number }>) => xs[xs.length - 1];
   // Described from what is actually drawn, so a missing or early-ending history is not announced as present.
@@ -58,7 +58,7 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
             referenceX={{ x: startYear, label: `${startYear} start` }}
             ariaLabel={`Line chart of annual global CO₂ in GtCO₂, ${observedEmissions.length ? `observed ${span(observedEmissions)} and ` : ''}three pathways from ${startYear} to ${horizon}. In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.emissions).value.toFixed(1)}`).join(', ')}.`}
             series={[
-              ...(observedEmissions.length ? [{ name: 'Observed', ...gapped(observedEmissions), kind: 'line' as const }] : []),
+              ...(observedEmissions.length ? [{ name: 'Observed', ...gapped(observedEmissions), kind: 'line' as const, slot: OBSERVED_SLOT }] : []),
               ...pathways.map((p) => ({ name: p.label, x: p.emissions.map((r) => r.year), y: p.emissions.map((r) => r.value), kind: 'line' as const, dashed: true, slot: PATHWAY_SLOT[p.name] })),
             ]}
           />
@@ -82,10 +82,10 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
               `In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.temperature).value.toFixed(2)} °C`).join(', ')}${horizonGapC !== null ? `; the pathways are ${horizonGapC.toFixed(2)} °C apart` : ''}.`,
             ].filter((s): s is string => s !== null).join(' ')}
             series={[
-              ...(observedTemperature.length ? [{ name: 'Observed (annual)', ...gapped(observedTemperature), kind: 'line' as const }] : []),
-              ...(observedMean5y.length ? [{ name: '5-year mean', ...gapped(observedMean5y), kind: 'line' as const }] : []),
+              ...(observedTemperature.length ? [{ name: 'Observed (annual)', ...gapped(observedTemperature), kind: 'line' as const, slot: OBSERVED_SLOT }] : []),
+              ...(observedMean5y.length ? [{ name: '5-year mean', ...gapped(observedMean5y), kind: 'line' as const, slot: MEAN_5Y_SLOT }] : []),
               ...pathways.map((p) => ({ name: p.label, x: p.temperature.map((r) => r.year), y: p.temperature.map((r) => r.value), kind: 'line' as const, dashed: true, slot: PATHWAY_SLOT[p.name] })),
-              ...(anchor ? [{ name: `${anchor.value.toFixed(2)} °C anchor`, x: [anchor.year], y: [anchor.value], kind: 'marker' as const }] : []),
+              ...(anchor ? [{ name: `${anchor.value.toFixed(2)} °C anchor`, x: [anchor.year], y: [anchor.value], kind: 'marker' as const, slot: ANCHOR_SLOT }] : []),
             ]}
           />
           <div style={{ marginTop: 8 }}>
@@ -95,7 +95,7 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {readingNote && (
-            <div style={{ ...panel, borderTop: `3px solid ${ON_DARK.BAU}`, padding: '12px 14px' }}>
+            <div style={{ ...panel, borderTop: `3px solid ${slotColour(PATHWAY_SLOT.BAU) ?? 'var(--syn-color-border-subtle)'}`, padding: '12px 14px' }}>
               <div className="syn-caption" style={{ marginBottom: 6 }}>Reading note · generated from the output</div>
               <p className="syn-text-lg" style={{ margin: 0 }}>{readingNote}</p>
             </div>
@@ -113,7 +113,7 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
               {pathways.map((p) => (
                 <tr key={p.name} className="syn-text-lg" style={{ textAlign: 'right' }}>
                   <th scope="row" style={{ textAlign: 'left', fontWeight: 400, padding: '4px 8px' }}>
-                    <span aria-hidden style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: ON_DARK[p.name], marginRight: 8 }} />
+                    <span aria-hidden style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: slotColour(PATHWAY_SLOT[p.name]) ?? 'transparent', marginRight: 8 }} />
                     {p.label}
                   </th>
                   <td style={{ padding: '4px 8px' }}>{p.emissions.length ? last(p.emissions).value.toFixed(1) : '—'}</td>
