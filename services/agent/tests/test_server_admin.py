@@ -47,11 +47,11 @@ def test_get_llm_choice_reports_current_state(admin_state):
 
 def test_post_llm_choice_switches_and_persists(admin_state):
     client = TestClient(app)
-    response = client.post("/admin/llm", json={"id": "ollama-qwen14b-ctx8k"})
+    response = client.post("/admin/llm", json={"id": "ollama-qwen3.8-27b-ctx32k"})
     assert response.status_code == 200
     body = response.json()
     assert body["provider"] == "ollama"
-    assert body["model"] == "qwen2.5:14b-ctx8k"
+    assert body["model"] == "qwen3.8-27b-ctx32k"
 
     # Live in-memory state actually changed...
     assert app.state.llm_choice.provider == "ollama"
@@ -61,7 +61,7 @@ def test_post_llm_choice_switches_and_persists(admin_state):
     stored = settings.read_stored_choice()
     assert stored is not None
     assert stored.provider == "ollama"
-    assert stored.model == "qwen2.5:14b-ctx8k"
+    assert stored.model == "qwen3.8-27b-ctx32k"
 
 
 def test_post_llm_choice_rejects_unknown_id(admin_state):
@@ -85,7 +85,7 @@ def test_post_llm_choice_build_failure_leaves_previous_graph_running(admin_state
     monkeypatch.setattr(server, "build_graph", _failing_build_graph)
 
     client = TestClient(app)
-    response = client.post("/admin/llm", json={"id": "ollama-qwen14b-ctx8k"})
+    response = client.post("/admin/llm", json={"id": "ollama-qwen3.8-27b-ctx32k"})
 
     assert response.status_code == 502
     detail = response.json()["detail"]
@@ -110,7 +110,7 @@ def test_post_llm_choice_persist_failure_leaves_previous_state_running(admin_sta
     monkeypatch.setattr(settings, "write_stored_choice", _failing_write_stored_choice)
 
     client = TestClient(app)
-    response = client.post("/admin/llm", json={"id": "ollama-qwen14b-ctx8k"})
+    response = client.post("/admin/llm", json={"id": "ollama-qwen3.8-27b-ctx32k"})
 
     assert response.status_code == 502
     detail = response.json()["detail"]
@@ -136,7 +136,7 @@ async def test_apply_llm_choice_lock_serializes_concurrent_calls(admin_state, mo
     monkeypatch.setattr(server, "build_graph", _slow_build_graph)
 
     choice_a = settings.choice_by_id("anthropic-sonnet")
-    choice_b = settings.choice_by_id("ollama-qwen14b-ctx8k")
+    choice_b = settings.choice_by_id("ollama-qwen3.8-27b-ctx32k")
     await asyncio.gather(
         server._apply_llm_choice(app, choice_a),
         server._apply_llm_choice(app, choice_b),

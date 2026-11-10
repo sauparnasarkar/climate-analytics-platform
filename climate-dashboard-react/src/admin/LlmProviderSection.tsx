@@ -11,7 +11,7 @@ import { useAsync } from '../hooks/useAsync';
 // Select dropdown instead of a SegmentedControl.
 const OPTIONS = [
   { id: 'anthropic-sonnet', provider: 'anthropic', model: 'claude-sonnet-5', label: 'Claude Sonnet 5 (Anthropic)' },
-  { id: 'ollama-qwen14b-ctx8k', provider: 'ollama', model: 'qwen2.5:14b-ctx8k', label: 'Qwen 2.5 14B (local, 8k ctx)' },
+  { id: 'ollama-qwen3.8-27b-ctx32k', provider: 'ollama', model: 'qwen3.8-27b-ctx32k', label: 'Qwen 3.8 27B (local, 32k ctx)' },
   { id: 'ollama-gpt-oss-20b-ctx32k', provider: 'ollama', model: 'gpt-oss:20b-ctx32k', label: 'gpt-oss 20B (local, 32k ctx)' },
 ];
 

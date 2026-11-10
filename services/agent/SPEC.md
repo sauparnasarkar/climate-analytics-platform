@@ -942,13 +942,13 @@ subsequent same-origin `fetch()` to the admin API then carries automatically.
 
 ### 14.2 Allow-list
 
-Exactly three provider/model combos, the first two validated for this graph's tool-calling path by
-`OLLAMA_EVALUATION.md`'s 30-case battery — not free text:
+Exactly three provider/model combos, each validated for this graph's tool-calling path by
+`OLLAMA_EVALUATION.md`'s batteries — not free text:
 
 | id | provider | model | label |
 |---|---|---|---|
 | `anthropic-sonnet` | `anthropic` | `claude-sonnet-5` | Claude Sonnet 5 (Anthropic) |
-| `ollama-qwen14b-ctx8k` | `ollama` | `qwen2.5:14b-ctx8k` | Qwen 2.5 14B (local, 8k ctx) |
+| `ollama-qwen3.8-27b-ctx32k` | `ollama` | `qwen3.8-27b-ctx32k` | Qwen 3.8 27B (local, 32k ctx) — replaced Qwen 2.5 14B (`qwen2.5:14b-ctx8k`) on 2026-11-10; 35/36 on both 36-case batteries in `OLLAMA_EVALUATION.md` |
 | `ollama-gpt-oss-20b-ctx32k` | `ollama` | `gpt-oss:20b-ctx32k` | gpt-oss 20B (local, 32k ctx) — trial on the Mac Studio; evaluated in `OLLAMA_EVALUATION.md` (32/36 on the 36-case battery) |
 
 `qwen2.5-coder:7b` (tool_calls never populate in `AIMessage`) and `llama3.1:8b` — `llm.py`'s own

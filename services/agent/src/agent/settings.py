@@ -42,10 +42,10 @@ ALLOWED_CHOICES: list[AllowedChoice] = [
         label="Claude Sonnet 5 (Anthropic)",
     ),
     AllowedChoice(
-        id="ollama-qwen14b-ctx8k",
+        id="ollama-qwen3.8-27b-ctx32k",
         provider="ollama",
-        model="qwen2.5:14b-ctx8k",
-        label="Qwen 2.5 14B (local, 8k ctx)",
+        model="qwen3.8-27b-ctx32k",
+        label="Qwen 3.8 27B (local, 32k ctx)",
     ),
     AllowedChoice(
         id="ollama-gpt-oss-20b-ctx32k",
