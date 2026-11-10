@@ -15,3 +15,4 @@ Follow-ups recorded so they are not lost. Not a changelog: `SPEC.md` has the his
 ## Chart colours: follow-ups from §5.34 (2026-11-10)
 
 - **`SHARE_PALETTE`** (`climate-dashboard-react/src/lib/shareBars.ts`, used by `ShareSection.tsx` on Overview's share view) is a separate ten-colour palette, beyond the design system's eight categorical slots, so it was left out of §5.34. Its colours are not validated by the design system and do not follow the theme. Revisit if the share view needs to match a chart's key.
+- **Ask `compare_scenarios_across_countries` chart** (`CompareScenariosWidget` in `climate-dashboard-react/src/agent/WidgetRenderer.tsx`): one line per country and scenario ("China — BAU"), coloured by position, up to 10 countries × 3 scenarios, beyond the eight slots. Its colours cannot follow §5.34's one-colour-per-pathway rule without a second cue (dash per scenario, colour per country, or one panel per scenario as Scenario Comparison does). Left as is.

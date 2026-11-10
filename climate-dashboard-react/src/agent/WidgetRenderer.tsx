@@ -15,6 +15,7 @@ import { SourceLine } from './SourceLine';
 import { toolNameFromSourceTaggedCall } from './types';
 import type { WidgetSpec } from './types';
 import { widgetSource } from '../lib/sources';
+import { MEAN_5Y_SLOT, OBSERVED_SLOT, pathwaySlot } from '../lib/seriesSlots';
 
 // Maps each WidgetSpec to its real design system prop shape (SPEC.md §3/§3.1), keyed on the
 // tool that produced it -- widget.props carries each tool's raw MCP result through unshaped
@@ -123,8 +124,10 @@ function ScenarioProjectionWidget({ widget }: WidgetProps) {
     scenarios?: Array<{ name: string; years: number[]; values: number[] }>;
   };
   const series: ChartSeries[] = [
-    ...(props.historical ? [{ name: props.historical.name, x: props.historical.years, y: props.historical.values, kind: 'line' as const }] : []),
-    ...(props.scenarios ?? []).map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const })),
+    // Pinned to the scenario slots (lib/seriesSlots.ts, SPEC.md §5.34), so BAU never takes Observed's colour when the history is absent and the lines
+    // match the answer's KPI accents. A scenario name that is not a pathway takes the slots after the five in use.
+    ...(props.historical ? [{ name: props.historical.name, x: props.historical.years, y: props.historical.values, kind: 'line' as const, slot: OBSERVED_SLOT }] : []),
+    ...(props.scenarios ?? []).map((s, i) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const, slot: pathwaySlot(s.name) ?? MEAN_5Y_SLOT + 1 + i })),
   ];
   return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
 }
