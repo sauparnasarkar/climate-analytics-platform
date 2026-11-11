@@ -58,11 +58,15 @@ export function ShareBar({ title, subtitle, order, values, rest, tween, shareOf,
 
   // The selected code left the bar (another measure or selection): close rather than show a stale value.
   useEffect(() => { if (sel && idx < 0) clear(); }, [sel, idx]);
-  // A pinned read-out closes on a tap or click outside this bar row, or on Escape.
+  // A pinned read-out closes on a tap or click outside the bar's section, or on Escape. The section, not the bar row: its own controls (Replay,
+  // the measure switch, the table) must not close it, so a replay can be watched with a read-out open.
   const pinned = sel?.pinned === true;
   useEffect(() => {
     if (!pinned) return undefined;
-    const onDown = (e: PointerEvent) => { if (rowRef.current && !rowRef.current.contains(e.target as Node)) clear(); };
+    const onDown = (e: PointerEvent) => {
+      const area = rowRef.current?.closest('section') ?? rowRef.current;
+      if (area && !area.contains(e.target as Node)) clear();
+    };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clear(); };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);

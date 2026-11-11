@@ -2332,7 +2332,9 @@ AUS and BRA unlabelled; Japan/Australia and UK/Russia are close in hue and unche
   the page surface in `night` and `tidewater`.
 - **Triggers.**
   - *Hover (mouse).* Pointer over a segment shows it; leaving the bar clears it, unless a segment is pinned.
-  - *Tap or click.* Selects and pins that segment. Tapping it again, tapping anywhere outside the bar, or pressing Escape dismisses it.
+  - *Tap or click.* Selects and pins that segment. Tapping it again, tapping anywhere outside the bar's section, or pressing Escape dismisses it.
+    The section, not the bar: its own controls (Replay, the measure switch, the table) keep the read-out open, so a replay can be watched
+    with one pinned (found on the preview: with "outside the bar", pressing Replay closed it).
     A tap on another segment moves the pin.
   - *Slivers.* A segment under about 1% can be two pixels wide on a phone, too narrow to tap. While a segment is pinned, the read-out
     shows ‹ and › buttons that step to the neighbouring segment in bar order, Rest of world included. They stop at the ends (disabled

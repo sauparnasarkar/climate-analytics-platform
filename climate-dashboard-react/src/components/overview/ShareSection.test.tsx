@@ -292,6 +292,8 @@ describe('ShareBar read-out (SPEC.md §5.36)', () => {
     const { rerender } = mount(['CHN', 'USA', 'GBR']);
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
     fireEvent.click(seg('stock', 'CHN'));
+    // Replay is in the same section: pressing it keeps the pinned read-out open
+    fireEvent.pointerDown(screen.getByRole('button', { name: '▶ Replay 2022 → 2024' }));
     fireEvent.click(screen.getByRole('button', { name: '▶ Replay 2022 → 2024' }));
     expect(within(row('stock')).getByText('China · 14.0% of cumulative CO₂ since 1750')).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(250); });
