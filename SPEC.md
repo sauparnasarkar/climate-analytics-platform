@@ -2253,8 +2253,9 @@ re-check the training pages that quote the value (a line added to `docs/training
 
 - The agent's general-knowledge answers (for example the Paris answer calling the climate-finance goal "being renegotiated" when it was
   agreed at COP29): they come from the model's training, not the registry.
-- The scenario source line that names a fossil-only second line the chart does not draw (`services/agent/src/agent/source_lines.py`), the
-  clipped 2040 label and the repeated "illustrative" caveat: separate fixes.
+- The scenario source line that named a fossil-only second line the chart does not draw (`services/agent/src/agent/source_lines.py`;
+  fixed 2026-11-11, it now names only the headline slope unless `line='fossil_only'`), the clipped 2040 label and the repeated
+  "illustrative" caveat: separate fixes.
 
 #### Rejected alternatives
 

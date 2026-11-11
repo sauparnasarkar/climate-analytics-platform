@@ -60,12 +60,11 @@ def _share(r: dict) -> str:
 
 
 def _scenario(r: dict) -> str:
-    # Which slope converted the pathways to temperature depends on the requested line.
+    # Which slope converted the pathways to temperature depends on the requested line. For 'both' the
+    # result also carries fossil-only levels, but the chart draws only the headline line
+    # (climate-dashboard-react/src/lib/scenarioView.ts), so the source line names only that slope.
     line = r.get("line") or (r.get("summary") or {}).get("line")
-    slope = {
-        "headline": "the headline regression slope",
-        "fossil_only": "the fossil-only regression slope",
-    }.get(line, "the headline regression slope (with a fossil-only second line)")
+    slope = "the fossil-only regression slope" if line == "fossil_only" else "the headline regression slope"
     return f"Source: platform pathways on OWID CO₂ with {slope} · illustrative, partial-coverage translation"
 
 
