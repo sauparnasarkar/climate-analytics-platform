@@ -2173,6 +2173,12 @@ docstring tells the model to quote them for a question about the Paris goals, 1.
 
 - The answer-writing prompt (`services/agent/src/agent/prompts.py`): for a question about the Paris goals, 1.5 °C or 2 °C, state where each
   pathway's implied level sits against each goal from `summary.vs_paris`, never compute it.
+- **The deterministic scenario lead carries it too (added 2026-11-11).** When the scenario translation is a turn's only data result, the
+  answer's lead is built in code (services/agent `SPEC.md` §15.11) and never reaches the answer-writing prompt, so the rule above did not
+  apply: the first live runs of the battery case (three each on Qwen 3.8 27B and Claude Sonnet 5) gave the same answer, word for word, with no
+  comparison. `kpis.scenario_lead` now adds one sentence for a Paris question, quoted from `summary.vs_paris` (headline line): for each goal,
+  each shown pathway's margin in °C and the first year its implied level is at or above it, or how far below it stays, plus a note when the
+  95% interval spans the goal. It is left out, not partly written, when any shown pathway lacks the comparison.
 - `caveats.py` appends `paris_note` as a fixed scope note when the scenario-temperature tool ran **and** the question names Paris, 1.5 °C or
   2 °C: structural, like the other required statements (services/agent `SPEC.md` §15.3), and only when relevant, since the scenario answer
   already carries several notes.
