@@ -15,7 +15,10 @@ import { SourceLine } from './SourceLine';
 import { toolNameFromSourceTaggedCall } from './types';
 import type { WidgetSpec } from './types';
 import { widgetSource } from '../lib/sources';
-import { MEAN_5Y_SLOT, OBSERVED_SLOT, pathwaySlot } from '../lib/seriesSlots';
+import { MEAN_5Y_SLOT, OBSERVED_SLOT, pathwaySlot, PATHWAY_SLOT, useSlotColours } from '../lib/seriesSlots';
+
+/** The design system's categorical slots: a slot past these is its one shared "other" colour, so two lines would match. */
+const CATEGORICAL_SLOTS = 8;
 
 // Maps each WidgetSpec to its real design system prop shape (SPEC.md §3/§3.1), keyed on the
 // tool that produced it -- widget.props carries each tool's raw MCP result through unshaped
@@ -132,15 +135,24 @@ function ScenarioProjectionWidget({ widget }: WidgetProps) {
   return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
 }
 
+/**
+ * compare_scenarios_across_countries: one panel per scenario, as Scenario Comparison draws it, with one colour per country that holds across the
+ * panels (slot = the country's position) and one y range, so the panels compare by eye. Coloured by position across countries × scenarios, three
+ * countries already ran past the eight slots into the shared "other" colour (STATUS.md, §5.34 follow-ups). The key and the source are shown once.
+ */
 function CompareScenariosWidget({ widget }: WidgetProps) {
-  const props = widget.props as { scenarios?: Record<string, Array<{ name: string; years: number[]; values: number[] }>> };
+  const props = widget.props as { scenarios?: Record<string, Array<{ name: string; years: number[]; values: Array<number | null> }>> };
   const scenarios = props.scenarios ?? {};
-  const scenarioNames = Object.keys(scenarios);
+  // The pathways in their usual order, then any other scenario the result names.
+  const known = Object.keys(PATHWAY_SLOT).filter((s) => s in scenarios);
+  const scenarioNames = [...known, ...Object.keys(scenarios).filter((s) => !known.includes(s))];
+  const slotColour = useSlotColours();
   // Cap on COUNTRY count, not raw series count -- this widget's series count is
   // countries × scenarios (typically 3), so a flat series-count cap would trip at just 3-4
-  // countries and wrongly degrade an entirely reasonable multi-country comparison.
+  // countries and wrongly degrade an entirely reasonable multi-country comparison. Past the eight categorical slots two countries would share a
+  // colour in every panel, so the chart stops there.
   const countries = scenarioNames.length > 0 ? scenarios[scenarioNames[0]].map((s) => s.name) : [];
-  if (countries.length > MAX_CHART_SERIES) {
+  if (countries.length > Math.min(MAX_CHART_SERIES, CATEGORICAL_SLOTS)) {
     const rows = countries.map((country, i) => {
       const row: Record<string, unknown> = { country };
       for (const scenarioName of scenarioNames) {
@@ -155,10 +167,37 @@ function CompareScenariosWidget({ widget }: WidgetProps) {
     ];
     return <GridWidget source={widget.source_line} title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(countries.length, 'countries')} />;
   }
-  const series: ChartSeries[] = Object.entries(scenarios).flatMap(([scenarioName, seriesList]) =>
-    seriesList.map((s) => ({ name: `${s.name} — ${scenarioName}`, x: s.years, y: s.values, kind: 'line' as const })),
+  const slotOf = new Map(countries.map((c, i) => [c, i + 1]));
+  const values = scenarioNames.flatMap((n) => scenarios[n].flatMap((s) => s.values)).filter((v): v is number => typeof v === 'number');
+  const yRange: [number, number] = [0, values.length > 0 ? Math.max(...values) : 0];
+  return (
+    <ChartCard title={widget.title} source={widgetSource(widget)} asOf={widget.as_of ?? undefined}>
+      <ul aria-label="Countries" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', listStyle: 'none', margin: '0 0 8px', padding: 0 }}>
+        {countries.map((c) => (
+          <li key={c} className="syn-caption" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span aria-hidden style={{ display: 'inline-block', width: 14, height: 3, borderRadius: 2, background: slotColour(slotOf.get(c)) ?? 'currentColor' }} />
+            {c}
+          </li>
+        ))}
+      </ul>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 16 }}>
+        {scenarioNames.map((scenarioName) => (
+          <div key={scenarioName} style={{ minWidth: 0 }}>
+            <h4 className="syn-title-sm" style={{ margin: '0 0 4px' }}>{scenarioName}</h4>
+            <Chart
+              height={260}
+              xTitle="Year"
+              yTitle="CO₂ (Mt)"
+              showLegend={false}
+              yRange={yRange}
+              ariaLabel={`Line chart of ${scenarioName} CO₂ emissions for ${countries.join(', ')}.`}
+              series={scenarios[scenarioName].map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const, slot: slotOf.get(s.name) }))}
+            />
+          </div>
+        ))}
+      </div>
+    </ChartCard>
   );
-  return <ChartWidget title={widget.title} source={widgetSource(widget)} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
 }
 
 function ForecastWidget({ widget }: WidgetProps) {

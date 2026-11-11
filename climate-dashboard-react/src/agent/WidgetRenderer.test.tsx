@@ -11,8 +11,8 @@ vi.mock('@syena/ds', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    Chart: (props: { series: Array<{ name: string; kind?: string }> }) => (
-      <div data-testid="chart" data-series={JSON.stringify(props.series)} />
+    Chart: (props: { series: Array<{ name: string; kind?: string }>; yRange?: [number, number] }) => (
+      <div data-testid="chart" data-series={JSON.stringify(props.series)} data-yrange={props.yRange ? JSON.stringify(props.yRange) : undefined} />
     ),
     Choropleth: (props: { values: Record<string, number>; valueLabel: string; unit?: string }) => (
       <div data-testid="choropleth" data-values={JSON.stringify(props.values)} data-value-label={props.valueLabel} data-unit={props.unit} />
@@ -104,7 +104,39 @@ describe('WidgetRenderer', () => {
       props: { scenarios: { BAU: makeSeries(4), Moderate: makeSeries(4), Aggressive: makeSeries(4) } },
     });
     render(<Themed><WidgetRenderer widget={w} /></Themed>);
-    expect(screen.getByTestId('chart')).toBeInTheDocument();
+    expect(screen.getAllByTestId('chart')).toHaveLength(3);
+  });
+
+  it('draws compare_scenarios_across_countries as one panel per scenario, each country one colour across the panels, on one y range', () => {
+    const series = (k: number) => ['China', 'India', 'Germany'].map((name, i) => ({ name, years: [2020, 2040], values: [10 * (i + 1), 10 * (i + 1) * k] }));
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      title: 'Scenarios',
+      source_tool_call: 'compare_scenarios_across_countries:{}',
+      props: { scenarios: { Aggressive: series(0.5), BAU: series(2), Moderate: series(1) } },
+    });
+    render(<Themed><WidgetRenderer widget={w} /></Themed>);
+    // panels in the pathway order, whatever order the result's keys come in
+    expect(screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual(['BAU', 'Moderate', 'Aggressive']);
+    const panels = screen.getAllByTestId('chart').map((c) => JSON.parse(c.dataset.series!) as Array<{ name: string; slot?: number }>);
+    for (const p of panels) expect(p.map((s) => [s.name, s.slot])).toEqual([['China', 1], ['India', 2], ['Germany', 3]]);
+    expect(screen.getAllByTestId('chart').map((c) => c.dataset.yrange)).toEqual(Array(3).fill('[0,60]'));
+    // the key is shown once, not once per panel
+    expect(screen.getByRole('list', { name: 'Countries' }).children).toHaveLength(3);
+  });
+
+  it('falls back to a table past the eight colour slots, so no two countries share a colour', () => {
+    const makeSeries = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Country${i}`, years: [2020], values: [i] }));
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      source_tool_call: 'compare_scenarios_across_countries:{}',
+      props: { scenarios: { BAU: makeSeries(9), Moderate: makeSeries(9), Aggressive: makeSeries(9) } },
+    });
+    render(<Themed><WidgetRenderer widget={w} /></Themed>);
+    expect(screen.queryByTestId('chart')).not.toBeInTheDocument();
+    expect(screen.getByText(/9 countries/)).toBeInTheDocument();
   });
 
   it('falls back to a table for compare_scenarios_across_countries past the country-count cap', () => {
