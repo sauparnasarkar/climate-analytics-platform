@@ -8,7 +8,7 @@ const indicator = { id: 'i', name: 'i', unit: 'u', kind: 'level', decimals: null
 export const PAIR: CorrelationEmissionsTemperatureResponse = {
   ...env, source: 'owid_co2', variant: 'total', baseline: 'preindustrial', window: [1850, 2024], x: indicator, y: indicator, n_years: 175,
   points: [{ year: 1850, cumulative_emissions: 2_910, temperature: -0.13 }, { year: 1950, cumulative_emissions: 900_000, temperature: 0.1 }, { year: 2024, cumulative_emissions: 2_751_504, temperature: 1.62 }],
-  omitted_years: [], fit: { slope: 0.5196, ci95_hac: [0.48, 0.559], r_squared: 0.9, n_years: 175, start: 1850, end: 2024, unit: '°C per 1,000 GtCO2' }, fit_context: {}, warnings: [], notes: [],
+  omitted_years: [], fit: { slope: 0.5196, ci95_hac: [0.48, 0.559], r_squared: 0.9, n_years: 175, start: 1850, end: 2024, unit: '°C per 1,000 GtCO2' }, fit_context: { ar6_reference: { unit: '°C per 1,000 GtCO2', best_estimate: 0.45, very_likely_range: [0.27, 0.63], edition: 'IPCC AR6 WGI, 2021' } }, warnings: [], notes: [],
   source_vintage: { reconciled: false, caveat: 'Based on Berkeley Earth file vintage 2025-01-10; a possible ~0.1 °C discrepancy is not yet reconciled.' },
 };
 
@@ -138,7 +138,7 @@ export const HEADLINE_PAIR = {
       note: 'Shows how the out-of-sample error responds to the weight given to land-use CO2. It is published to show the shape of the trade-off, not to choose a weight: a weight picked to minimise this error would be tuned to the holdout.',
     },
     vs_ar6: { within_very_likely_range: true, ci_overlaps_range: true, ratio_to_best_estimate: 1.1546394716879715 },
-    ar6_reference: { unit: '°C per 1,000 GtCO2', best_estimate: 0.45, very_likely_range: [0.27, 0.63], as_per_1000_gtc: { best_estimate: 1.65, very_likely_range: [1.0, 2.3] }, source: 'IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (very likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).', note: "Derived from CO2-only forcing in Earth-system models with land-use emissions included; this platform's figure is a simplified, data-driven analog, not a restatement." },
+    ar6_reference: { unit: '°C per 1,000 GtCO2', best_estimate: 0.45, very_likely_range: [0.27, 0.63], as_per_1000_gtc: { best_estimate: 1.65, very_likely_range: [1.0, 2.3] }, source: 'IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (very likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).', note: "Derived from CO2-only forcing in Earth-system models with land-use emissions included; this platform's figure is a simplified, data-driven analog, not a restatement." , edition: 'IPCC AR6 WGI, 2021' },
     fit_quality_note: { text: 'HELD FOR THE OWNER: must never be rendered' },
     stability: {
       method: 'moving-block bootstrap of the regression residuals with the predictor held fixed (distinct from the HAC standard errors), plus decade holdouts',

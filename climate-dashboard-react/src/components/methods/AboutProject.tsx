@@ -1,7 +1,6 @@
 import { api } from '../../api/client';
 import type { CorrelationEmissionsTemperatureResponse } from '../../api/correlationTypes';
 import { useAsync } from '../../hooks/useAsync';
-import { AR6_TCRE } from '../../lib/climateCopy';
 import { countWord, headlineFacts } from '../../lib/aboutProject';
 import { READING_MEASURE } from '../../lib/readingMeasure';
 import { BASELINE_YEAR } from '../../constants';
@@ -41,7 +40,7 @@ export function AboutProject({ headline, featured }: { headline: CorrelationEmis
       {facts.slope !== null && (
         <p className="syn-text-md" style={prose}>
           {facts.years !== null ? `Across ${facts.years} years of records, warming` : 'Warming'} has tracked the total CO₂ emitted: about {facts.slope} °C for every 1,000 billion tonnes
-          {facts.comparison !== null ? `, ${facts.comparison} the IPCC’s best estimate of ${AR6_TCRE.best} °C` : ''}.
+          {facts.comparison !== null && facts.ar6Best !== null ? `, ${facts.comparison} the IPCC’s best estimate of ${facts.ar6Best} °C` : ''}.
         </p>
       )}
       <p className="syn-text-md" style={{ ...prose }}>With it you can:</p>

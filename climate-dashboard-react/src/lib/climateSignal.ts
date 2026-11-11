@@ -1,3 +1,4 @@
+import { ar6FromResponse, type Ar6Reference } from './ar6';
 import type {
   CorrelationConcentrationResponse,
   CorrelationEmissionsTemperatureResponse,
@@ -37,6 +38,8 @@ export interface ClimateSignal {
   omittedYears: number[];
   /** The temperature source's caveat: the file-vintage note while unreconciled, or the preliminary-release note once reconciled (requirements §1.3.1); null when the API sends none */
   vintageCaveat: string | null;
+  /** The AR6 TCRE range the API serves beside the headline fit, or null: nothing is then compared with AR6 */
+  ar6: Ar6Reference | null;
 }
 
 export interface YearValue {
@@ -118,6 +121,7 @@ export function buildClimateSignal(
     ppm1850: yearValues(concentration.points).find((p) => p.year === 1850)?.value ?? null,
     omittedYears: (pair.omitted_years ?? []).map((o) => o.year),
     vintageCaveat: vintageCaveat(pair),
+    ar6: ar6FromResponse(pair),
   };
 }
 

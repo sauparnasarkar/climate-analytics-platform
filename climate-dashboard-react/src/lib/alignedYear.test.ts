@@ -6,7 +6,7 @@ const signal = (conc: Array<[number, number]>, temp: Array<[number, number]>): C
   points: [], fit: { slope: 0.5, ciLow: 0.4, ciHigh: 0.6, rSquared: null, unit: 'u', start: 1850, end: 2024, nYears: 175 }, line: { x0: 0, y0: 0, x1: 1, y1: 1 },
   temperature: { year: temp[temp.length - 1][0], value: temp[temp.length - 1][1] }, concentration: { year: conc[conc.length - 1][0], value: conc[conc.length - 1][1] },
   series: { concentration: conc.map(([year, value]) => ({ year, value })), temperature: temp.map(([year, value]) => ({ year, value })) },
-  spliceYear: null, ppm1850: null, omittedYears: [], vintageCaveat: null,
+  spliceYear: null, ppm1850: null, omittedYears: [], vintageCaveat: null, ar6: null,
 });
 
 describe('alignedYear', () => {

@@ -13,7 +13,7 @@ const signal: ClimateSignal = {
   temperature: { value: 1.2, year: 2024 },
   concentration: { value: 420.1, year: 2024 },
   series: { concentration: [{ year: 2024, value: 420.1 }], temperature: [{ year: 1990, value: 0.4 }, { year: 2024, value: 1.2 }] },
-  spliceYear: null, ppm1850: null, omittedYears: [], vintageCaveat: null,
+  spliceYear: null, ppm1850: null, omittedYears: [], vintageCaveat: null, ar6: null,
 };
 const series = [{ year: 1990, value: 22000 }, { year: 2000, value: 25000 }];
 

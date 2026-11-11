@@ -67,9 +67,11 @@ describe('AboutProject — the comparison word is computed', () => {
   });
 
   it('boundaries: touching the AR6 range counts as overlapping', () => {
-    expect(compareToAr6([0.63, 0.7])).toBe('in line with');
-    expect(compareToAr6([0.2, 0.27])).toBe('in line with');
-    expect(compareToAr6(null)).toBeNull();
+    const ar6 = { best: 0.45, low: 0.27, high: 0.63, edition: null };
+    expect(compareToAr6([0.63, 0.7], ar6)).toBe('in line with');
+    expect(compareToAr6([0.2, 0.27], ar6)).toBe('in line with');
+    expect(compareToAr6(null, ar6)).toBeNull();
+    expect(compareToAr6([0.5, 0.6], null)).toBeNull(); // no AR6 range from the API: no comparison
   });
 });
 
