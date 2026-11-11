@@ -477,6 +477,7 @@ Sections to include:
 | v75 | Oct 2026 | Rename: the product is **Degrees of Carbon** (tagline "How emissions add up to warming."), at `degreesofcarbon.syena.io`; `climate-analytics.syena.io` is retired with redirects and a kill-switch service worker (ARCHITECTURE §6). Name and copy in `navigation.ts`, the manifest, `index.html` and the agent prompts; Methods & data §1 opens with what the product shows; the canonical link is set per route on the production origin. Internal identifiers (repo, MCP server name, launchd labels, theme storage key) keep their names |
 | v76 | Nov 2026 | §5.34 (**Docs-first**): one colour per scenario pathway and per greenhouse gas within each chart. Every chart series is pinned to a design-system categorical slot (Observed 1, BAU 2, Moderate 3, Aggressive 4, the 5-year mean 5; CO₂/CH₄/N₂O/F-gas 1–4 by gas id), and the swatches, Ask KPI accents and share bar read the colour of that slot from the design system instead of their own hex lists. The 5-year mean's slot 5 is validated as a plain solid line by a new design-system generator check (fallback: markers and a direct label). §5.30 needed no correction: Overview's "Where today's patterns lead" is the one line §5.30 describes, with no pathway colours |
 | v77 | Nov 2026 | §5.34 marked Shipped. §5.35 (**Docs-first**): the Paris temperature goals and the IPCC AR6 TCRE range move into one registry of external references (`pipeline/references.json`) with edition, `review_by` date and successor; the scenario stage compares each pathway's implied level with 1.5 °C and 2 °C (`vs_paris`), served through the API and the MCP summary for the agent to quote; the front end reads the AR6 range from the API instead of its own copy; a separate monthly cloud routine searches for new IPCC/UNFCCC material, opens a GitHub issue (never editing a value) and leaves a heartbeat comment each run; the monthly refresh flags a missed heartbeat (over 45 days) or a reference past its long backstop review date |
+| v78 | Nov 2026 | §5.36 (**Docs-first**): the share bars keep `SHARE_PALETTE` (label contrast 5.1:1 or better; reopened only for a theme-aware or colour-matched share view), no cross-chart colour matching, the flow bar keeps the stock bar's order; a read-out under each `ShareBar` names the hovered or tapped segment (full name, share, what it is of), with ‹ › stepping for slivers on touch, tracking the live value during a replay |
 
 ---
 
@@ -2073,7 +2074,7 @@ colour the chart draws, in both themes (`night` and `tidewater` differ: for exam
 
 **Out of scope.** `ERA_COLORS` and `SERIES_ON_DARK` (`lib/climateColors.ts`), `components/climate/seriesStyles.ts` and the
 landing-page bands colour emissions, concentration and temperature, not scenarios or gases. `ShareSection.tsx`'s
-`SHARE_PALETTE` is a separate ten-colour palette (beyond the eight slots); recorded in `STATUS.md` as a follow-up.
+`SHARE_PALETTE` is a separate ten-colour palette (beyond the eight slots), kept deliberately: see §5.36.
 
 **Rejected alternatives.**
 - *Copy the palette's hex values into the app.* Quick, but they drift when the palette is regenerated and differ per theme
@@ -2283,6 +2284,100 @@ monthly, with a heartbeat the refresh checks (G, H), rather than short review da
   from the API with its edition.
 - The routine: one manual run that finds nothing for the current registry and leaves its heartbeat comment, and one against a test entry
   whose `successor` already exists (opens an issue, does not duplicate it on a second run); then the refresh reading that heartbeat.
+
+### 5.36 Share bars: the palette stays, and a read-out names every segment (Docs-first)
+
+**Status: Approved 2026-11-11** with three edits (folded in below: the stepping buttons' accessibility and ends, the "share of" phrase
+from the measure and from the gas split, the hint wording by input type). One app PR (no design-system change), separate from the §5.34
+colour work.
+
+**Problem.** `ShareBar` (`components/overview/ShareSection.tsx`), used by Overview's share view and by the gas split in
+`components/module/GasComposition.tsx`, names a segment only through its inline label. `segmentLabel()` (`lib/shareBars.ts`) prints
+`CODE x.x%` at 8% and above, `CODE` from 3% to 8%, and nothing below 3%. Narrow labels are also clipped (`overflow: hidden`), and on
+phones (≤ 640 px) every inline label is hidden. The segments have no title and no hover or tap handler. Screen readers are covered (the
+bar is `role="img"` with an `aria-label` listing every name and share), but a sighted mouse or touch user can identify a narrow segment
+only by matching its colour against the table. On the live page (OWID CO₂, 2024, ten countries), the flow bar leaves DEU, GBR, JPN, ZAF,
+AUS and BRA unlabelled; Japan/Australia and UK/Russia are close in hue and unchecked for colour-vision deficiency.
+
+#### Decisions (taken 2026-11-11; not to be reopened without the trigger in 1)
+
+1. **The palette stays: `SHARE_PALETTE`, app-owned, ten fills.** The share bars do not move to the design system's categorical slots, and
+   no fill palette is added to the design system for now. The dark segment label `#071C24` has 5.1:1 (`#EA5B62`) to 12.8:1 (`#D7E740`)
+   contrast on all ten fills (re-measured from the code). Once the read-out below ships, every segment is identified by its inline label,
+   the read-out or the table, so colour is never the only cue. *Would reopen it:* wanting the share view to follow the theme, or a country's
+   colour to match other charts. Either means a theme-aware fill palette in the design system, checked for dark-label contrast and
+   colour-vision separation (it would need more than eight fills).
+2. **No cross-chart colour matching.** Colours belong to positions: `SHARE_PALETTE[rank % 10]`, by the latest year's cumulative share, so
+   a country's colour can change with the selection or the measure. That is accepted. Overview has no per-country line chart to match, and
+   eight slots cannot give some forty countries a stable colour each.
+3. **The flow bar keeps the stock bar's order.** It is not sorted by its own share. The view compares each country's two shares by
+   position, and the fixed order is what keeps the replay from reshuffling segments every year. The flow ranking is already in the
+   table's flow column.
+
+#### The read-out
+
+- **What it shows.** One line: the segment's full name (the country's name, not its ISO code; the gas's name; "Rest of world"), its share
+  to one decimal (`fmtShare`), and what the share is of, from a new `ShareBar` prop `shareOf` that every caller passes:
+  - Overview's phrases follow the measure selector and come from `SHARE_MEASURES` (`lib/shareBars.ts`), never fixed text. Flow: "of
+    {year} CO₂ emissions" under both CO₂ measures, "of {year} greenhouse-gas emissions" under All GHGs · PRIMAP-hist. Stock: "of cumulative
+    CO₂ since {from}" and "of cumulative greenhouse-gas emissions since {from}", `{from}` being the data's own cumulative start
+    (`frames.cumulativeFrom`; the phrase drops "since …" when it is unknown). Example: **"Germany · 1.5% of 2024 CO₂ emissions"**.
+  - The gas split passes "of {year} CO₂-equivalent": **"Fluorinated gases · 2.4% of 2024 CO₂-equivalent"**. That one prop is the only
+    change to `GasComposition.tsx`.
+- **Where.** On a reserved line directly under the bar, in the bar's column, so opening or closing it never moves the page. With nothing
+  selected the line carries a muted hint, chosen by input type (`(pointer: coarse)`), not screen width, so a touchscreen laptop gets the
+  touch wording: pointer devices "Hover or click a segment to see its share"; touch devices "Tap a segment to see its share, then use ‹ ›
+  to step" (a sliver too thin to tap is reached by tapping a wide segment first, then stepping). Theme tokens only:
+  `--syn-color-text-primary` for the read-out, `--syn-color-text-muted` for the hint, both already contrast-checked by the design system on
+  the page surface in `night` and `tidewater`.
+- **Triggers.**
+  - *Hover (mouse).* Pointer over a segment shows it; leaving the bar clears it, unless a segment is pinned.
+  - *Tap or click.* Selects and pins that segment. Tapping it again, tapping anywhere outside the bar, or pressing Escape dismisses it.
+    A tap on another segment moves the pin.
+  - *Slivers.* A segment under about 1% can be two pixels wide on a phone, too narrow to tap. While a segment is pinned, the read-out
+    shows ‹ and › buttons that step to the neighbouring segment in bar order, Rest of world included. They stop at the ends (disabled
+    there), never wrapping round, so every segment is reachable on touch.
+- **The selected segment** gets a 2 px outline in `--syn-color-text-primary`, offset 1 px outside the segment, so it shows on every fill
+  and on a two-pixel sliver.
+- **Replay and data changes.** The selection is held by the segment's code (or "rest"), not its index or value, so during a replay the
+  read-out **tracks the live value** frame by frame. If the selected code leaves the bar (another measure or selection), the read-out
+  closes. It never shows a stale value.
+- **Accessibility.** `role="img"` with its `aria-label` stays the screen-reader path, and the table stays the keyboard path. Segments are
+  not tab stops (ten-plus stops per bar to reach what the table already gives). **The one exception** is the ‹ › and dismiss buttons,
+  which exist only while a segment is pinned and are real buttons: "Previous country" / "Next country" on Overview, "Previous gas" / "Next
+  gas" on the gas split, and "Clear selection". Hover never announces anything. A step with ‹ or › does: the new read-out text goes to a
+  polite live region, so a screen-reader user hears what the button changed.
+- **Unchanged.** `SHARE_PALETTE`, the segment text colour, `segmentLabel`'s thresholds, the bar order, the table.
+
+#### Files
+
+| File | Change |
+|---|---|
+| `components/overview/ShareSection.tsx` | `ShareBar`: selection state (code, pinned), pointer and click handlers, outline, read-out line with ‹ › and dismiss, outside-tap and Escape; `ShareSection` passes `shareOf` from the measure to both bars |
+| `lib/shareBars.ts` | `SHARE_MEASURES` gains the read-out nouns for the flow and stock phrases |
+| `components/module/GasComposition.tsx` | passes `shareOf` ("of {year} CO₂-equivalent") and the stepping noun ("gas") |
+| tests: `ShareSection.test.tsx`, `module/countryAndGas.test.tsx` | a segment under 3% gives a read-out naming it and its share; Rest of world; dismiss by tapping again, outside and Escape; ‹ › stepping that stops at the ends and announces politely (hover does not); the phrase follows the measure; the hint follows `(pointer: coarse)`; the read-out tracks a replay frame and closes when the code leaves |
+| `STATUS.md` | the `SHARE_PALETTE` follow-up reads "kept deliberately; see §5.36" |
+
+#### Out of scope
+
+- The §5.34 scenario and gas colour work; any palette change (`STATUS.md`, the `SHARE_PALETTE` follow-up).
+- Bar ordering; a sortable table (possible later).
+
+#### Rejected alternatives
+
+- *A native `title` tooltip per segment.* No touch support, a delay, and it cannot be styled or checked for contrast.
+- *Segments as buttons (tab stops).* Ten-plus stops per bar for what the table already offers by keyboard.
+- *A minimum segment width so every label fits.* It distorts the shares the bar exists to show.
+- *Leader labels outside the bar.* They collide when several slivers sit together, which is the case to solve.
+- *Sorting the flow bar by its own share.* See decision 3.
+
+#### Verification
+
+- `npm test` and `npm run build`.
+- On the preview, in `night` and `tidewater`, at desktop and phone widths: hover and tap the smallest flow segment (GBR, about 0.8%) and
+  the gas split's F-gas segment, and check that the read-out names each correctly; on the phone, tap a wide segment and step to them with ‹ ›; start a replay with
+  a read-out open and check that it tracks. Screenshots on the PR.
 
 ---
 
