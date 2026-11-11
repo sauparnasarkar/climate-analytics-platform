@@ -2287,8 +2287,9 @@ monthly, with a heartbeat the refresh checks (G, H), rather than short review da
 
 ### 5.36 Share bars: the palette stays, and a read-out names every segment (Docs-first)
 
-**Status: Docs-first, 2026-11-11.** Awaiting review; no code yet. One app PR follows approval (no design-system change), separate from
-the §5.34 colour work.
+**Status: Approved 2026-11-11** with three edits (folded in below: the stepping buttons' accessibility and ends, the "share of" phrase
+from the measure and from the gas split, the hint wording by input type). One app PR (no design-system change), separate from the §5.34
+colour work.
 
 **Problem.** `ShareBar` (`components/overview/ShareSection.tsx`), used by Overview's share view and by the gas split in
 `components/module/GasComposition.tsx`, names a segment only through its inline label. `segmentLabel()` (`lib/shareBars.ts`) prints
@@ -2316,12 +2317,17 @@ AUS and BRA unlabelled; Japan/Australia and UK/Russia are close in hue and unche
 #### The read-out
 
 - **What it shows.** One line: the segment's full name (the country's name, not its ISO code; the gas's name; "Rest of world"), its share
-  to one decimal (`fmtShare`), and what the share is of. `ShareBar` gains one optional prop, `shareOf`, the "of …" phrase. Overview passes
-  "of cumulative emissions, {from}–{year}" for the stock and "of {year} emissions" for the flow, e.g. **"Germany · 1.5% of 2024
-  emissions"**. When `shareOf` is absent it falls back to the bar's own title and subtitle ("Fluorinated gases · 2.4% · Gas split, 2024"),
-  so `GasComposition.tsx` needs no change.
+  to one decimal (`fmtShare`), and what the share is of, from a new `ShareBar` prop `shareOf` that every caller passes:
+  - Overview's phrases follow the measure selector and come from `SHARE_MEASURES` (`lib/shareBars.ts`), never fixed text. Flow: "of
+    {year} CO₂ emissions" under both CO₂ measures, "of {year} greenhouse-gas emissions" under All GHGs · PRIMAP-hist. Stock: "of cumulative
+    CO₂ since {from}" and "of cumulative greenhouse-gas emissions since {from}", `{from}` being the data's own cumulative start
+    (`frames.cumulativeFrom`; the phrase drops "since …" when it is unknown). Example: **"Germany · 1.5% of 2024 CO₂ emissions"**.
+  - The gas split passes "of {year} CO₂-equivalent": **"Fluorinated gases · 2.4% of 2024 CO₂-equivalent"**. That one prop is the only
+    change to `GasComposition.tsx`.
 - **Where.** On a reserved line directly under the bar, in the bar's column, so opening or closing it never moves the page. With nothing
-  selected the line carries a muted hint: "Hover or tap a segment to name it" (phones: "Tap a segment to name it"). Theme tokens only:
+  selected the line carries a muted hint, chosen by input type (`(pointer: coarse)`), not screen width, so a touchscreen laptop gets the
+  touch wording: pointer devices "Hover or click a segment to see its share"; touch devices "Tap a segment to see its share, then use ‹ ›
+  to step" (a sliver too thin to tap is reached by tapping a wide segment first, then stepping). Theme tokens only:
   `--syn-color-text-primary` for the read-out, `--syn-color-text-muted` for the hint, both already contrast-checked by the design system on
   the page surface in `night` and `tidewater`.
 - **Triggers.**
@@ -2329,25 +2335,28 @@ AUS and BRA unlabelled; Japan/Australia and UK/Russia are close in hue and unche
   - *Tap or click.* Selects and pins that segment. Tapping it again, tapping anywhere outside the bar, or pressing Escape dismisses it.
     A tap on another segment moves the pin.
   - *Slivers.* A segment under about 1% can be two pixels wide on a phone, too narrow to tap. While a segment is pinned, the read-out
-    shows ‹ and › buttons that step to the neighbouring segment (Rest of world included), so every segment is reachable on touch.
+    shows ‹ and › buttons that step to the neighbouring segment in bar order, Rest of world included. They stop at the ends (disabled
+    there), never wrapping round, so every segment is reachable on touch.
 - **The selected segment** gets a 2 px outline in `--syn-color-text-primary`, offset 1 px outside the segment, so it shows on every fill
   and on a two-pixel sliver.
 - **Replay and data changes.** The selection is held by the segment's code (or "rest"), not its index or value, so during a replay the
   read-out **tracks the live value** frame by frame. If the selected code leaves the bar (another measure or selection), the read-out
   closes. It never shows a stale value.
 - **Accessibility.** `role="img"` with its `aria-label` stays the screen-reader path, and the table stays the keyboard path. Segments are
-  not tab stops (ten-plus stops per bar to reach what the table already gives). The read-out line is not a live region, so hovering does
-  not chatter in a screen reader. The ‹ › and dismiss buttons exist only while a segment is pinned, and are real buttons with labels
-  ("Previous segment", "Next segment", "Clear selection").
+  not tab stops (ten-plus stops per bar to reach what the table already gives). **The one exception** is the ‹ › and dismiss buttons,
+  which exist only while a segment is pinned and are real buttons: "Previous country" / "Next country" on Overview, "Previous gas" / "Next
+  gas" on the gas split, and "Clear selection". Hover never announces anything. A step with ‹ or › does: the new read-out text goes to a
+  polite live region, so a screen-reader user hears what the button changed.
 - **Unchanged.** `SHARE_PALETTE`, the segment text colour, `segmentLabel`'s thresholds, the bar order, the table.
 
 #### Files
 
 | File | Change |
 |---|---|
-| `components/overview/ShareSection.tsx` | `ShareBar`: selection state (code, pinned), pointer and click handlers, outline, read-out line with ‹ › and dismiss, outside-tap and Escape; `ShareSection` passes `shareOf` to both bars |
-| `components/module/GasComposition.tsx` | none expected (falls back to title and subtitle) |
-| tests: `ShareSection.test.tsx`, `module/countryAndGas.test.tsx` | a segment under 3% gives a read-out naming it and its share; Rest of world; dismiss by tapping again, outside and Escape; ‹ › stepping; the read-out tracks a replay frame and closes when the code leaves |
+| `components/overview/ShareSection.tsx` | `ShareBar`: selection state (code, pinned), pointer and click handlers, outline, read-out line with ‹ › and dismiss, outside-tap and Escape; `ShareSection` passes `shareOf` from the measure to both bars |
+| `lib/shareBars.ts` | `SHARE_MEASURES` gains the read-out nouns for the flow and stock phrases |
+| `components/module/GasComposition.tsx` | passes `shareOf` ("of {year} CO₂-equivalent") and the stepping noun ("gas") |
+| tests: `ShareSection.test.tsx`, `module/countryAndGas.test.tsx` | a segment under 3% gives a read-out naming it and its share; Rest of world; dismiss by tapping again, outside and Escape; ‹ › stepping that stops at the ends and announces politely (hover does not); the phrase follows the measure; the hint follows `(pointer: coarse)`; the read-out tracks a replay frame and closes when the code leaves |
 | `STATUS.md` | the `SHARE_PALETTE` follow-up reads "kept deliberately; see §5.36" |
 
 #### Out of scope
@@ -2367,7 +2376,7 @@ AUS and BRA unlabelled; Japan/Australia and UK/Russia are close in hue and unche
 
 - `npm test` and `npm run build`.
 - On the preview, in `night` and `tidewater`, at desktop and phone widths: hover and tap the smallest flow segment (GBR, about 0.8%) and
-  the gas split's F-gas segment, and check that the read-out names each correctly; step to them with ‹ › on the phone; start a replay with
+  the gas split's F-gas segment, and check that the read-out names each correctly; on the phone, tap a wide segment and step to them with ‹ ›; start a replay with
   a read-out open and check that it tracks. Screenshots on the PR.
 
 ---
