@@ -7,6 +7,7 @@ the figures read from the data -- the design's own numbers were mock or pre-migr
 
 from __future__ import annotations
 
+from .caveats import PARIS_QUESTION
 from .state import Kpi, ToolCallRecord
 from .summaries import widget_summary
 
@@ -137,15 +138,62 @@ def build_kpis(records: list[ToolCallRecord]) -> list[Kpi]:
     return out[:MAX_KPIS]
 
 
-def scenario_lead(records: list[ToolCallRecord]) -> str | None:
+def _paris_sentence(summary: dict, names: list[str]) -> str | None:
+    """SPEC.md §5.35 E / §15.11: where each shown pathway's implied level sits against each Paris goal, quoted from the
+    summary's `vs_paris` (headline line) -- the margins and first years are the pipeline's, never compared here. Says
+    "implied level", never that a goal is breached, exceeded or met. None when any shown pathway lacks the comparison."""
+    vp = summary.get("vs_paris")
+    if not isinstance(vp, dict):
+        return None
+    rows = {n: (vp.get(n) or {}).get("headline") for n in names}
+    if not all(isinstance(r, dict) and r for r in rows.values()):
+        return None
+    goals = sorted({g for r in rows.values() for g in r}, key=float)
+    year = next((b.get("horizon_year") for r in rows.values() for b in r.values() if isinstance(b, dict)), None)
+    clauses, straddles = [], []
+    for g in goals:
+        above, below = [], []
+        for n in names:
+            b = rows[n].get(g)
+            if not isinstance(b, dict) or not isinstance(b.get("margin_c"), (int, float)):
+                return None
+            m, first = b["margin_c"], b.get("first_year_implied_level_at_or_above")
+            # Above/below is the horizon status (the margin's sign, as the pipeline's implied_level_above_goal); the first year at or
+            # above the goal is a separate fact: a pathway can reach the goal and end the horizon below it again.
+            # The pipeline's flag is computed from the unrounded level; margin_c is rounded, so a tiny positive margin can read 0.0.
+            flag = b.get("implied_level_above_goal")
+            is_above = flag if isinstance(flag, bool) else m > 0
+            size = "<0.01" if abs(m) < 0.005 else f"{abs(m):.2f}"
+            if is_above:
+                above.append(f"{n} +{size} °C" + (f", at or above it from {first}" if first is not None else ""))
+            else:
+                below.append(f"{n} by {size} °C" + (f", though at or above it in {first}" if first is not None else ""))
+            if b.get("ci95_straddles_goal"):
+                straddles.append(f"{n} at {g} °C")
+        if above and below:
+            clauses.append(f"above {g} °C for {'; '.join(above)}, and below it for {'; '.join(below)}")
+        elif above:
+            clauses.append(f"above {g} °C ({'; '.join(above)})")
+        else:
+            clauses.append(f"below {g} °C ({'; '.join(below)})")
+    who = "each pathway's implied level" if len(names) > 1 else f"the {names[0]} pathway's implied level"
+    text = f"Against the Paris Agreement goals, {who} in {year} is " + ", and ".join(clauses) + "."
+    if straddles:
+        text += f" The 95% interval spans the goal for {', '.join(straddles)}."
+    return text
+
+
+def scenario_lead(records: list[ToolCallRecord], query: str | None = None) -> str | None:
     """The deterministic lead for a scenario-temperature answer: one sentence from the result's own
-    summary, then the pipeline's `reading_note` verbatim. Only when the
-    scenario translation is the turn's only data result -- otherwise the LLM composes across tools."""
+    summary, then (for a Paris question) the comparison with the Paris goals from the summary's `vs_paris`, then the
+    pipeline's `reading_note` verbatim. Only when the scenario translation is the turn's only data result --
+    otherwise the LLM composes across tools."""
     data = [r for r in records if r.tool_name != "list_countries" and _ok(r) is not None]
     if len(data) != 1 or data[0].tool_name != "get_scenario_temperature":
         return None
     result = _ok(data[0]) or {}
-    final = (widget_summary(data[0]) or {}).get("final_year_by_scenario") or {}
+    summary = widget_summary(data[0]) or {}
+    final = summary.get("final_year_by_scenario") or {}
     levels = {n: f["headline_level_c"] for n, f in final.items() if f.get("headline_level_c") is not None}
     if not levels:
         return None  # e.g. line='fossil_only': no headline levels to state
@@ -159,6 +207,11 @@ def scenario_lead(records: list[ToolCallRecord]) -> str | None:
             f"By {year} the platform's {words} emissions pathways imply "
             f"{min(levels.values()):.2f}–{max(levels.values()):.2f} °C above {PREINDUSTRIAL}."
         )
+    if query and PARIS_QUESTION.search(query):
+        names = [n for n in SCENARIO_ORDER if n in levels] + [n for n in levels if n not in SCENARIO_ORDER]
+        paris = _paris_sentence(summary, names)
+        if paris:
+            first = f"{first} {paris}"
     note = result.get("reading_note")
     # reading_note describes every published pathway; it is only accurate when all are shown.
     if isinstance(note, str) and note and len(levels) == len(SCENARIO_ORDER):

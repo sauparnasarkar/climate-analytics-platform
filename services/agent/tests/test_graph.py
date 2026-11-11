@@ -833,6 +833,21 @@ async def test_a_scenario_only_turn_uses_the_deterministic_lead_with_no_compose_
     assert llm.exhausted
 
 
+async def test_a_paris_question_gets_the_paris_comparison_in_the_final_answer_with_no_llm_compose():
+    # SPEC.md §5.35 E: the final response_text, not just the prompt, must carry the comparison -- the deterministic lead bypasses the compose LLM.
+    vp = {n: {"headline": {"1.5": {"horizon_year": 2040, "margin_c": m, "first_year_implied_level_at_or_above": y, "ci95_straddles_goal": False},
+                           "2": {"horizon_year": 2040, "margin_c": m - 0.5, "first_year_implied_level_at_or_above": None, "ci95_straddles_goal": False}}}
+          for n, m, y in (("BAU", 0.18, 2032), ("Moderate", 0.14, 2033), ("Aggressive", 0.08, 2034))}
+    res = {**_SCENARIO_RESULT, "summary": {**_SCENARIO_RESULT["summary"], "vs_paris": vp}}
+    llm = ScriptedChatModel([{"classification": "data_query"}, AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "s1")]), AIMessage(content="done")])
+    graph = await build_graph(llm=llm, mcp_tools=[_fake_tool("get_scenario_temperature", res)])
+    result = await graph.ainvoke({"current_query": "How do the pathways compare with the Paris targets?"}, config=THREAD_CONFIG)
+    assert "Against the Paris Agreement goals, each pathway's implied level in 2040 is above 1.5 °C (BAU +0.18 °C, at or above it from 2032;" in result["response_text"]
+    assert "below 2 °C (BAU by 0.32 °C; Moderate by 0.36 °C; Aggressive by 0.42 °C)" in result["response_text"]
+    assert result["widgets"][0].summary["lead_includes_reading_note"] is True
+    assert llm.exhausted
+
+
 async def test_answer_blocks_reach_the_result_event_and_reset_next_turn():
     from agent.follow_up_prompts import P_REL
 

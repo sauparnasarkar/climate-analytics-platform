@@ -117,6 +117,75 @@ def test_scenario_lead_for_a_subset_omits_the_all_pathway_note_and_for_fossil_on
     assert scenario_lead([_rec("get_scenario_temperature", fossil)]) is None
 
 
+def _vp(margin, first, straddle=False):
+    return {"horizon_year": 2040, "margin_c": margin, "first_year_implied_level_at_or_above": first, "ci95_straddles_goal": straddle}
+
+
+# The production figures of 2026-11-10 (headline line): every pathway above 1.5 degC, below 2 degC.
+_VS_PARIS = {
+    "BAU": {"headline": {"1.5": _vp(0.19, 2032), "2": _vp(-0.31, None)}, "fossil_only": {"1.5": _vp(0.331, 2030), "2": _vp(-0.169, None)}},
+    "Moderate": {"headline": {"1.5": _vp(0.144, 2033), "2": _vp(-0.356, None)}},
+    "Aggressive": {"headline": {"1.5": _vp(0.09, 2034), "2": _vp(-0.41, None)}},
+}
+_SCEN_PARIS = {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": _VS_PARIS}}
+_PARIS_Q = "What do the emissions projections indicate about our pathways to the Paris framework targets?"
+
+
+def test_scenario_lead_quotes_the_paris_comparison_for_a_paris_question():
+    # SPEC.md §5.35 E: this lead never reaches an LLM, so the comparison must be part of it (the dq11 runs of 2026-11-10 lacked it).
+    assert scenario_lead([_rec("get_scenario_temperature", _SCEN_PARIS)], _PARIS_Q) == (
+        "By 2040 the platform's three emissions pathways imply 1.58–1.68 °C above 1850–1900. "
+        "Against the Paris Agreement goals, each pathway's implied level in 2040 is "
+        "above 1.5 °C (BAU +0.19 °C, at or above it from 2032; Moderate +0.14 °C, at or above it from 2033; Aggressive +0.09 °C, at or above it from 2034), "
+        "and below 2 °C (BAU by 0.31 °C; Moderate by 0.36 °C; Aggressive by 0.41 °C). Note."
+    )
+
+
+def test_the_paris_sentence_never_says_breached_exceeded_or_met():
+    text = scenario_lead([_rec("get_scenario_temperature", _SCEN_PARIS)], "will we breach 1.5°C?").lower()
+    assert "implied level" in text and not any(w in text for w in ("breach", "exceed", " met", "cross"))
+
+
+def test_scenario_lead_has_no_paris_sentence_for_other_questions_or_without_the_comparison():
+    assert "Paris" not in scenario_lead([_rec("get_scenario_temperature", _SCEN_PARIS)], "how do temperature outcomes vary by pathway?")
+    assert "Paris" not in scenario_lead([_rec("get_scenario_temperature", _SCEN_PARIS)])
+    assert scenario_lead([_rec("get_scenario_temperature", _SCEN)], _PARIS_Q) == scenario_lead([_rec("get_scenario_temperature", _SCEN)])
+
+
+def test_the_paris_sentence_handles_a_mixed_goal_a_straddling_interval_and_a_single_pathway():
+    mixed = {"BAU": {"headline": {"2": _vp(0.05, 2039, straddle=True)}}, "Moderate": {"headline": {"2": _vp(-0.2, None)}},
+             "Aggressive": {"headline": {"2": _vp(-0.3, None)}}}
+    text = scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": mixed}})], "2 degrees?")
+    assert "above 2 °C for BAU +0.05 °C, at or above it from 2039, and below it for Moderate by 0.20 °C; Aggressive by 0.30 °C." in text
+    assert "The 95% interval spans the goal for BAU at 2 °C." in text
+    one = {"reading_note": "Note.", "summary": {"final_year_by_scenario": {"Aggressive": {"year": 2040, "headline_level_c": 1.58}}, "vs_paris": _VS_PARIS}}
+    assert scenario_lead([_rec("get_scenario_temperature", one)], "Paris?") == (
+        "By 2040 the Aggressive pathway implies 1.58 °C above 1850–1900. Against the Paris Agreement goals, the Aggressive pathway's implied level "
+        "in 2040 is above 1.5 °C (Aggressive +0.09 °C, at or above it from 2034), and below 2 °C (Aggressive by 0.41 °C)."
+    )
+
+
+def test_a_pathway_that_reached_the_goal_but_ends_below_it_is_described_as_below():
+    # Copilot on #108: the first year at or above the goal must not decide above/below; the horizon margin does.
+    dip = {n: {"headline": {"2": _vp(m, y)}} for n, m, y in (("BAU", -0.04, 2036), ("Moderate", -0.2, None), ("Aggressive", -0.3, None))}
+    text = scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": dip}})], "2 degrees?")
+    assert "below 2 °C (BAU by 0.04 °C, though at or above it in 2036; Moderate by 0.20 °C; Aggressive by 0.30 °C)" in text
+    assert "+-" not in text
+
+
+def test_above_or_below_follows_the_pipelines_unrounded_flag_when_the_margin_rounds_to_zero():
+    # Copilot on #108: margin_c is rounded to 3 dp; implied_level_above_goal is from the unrounded level.
+    tiny = {n: {"headline": {"1.5": {**_vp(m, y), "implied_level_above_goal": a}}}
+            for n, m, y, a in (("BAU", 0.0, 2040, True), ("Moderate", -0.0, None, False), ("Aggressive", -0.3, None, False))}
+    text = scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": tiny}})], "Paris?")
+    assert "above 1.5 °C for BAU +<0.01 °C, at or above it from 2040, and below it for Moderate by <0.01 °C; Aggressive by 0.30 °C." in text
+
+
+def test_a_pathway_missing_from_the_comparison_drops_the_paris_sentence_rather_than_part_of_it():
+    partial = {k: v for k, v in _VS_PARIS.items() if k != "Moderate"}
+    assert "Paris" not in scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": partial}})], _PARIS_Q)
+
+
 # --- source lines ---------------------------------------------------------------------------------
 
 
