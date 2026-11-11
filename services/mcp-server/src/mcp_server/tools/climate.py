@@ -403,7 +403,13 @@ async def get_scenario_temperature(scenarios: list[str] | None = None, line: str
     `reading_note` and `spread`. ALWAYS label the result an 'illustrative, partial-coverage
     translation', not a climate-model projection; say it depends on the regression period, the
     emissions source and the stated assumptions (`assumptions`: rest-of-world share held, land
-    use held flat). Warming is global and is not attributable to any one country."""
+    use held flat). Warming is global and is not attributable to any one country.
+    For a question about the Paris Agreement goals, 1.5 °C or 2 °C: quote `summary.vs_paris` --
+    per scenario and line, each goal's margin (implied level minus goal, °C), whether the
+    horizon year's implied level is above it, and the first year it reaches it (or never) --
+    and never compare the levels with the goals yourself. Say "implied level", never that a goal
+    is breached or exceeded: `summary.paris_note` explains why (the goals refer to long-term
+    warming, assessed on 20-year averages)."""
     names = None
     if scenarios:
         try:
@@ -434,5 +440,17 @@ async def get_scenario_temperature(scenarios: list[str] | None = None, line: str
             gaps[label] = {n: round(f[key] - bau, 3) for n, f in final.items() if n != "BAU" and f[key] is not None}
     if gaps:
         summary["level_gap_vs_bau_c"] = gaps
+    # SPEC.md §5.35 D: the pipeline's comparison with the Paris goals, compacted for quoting (per scenario and line, keyed by goal). Never computed here.
+    ref, vp = body.get("paris_reference"), body.get("vs_paris")
+    if isinstance(ref, dict) and isinstance(vp, dict):
+        summary["paris_goals_c"] = ref.get("goals_c")
+        summary["paris_note"] = ref.get("note")
+        summary["vs_paris"] = {
+            name: {line: {f"{b['goal_c']:g}": {k: b.get(k) for k in ("horizon_year", "implied_level_c", "margin_c", "implied_level_above_goal",
+                                                                       "first_year_implied_level_at_or_above", "ci95_straddles_goal")}
+                          for b in blocks if isinstance(b, dict) and "goal_c" in b}
+                   for line, blocks in lines.items() if isinstance(blocks, list)}
+            for name, lines in vp.items() if isinstance(lines, dict)
+        }
     body["summary"] = summary
     return body

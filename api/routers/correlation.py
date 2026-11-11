@@ -570,6 +570,10 @@ def get_scenario_temperature(scenario: list[ScenarioName] | None = Query(None), 
             raise cl.ClimateDataUnavailable(f"correlation_scenario_temperature.json has no {', '.join(missing)} scenario")
         drop = {"headline": "fossil_only", "fossil_only": "headline"}.get(line)
         out = {s: [{k: v for k, v in row.items() if k != drop} for row in scen[s]] for s in chosen}
+        # The pipeline's comparison with the Paris goals, for the same scenarios and line(s) as the rows (SPEC.md §5.35 C): passed through, never recomputed.
+        vp = doc.get("vs_paris")
+        vs_paris = ({s: {ln: blocks for ln, blocks in vp[s].items() if ln != drop} for s in chosen if isinstance(vp.get(s), dict)}
+                    if isinstance(vp, dict) else None)
         notes = []
         if scenario and len(chosen) != len(scen):
             notes.append("`spread` and `reading_note` describe all published scenarios, not only the ones selected here")
@@ -583,6 +587,7 @@ def get_scenario_temperature(scenario: list[ScenarioName] | None = Query(None), 
             source_vintage=doc.get("temperature_source_vintage") if isinstance(doc.get("temperature_source_vintage"), dict) else None, name=doc.get("name") or "Scenario temperature translation",
             method=doc.get("method") or "", labels=_strings(doc.get("labels")), line=line, selected_scenarios=chosen, scenarios=out, assumptions=doc["assumptions"], base=doc["base"],
             covered_countries=[c for c in doc.get("covered_countries", []) if isinstance(c, dict)], scenario_source=doc.get("scenario_source") if isinstance(doc.get("scenario_source"), dict) else None,
-            spread=doc.get("spread") if isinstance(doc.get("spread"), dict) else None, reading_note=doc.get("reading_note") if isinstance(doc.get("reading_note"), str) else None, notes=notes)
+            spread=doc.get("spread") if isinstance(doc.get("spread"), dict) else None, reading_note=doc.get("reading_note") if isinstance(doc.get("reading_note"), str) else None,
+            paris_reference=doc.get("paris_reference") if isinstance(doc.get("paris_reference"), dict) else None, vs_paris=vs_paris, notes=notes)
     except cl.ClimateDataUnavailable as e:
         raise _unavailable(e)

@@ -208,4 +208,7 @@ class CorrelationScenarioTemperatureResponse(CorrelationEnvelope):
     scenario_source: dict[str, Any] | None = None
     spread: dict[str, Any] | None = None
     reading_note: str | None = None
+    # SPEC.md §5.35: the Paris goals from the reference registry, and each scenario's implied level against them, per line (as the pipeline computed them)
+    paris_reference: dict[str, Any] | None = None
+    vs_paris: dict[str, dict[str, list[dict[str, Any]]]] | None = None
     notes: list[str] = []
