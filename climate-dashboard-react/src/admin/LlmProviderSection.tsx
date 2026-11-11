@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Button, InlineAlert, SegmentedControl, Spinner } from '@syena/ds';
+import { Button, InlineAlert, SegmentedControl, Select, Spinner } from '@syena/ds';
 import { adminApi } from './adminClient';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { LlmChoice } from './types';
 import { useAsync } from '../hooks/useAsync';
 
@@ -14,6 +15,12 @@ const OPTIONS = [
   { id: 'ollama-qwen3.8-27b-ctx32k', provider: 'ollama', model: 'qwen3.8-27b-ctx32k', label: 'Qwen 3.8 27B (local, 32k ctx)' },
   { id: 'ollama-gpt-oss-20b-ctx32k', provider: 'ollama', model: 'gpt-oss:20b-ctx32k', label: 'gpt-oss 20B (local, 32k ctx)' },
 ];
+
+/**
+ * Below this width the three segments (about 600 px of labels in a row) do not fit the card, and on a phone they ran off the screen. A Select
+ * takes the same options there; the segments stay where they fit.
+ */
+export const NARROW_PICKER_QUERY = '(max-width: 760px)';
 
 function idForChoice(choice: LlmChoice): string | undefined {
   return OPTIONS.find((o) => o.provider === choice.provider && o.model === choice.model)?.id;
@@ -32,6 +39,7 @@ export function LlmProviderSection() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [applying, setApplying] = useState(false);
   const [status, setStatus] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
+  const narrow = useMediaQuery(NARROW_PICKER_QUERY);
 
   useEffect(() => {
     if (current.data) setAppliedChoice(current.data);
@@ -85,11 +93,22 @@ export function LlmProviderSection() {
           options below -- pick one to switch to a recognized state.
         </InlineAlert>
       )}
-      <SegmentedControl
-        items={OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
-        value={activeId}
-        onChange={setSelectedId}
-      />
+      {narrow ? (
+        <Select
+          ariaLabel="Model"
+          options={OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+          value={activeId}
+          onChange={setSelectedId}
+          suppressSearch
+          placeholder="Choose a model"
+        />
+      ) : (
+        <SegmentedControl
+          items={OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+          value={activeId}
+          onChange={setSelectedId}
+        />
+      )}
       <div>
         <Button
           onClick={handleApply}

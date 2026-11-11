@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { adminApi } from '../admin/adminClient';
 import type { LlmChoice } from '../admin/types';
 import AdminPage from './AdminPage';
+import { NARROW_PICKER_QUERY } from '../admin/LlmProviderSection';
 
 vi.mock('../admin/adminClient', () => ({ adminApi: { getLlmChoice: vi.fn(), setLlmChoice: vi.fn() } }));
 
@@ -103,5 +104,20 @@ describe('AdminPage', () => {
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
     expect(await screen.findByText(/Could not switch models/)).toBeInTheDocument();
+  });
+  it('on a narrow screen the model is a Select, not segments that run off the screen, and applying works the same', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: q === NARROW_PICKER_QUERY, media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    vi.mocked(adminApi.getLlmChoice).mockResolvedValue(SONNET_CHOICE);
+    vi.mocked(adminApi.setLlmChoice).mockResolvedValue(OLLAMA_CHOICE);
+    const user = userEvent.setup();
+    render(<AdminPage />);
+    const select = await screen.findByRole('combobox', { name: 'Model' });
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(select).toHaveTextContent('Claude Sonnet 5 (Anthropic)');
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: 'Qwen 3.8 27B (local, 32k ctx)' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(adminApi.setLlmChoice).toHaveBeenCalledWith('ollama-qwen3.8-27b-ctx32k');
+    vi.unstubAllGlobals();
   });
 });
