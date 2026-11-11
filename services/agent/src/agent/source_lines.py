@@ -65,7 +65,8 @@ def _scenario(r: dict) -> str:
     # (climate-dashboard-react/src/lib/scenarioView.ts), so the source line names only that slope.
     line = r.get("line") or (r.get("summary") or {}).get("line")
     slope = "the fossil-only regression slope" if line == "fossil_only" else "the headline regression slope"
-    return f"Source: platform pathways on OWID CO₂ with {slope} · illustrative, partial-coverage translation"
+    # No "illustrative" tail: the answer already says it twice, in its chip and in the guardrail note (caveats.py).
+    return f"Source: platform pathways on OWID CO₂ with {slope}"
 
 
 def source_line(record: ToolCallRecord) -> str | None:

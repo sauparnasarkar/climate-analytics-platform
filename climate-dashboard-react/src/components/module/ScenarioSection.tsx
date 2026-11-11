@@ -20,6 +20,9 @@ const EMBEDDED_STACK = '.module-embedded-grid[data-embedded] { grid-template-col
 
 export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedded?: boolean }) {
   const ids = useSectionIds(embedded, SCENARIOS_ANCHOR, 'scenarios-heading');
+  // In an Ask answer the "illustrative" caveat is already above the section, as the answer's chip and the guardrail note (services/agent SPEC §15.3),
+  // so the section's own chip and its line of prescribed labels are left out there; the page keeps both.
+  const showLabels = !embedded;
   const Heading = embedded ? 'h3' : 'h2'; // inside an answer the question is the h2
   // Every series is pinned to its slot (lib/seriesSlots.ts), and the table and panel take those slots' colours, so a key matches its line.
   const slotColour = useSlotColours();
@@ -45,9 +48,11 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
       <style>{'@media (max-width: 1200px) { .module-scenario-grid { grid-template-columns: minmax(0, 1fr) !important; } }' + EMBEDDED_STACK}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', margin: '0 0 12px' }}>
         <Heading id={ids.headingId} className="syn-title-md" style={{ margin: 0 }}>Implied temperature by scenario, {startYear}–{horizon}</Heading>
-        <span className="syn-text-lg" style={{ padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '.04em', background: 'var(--syn-color-signal-caution-tint, rgba(176,122,16,0.16))', color: 'var(--area2-warning, #6E4800)' }}>
-          {SCENARIO_LABEL}
-        </span>
+        {showLabels && (
+          <span className="syn-text-lg" style={{ padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '.04em', background: 'var(--syn-color-signal-caution-tint, rgba(176,122,16,0.16))', color: 'var(--area2-warning, #6E4800)' }}>
+            {SCENARIO_LABEL}
+          </span>
+        )}
       </div>
       <div className="module-scenario-grid module-embedded-grid" data-embedded={embedded || undefined} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) 290px', gap: 16, alignItems: 'start' }}>
         <ChartCard source={SCENARIOS} title="1 · Annual emissions" headingLevel={embedded ? 4 : 3}>
@@ -125,7 +130,7 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
         </div>
       </div>
       <div className="syn-caption" style={{ marginTop: 10, color: 'var(--syn-color-text-muted)' }}>
-        {labels.length > 0 && <p style={{ margin: '0 0 4px' }}>{labels.join(' · ')}.</p>}
+        {showLabels && labels.length > 0 && <p style={{ margin: '0 0 4px' }}>{labels.join(' · ')}.</p>}
         {basis.length > 0 && <p style={{ margin: 0 }}>{basis.join('; ')}.</p>}
       </div>
     </section>
