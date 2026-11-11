@@ -165,6 +165,14 @@ def test_the_paris_sentence_handles_a_mixed_goal_a_straddling_interval_and_a_sin
     )
 
 
+def test_a_pathway_that_reached_the_goal_but_ends_below_it_is_described_as_below():
+    # Copilot on #108: the first year at or above the goal must not decide above/below; the horizon margin does.
+    dip = {n: {"headline": {"2": _vp(m, y)}} for n, m, y in (("BAU", -0.04, 2036), ("Moderate", -0.2, None), ("Aggressive", -0.3, None))}
+    text = scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": dip}})], "2 degrees?")
+    assert "below 2 °C (BAU by 0.04 °C, though at or above it in 2036; Moderate by 0.20 °C; Aggressive by 0.30 °C)" in text
+    assert "+-" not in text
+
+
 def test_a_pathway_missing_from_the_comparison_drops_the_paris_sentence_rather_than_part_of_it():
     partial = {k: v for k, v in _VS_PARIS.items() if k != "Moderate"}
     assert "Paris" not in scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": partial}})], _PARIS_Q)

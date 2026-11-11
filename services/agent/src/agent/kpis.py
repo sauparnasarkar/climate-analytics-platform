@@ -158,10 +158,12 @@ def _paris_sentence(summary: dict, names: list[str]) -> str | None:
             if not isinstance(b, dict) or not isinstance(b.get("margin_c"), (int, float)):
                 return None
             m, first = b["margin_c"], b.get("first_year_implied_level_at_or_above")
-            if m > 0 or first is not None:
+            # Above/below is the horizon status (the margin's sign, as the pipeline's implied_level_above_goal); the first year at or
+            # above the goal is a separate fact: a pathway can reach the goal and end the horizon below it again.
+            if m > 0:
                 above.append(f"{n} +{m:.2f} °C" + (f", at or above it from {first}" if first is not None else ""))
             else:
-                below.append(f"{n} by {abs(m):.2f} °C")
+                below.append(f"{n} by {abs(m):.2f} °C" + (f", though at or above it in {first}" if first is not None else ""))
             if b.get("ci95_straddles_goal"):
                 straddles.append(f"{n} at {g} °C")
         if above and below:
