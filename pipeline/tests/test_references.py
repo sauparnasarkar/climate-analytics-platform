@@ -48,17 +48,25 @@ def test_a_malformed_registry_is_an_error_not_a_default(tmp_path, mutate, messag
 
 
 def test_a_reference_past_its_review_date_is_a_deviation_and_an_unset_heartbeat_only_a_note(tmp_path):
-    path = write(tmp_path, lambda d: d["references"]["ipcc_ar6_tcre"].update(review_by="2026-11-01"))
+    def due_and_unset(d):
+        d["references"]["ipcc_ar6_tcre"].update(review_by="2026-11-01")
+        d["heartbeat"].update(issue=None)
+
+    path = write(tmp_path, due_and_unset)
     r = RunReport("references")
     references.check(r, today=TODAY, now=NOW, path=path)
     assert len(r.deviations) == 1 and "ipcc_ar6_tcre" in r.deviations[0] and "IPCC AR7 WGI" in r.deviations[0]
     assert any("heartbeat not configured" in n for n in r.notes)
 
 
-def test_the_shipped_dates_are_not_due_yet():
+def test_the_shipped_registry_is_clean_with_a_fresh_heartbeat(monkeypatch):
+    # The shipped dates are not due yet, and the shipped heartbeat issue (#111) is read from GitHub (stubbed: one recent comment).
+    seen = []
+    monkeypatch.setattr(references, "_get_json", lambda url, timeout=15: seen.append(url) or [{"id": 1}])
     r = RunReport("references")
     references.check(r, today=TODAY, now=NOW)
     assert r.deviations == []
+    assert seen and "/issues/111/comments" in seen[0]
 
 
 @pytest.mark.parametrize("response, deviates, text", [
