@@ -26,6 +26,4 @@ export const ALL_GAS_TAG = 'Recent all-gas relationship · not TCRE';
 export const CAUSAL_CHAIN_ANCHOR = 'causal-chain';
 export const GLOBAL_RELATIONSHIP_ANCHOR = 'global-relationship';
 
-/** The IPCC AR6 transient climate response to cumulative emissions, °C per 1,000 GtCO₂ (best estimate and very-likely range): fixed comparison copy
- *, the same figures the API's methodology note quotes. Everything else in the module is read from the API. */
-export const AR6_TCRE = { best: 0.45, low: 0.27, high: 0.63 } as const;
+// The IPCC AR6 TCRE range is read from the API (lib/ar6.ts; root SPEC.md §5.35 F), not kept here.

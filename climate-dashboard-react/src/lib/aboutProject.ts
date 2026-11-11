@@ -1,15 +1,15 @@
 import type { CorrelationEmissionsTemperatureResponse } from '../api/correlationTypes';
-import { AR6_TCRE } from './climateCopy';
+import { ar6FromResponse, type Ar6Reference } from './ar6';
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const count = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null);
 
 /** How the fit's 95% HAC range sits against the AR6 very-likely range: overlapping is "in line with"; entirely outside is "above" or "below". */
-export function compareToAr6(range: readonly [number, number] | null): 'in line with' | 'above' | 'below' | null {
-  if (!range || !Number.isFinite(range[0]) || !Number.isFinite(range[1])) return null;
+export function compareToAr6(range: readonly [number, number] | null, ar6: Ar6Reference | null): 'in line with' | 'above' | 'below' | null {
+  if (!range || !ar6 || !Number.isFinite(range[0]) || !Number.isFinite(range[1])) return null;
   const [low, high] = range[0] <= range[1] ? range : [range[1], range[0]];
-  if (low > AR6_TCRE.high) return 'above';
-  if (high < AR6_TCRE.low) return 'below';
+  if (low > ar6.high) return 'above';
+  if (high < ar6.low) return 'below';
   return 'in line with';
 }
 
@@ -18,6 +18,8 @@ export interface HeadlineFacts {
   /** Rounded to two decimals, as written */
   slope: string | null;
   comparison: 'in line with' | 'above' | 'below' | null;
+  /** The AR6 best estimate the sentence names, from the API; null leaves the comparison out */
+  ar6Best: number | null;
 }
 
 /** The figures the project paragraph quotes from the headline fit. A figure that is absent (or whose unit is not the one the sentence says) is null, never a placeholder. */
@@ -30,7 +32,8 @@ export function headlineFacts(resp: CorrelationEmissionsTemperatureResponse | nu
   const years = count(fit?.n_years) ?? (num(fit?.start) !== null && num(fit?.end) !== null ? count(num(fit?.end)! - num(fit?.start)! + 1) : null);
   const ci = Array.isArray(fit?.ci95_hac) ? (fit!.ci95_hac as unknown[]).map(num) : [];
   const range = ci.length === 2 && ci[0] !== null && ci[1] !== null ? ([ci[0], ci[1]] as const) : null;
-  return { years, slope: slopeOk ? slope!.toFixed(2) : null, comparison: slopeOk ? compareToAr6(range) : null };
+  const ar6 = ar6FromResponse(resp);
+  return { years, slope: slopeOk ? slope!.toFixed(2) : null, comparison: slopeOk ? compareToAr6(range, ar6) : null, ar6Best: ar6?.best ?? null };
 }
 
 const WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];

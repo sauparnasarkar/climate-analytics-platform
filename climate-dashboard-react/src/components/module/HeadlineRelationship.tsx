@@ -65,7 +65,7 @@ export function HeadlineRelationship({ signal, headline, hasAllGas = false, embe
               {fossilSlope !== null && <Row k="Fossil + cement only" v={fossilSlope.toFixed(3)} />}
             </dl>
             <div style={{ marginTop: 12, color: 'var(--syn-color-text-secondary)' }}>
-              <Ar6Strip slope={slope} fossilSlope={fossilSlope} />
+              {headline.ar6 && <Ar6Strip slope={slope} fossilSlope={fossilSlope} ar6={headline.ar6} />}
             </div>
             <p className="syn-caption" style={{ margin: '8px 0 0', color: 'var(--syn-color-text-muted)' }}>
               A data-driven analog to the IPCC&apos;s TCRE, not a restatement of it: this regression also absorbs warming from other gases and aerosols that varies with CO₂, and

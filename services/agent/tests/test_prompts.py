@@ -54,3 +54,11 @@ def test_the_composer_says_a_single_gas_cumulative_is_unavailable_even_when_annu
     assert "CUMULATIVE total of a single gas other than CO2" in P and "not available" in P
     # a sentence of its own, not inside the climate-context clause: an annual methane answer comes from a historical-emissions widget
     assert P.index("CUMULATIVE total of a single gas") > P.index("not projections.")
+
+
+def test_the_composer_quotes_the_paris_comparison_and_never_says_breached():
+    # root SPEC.md §5.35 E: the margins come from the summary's vs_paris; the model never compares the levels with the goals itself
+    from agent.prompts import COMPOSE_RESPONSE_SYSTEM_PROMPT as P
+
+    assert "Paris Agreement goals" in P and "`vs_paris`" in P and "never comparing the levels with the goals yourself" in P
+    assert "never that a goal is breached, exceeded or met" in P

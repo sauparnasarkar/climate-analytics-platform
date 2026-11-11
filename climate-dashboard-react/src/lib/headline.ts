@@ -1,4 +1,5 @@
 import type { CorrelationEmissionsTemperatureResponse } from '../api/correlationTypes';
+import type { Ar6Reference } from './ar6';
 import type { ClimateSignal } from './climateSignal';
 
 export interface Headline {
@@ -12,6 +13,8 @@ export interface Headline {
   nYears: number;
   /** The same regression on fossil + cement CO₂ only (the labelled comparison), or null when that request failed */
   fossilSlope: number | null;
+  /** The AR6 TCRE range from the API, or null (the comparison strip is then left out) */
+  ar6: Ar6Reference | null;
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -19,5 +22,5 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 /** The headline numbers for the module's stat card: the climate signal's fit plus the fossil-only slope from its own request. */
 export function buildHeadline(signal: ClimateSignal, fossil: CorrelationEmissionsTemperatureResponse | null | undefined): Headline {
   const { slope, ciLow, ciHigh, rSquared, start, end, nYears } = signal.fit;
-  return { slope, ciLow, ciHigh, rSquared, start, end, nYears, fossilSlope: num(fossil?.fit?.slope) };
+  return { slope, ciLow, ciHigh, rSquared, start, end, nYears, fossilSlope: num(fossil?.fit?.slope), ar6: signal.ar6 };
 }

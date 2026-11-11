@@ -37,15 +37,17 @@ describe('CausalChain', () => {
   });
 });
 
+const AR6 = { best: 0.45, low: 0.27, high: 0.63, edition: 'IPCC AR6 WGI, 2021' };
+
 describe('Ar6Strip', () => {
   it('describes where the slopes sit against the AR6 range, in words for assistive tech', () => {
-    render(<Ar6Strip slope={0.52} fossilSlope={0.797} />);
+    render(<Ar6Strip slope={0.52} fossilSlope={0.797} ar6={AR6} />);
     const svg = screen.getByRole('img');
-    expect(svg).toHaveAccessibleName(/AR6 very likely range is 0\.27 to 0\.63, best estimate 0\.45.*slope is 0\.520.*fossil and cement only slope is 0\.797/);
-    expect(screen.getByText(/IPCC AR6 very likely range 0\.27–0\.63/)).toBeInTheDocument();
+    expect(svg).toHaveAccessibleName(/IPCC AR6 \(2021\) very likely range is 0\.27 to 0\.63, best estimate 0\.45.*slope is 0\.520.*fossil and cement only slope is 0\.797/);
+    expect(screen.getByText(/IPCC AR6 \(2021\) very likely range 0\.27–0\.63/)).toBeInTheDocument(); // the edition from the API
   });
   it('leaves out the fossil marker when there is none', () => {
-    render(<Ar6Strip slope={0.52} fossilSlope={null} />);
+    render(<Ar6Strip slope={0.52} fossilSlope={null} ar6={AR6} />);
     expect(screen.getByRole('img')).not.toHaveAccessibleName(/fossil/);
     expect(screen.queryByText(/Fossil \+ cement only/)).not.toBeInTheDocument();
   });
