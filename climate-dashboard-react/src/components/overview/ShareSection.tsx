@@ -1,10 +1,11 @@
 import { SECTION_GAP } from '../../constants';
-import { useMemo, useState } from 'react';
-import { Button, ChartCard, InlineAlert, SegmentedControl, useReducedMotion } from '@syena/ds';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, ChartCard, Icon, InlineAlert, SegmentedControl, useReducedMotion } from '@syena/ds';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { api } from '../../api/client';
 import { useAsync } from '../../hooks/useAsync';
 import { useShareReplay } from '../../hooks/useShareReplay';
-import { SHARE_MEASURES, SHARE_START_YEAR, SHARE_STEP_MS, buildShareFrames, fmtShare, segmentLabel, type ShareCountry, type ShareMeasureId } from '../../lib/shareBars';
+import { SHARE_MEASURES, SHARE_START_YEAR, SHARE_STEP_MS, buildShareFrames, flowShareOf, fmtShare, segmentLabel, stockShareOf, type ShareCountry, type ShareMeasureId } from '../../lib/shareBars';
 import { BaselineChip } from '../climate/BaselineChip';
 import { PurposeLine } from '../climate/PurposeLine';
 import { shareBasis } from '../../lib/shareBasis';
@@ -25,41 +26,112 @@ export interface BarProps {
   /** The remainder segment (Rest of world); omit for a bar whose segments are the whole, e.g. the four gases */
   rest?: number;
   tween: boolean;
+  /** What a share is of, for the read-out: "of 2024 CO₂ emissions" */
+  shareOf: string;
+  /** What one segment is, for the stepping buttons' names: "country" ("Previous country") or "gas" */
+  itemNoun?: string;
 }
 
-/** One 100% stacked bar. Segment widths are flex-grow so they tween; the legend table below is the readable, accessible form of the same numbers. */
-export function ShareBar({ title, subtitle, order, values, rest, tween }: BarProps) {
+const REST = 'rest';
+const btn = { background: 'none', border: 'none', padding: '2px 6px', cursor: 'pointer', color: 'var(--syn-color-text-primary)', fontSize: 16, lineHeight: 1, display: 'flex', alignItems: 'center' } as const;
+const srOnly = { position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const;
+
+/**
+ * One 100% stacked bar. Segment widths are flex-grow so they tween; the legend table below is the readable, accessible form of the same numbers.
+ * A read-out under the bar names the hovered or tapped segment (SPEC.md §5.36): narrow segments carry no inline label, and phones hide them all.
+ * The selection is held by code, so it follows the live value through a replay and closes when that code leaves the bar.
+ */
+export function ShareBar({ title, subtitle, order, values, rest, tween, shareOf, itemNoun = 'country' }: BarProps) {
   const summary = order.map((c, i) => `${c.name} ${fmtShare(values[i])}`).concat(rest === undefined ? [] : [`Rest of world ${fmtShare(rest)}`]).join(', ');
-  const segment = (key: string, color: string, pct: number, text: string, textColor: string = SEGMENT_TEXT) => (
+  const items = [
+    ...order.map((c, i) => ({ code: c.code, name: c.name, pct: values[i], color: c.color, textColor: SEGMENT_TEXT, label: segmentLabel(c.code, values[i]) })),
+    ...(rest === undefined ? [] : [{ code: REST, name: 'Rest of world', pct: rest, color: REST_COLOR, textColor: REST_TEXT, label: segmentLabel('RoW', rest) }]),
+  ];
+  const [sel, setSel] = useState<{ code: string; pinned: boolean } | null>(null);
+  const [announced, setAnnounced] = useState('');
+  const coarse = useMediaQuery('(pointer: coarse)');
+  const rowRef = useRef<HTMLDivElement>(null);
+  const idx = sel ? items.findIndex((it) => it.code === sel.code) : -1;
+  const current = idx >= 0 ? items[idx] : null;
+  const readout = (it: (typeof items)[number]) => `${it.name} · ${fmtShare(it.pct)} ${shareOf}`;
+  const clear = () => { setSel(null); setAnnounced(''); };
+
+  // The selected code left the bar (another measure or selection): close rather than show a stale value.
+  useEffect(() => { if (sel && idx < 0) clear(); }, [sel, idx]);
+  // A pinned read-out closes on a tap or click outside this bar row, or on Escape.
+  const pinned = sel?.pinned === true;
+  useEffect(() => {
+    if (!pinned) return undefined;
+    const onDown = (e: PointerEvent) => { if (rowRef.current && !rowRef.current.contains(e.target as Node)) clear(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clear(); };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [pinned]);
+
+  const step = (by: -1 | 1) => {
+    const next = items[idx + by];
+    if (!next) return; // the ends do not wrap
+    setSel({ code: next.code, pinned: true });
+    setAnnounced(readout(next)); // a step changes what is shown, so it is announced; hover never is
+  };
+
+  const segment = (it: (typeof items)[number]) => (
     <div
-      key={key}
+      key={it.code}
+      data-code={it.code}
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse' && !pinned) setSel({ code: it.code, pinned: false }); }}
+      onClick={() => (pinned && sel?.code === it.code ? clear() : setSel({ code: it.code, pinned: true }))}
       style={{
-        flex: `${Math.max(pct, 0)} 1 0`,
+        flex: `${Math.max(it.pct, 0)} 1 0`,
         minWidth: 0,
-        background: color,
-        color: textColor,
+        background: it.color,
+        color: it.textColor,
         fontSize: 12,
         fontWeight: 600,
         lineHeight: '44px',
-        padding: pct >= 3 ? '0 6px' : 0,
+        padding: it.pct >= 3 ? '0 6px' : 0,
         overflow: 'hidden',
         whiteSpace: 'nowrap',
         borderRadius: 4,
+        cursor: 'pointer',
+        outline: sel?.code === it.code ? '2px solid var(--syn-color-text-primary)' : 'none',
+        outlineOffset: 1,
         transition: tween ? `flex-grow ${SHARE_STEP_MS}ms linear` : 'none',
       }}
     >
-      <span className="share-seg-label">{text}</span>
+      <span className="share-seg-label">{it.label}</span>
     </div>
   );
   return (
-    <div className="share-bar-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(96px, 150px) minmax(0, 1fr)', gap: 12, alignItems: 'center' }}>
-      <div>
+    <div ref={rowRef} className="share-bar-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(96px, 150px) minmax(0, 1fr)', gap: 12, alignItems: 'start' }}>
+      <div style={{ paddingTop: 6 }}>
         <div className="syn-caption">{title}</div>
         <div className="syn-caption" style={{ color: 'var(--syn-color-text-muted)' }}>{subtitle}</div>
       </div>
-      <div role="img" aria-label={`${title}: ${summary}`} style={{ display: 'flex', gap: 2, height: 44 }}>
-        {order.map((c, i) => segment(c.code, c.color, values[i], segmentLabel(c.code, values[i])))}
-        {rest !== undefined && segment('rest', REST_COLOR, rest, segmentLabel('RoW', rest), REST_TEXT)}
+      <div style={{ minWidth: 0 }}>
+        <div role="img" aria-label={`${title}: ${summary}`} onPointerLeave={(e) => { if (e.pointerType === 'mouse' && !pinned) setSel(null); }} style={{ display: 'flex', gap: 2, height: 44 }}>
+          {items.map(segment)}
+        </div>
+        <div className="share-readout" style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 28, marginTop: 4 }}>
+          {current ? (
+            <>
+              <span className="syn-caption" style={{ color: 'var(--syn-color-text-primary)', flex: '1 1 auto', minWidth: 0 }}>{readout(current)}</span>
+              {pinned && (
+                <>
+                  <button type="button" aria-label={`Previous ${itemNoun}`} disabled={idx <= 0} onClick={() => step(-1)} style={{ ...btn, opacity: idx <= 0 ? 0.4 : 1 }}>‹</button>
+                  <button type="button" aria-label={`Next ${itemNoun}`} disabled={idx >= items.length - 1} onClick={() => step(1)} style={{ ...btn, opacity: idx >= items.length - 1 ? 0.4 : 1 }}>›</button>
+                  <button type="button" aria-label="Clear selection" onClick={clear} style={{ ...btn, color: 'var(--syn-color-text-muted)' }}><Icon name="close" size="small" /></button>
+                </>
+              )}
+            </>
+          ) : (
+            <span className="syn-caption" style={{ color: 'var(--syn-color-text-muted)' }}>
+              {coarse ? 'Tap a segment to see its share, then use ‹ › to step' : 'Hover or click a segment to see its share'}
+            </span>
+          )}
+          <span aria-live="polite" style={srOnly}>{announced}</span>
+        </div>
       </div>
     </div>
   );
@@ -129,9 +201,9 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
           </InlineAlert>
         ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ShareBar title="The stock" subtitle={`Cumulative${frames.cumulativeFrom != null ? ` ${frames.cumulativeFrom}` : ''}–${shown}`} order={order} values={stock} rest={frames.restStock[yi]} tween={!reduceMotion} />
+          <ShareBar title="The stock" subtitle={`Cumulative${frames.cumulativeFrom != null ? ` ${frames.cumulativeFrom}` : ''}–${shown}`} order={order} values={stock} rest={frames.restStock[yi]} tween={!reduceMotion} shareOf={stockShareOf(measure, frames.cumulativeFrom)} />
           {flow && frames.restFlow ? (
-            <ShareBar title="The flow" subtitle={`Annual, ${shown} only`} order={order} values={flow} rest={frames.restFlow[yi]} tween={!reduceMotion} />
+            <ShareBar title="The flow" subtitle={`Annual, ${shown} only`} order={order} values={flow} rest={frames.restFlow[yi]} tween={!reduceMotion} shareOf={flowShareOf(measure, shown)} />
           ) : (
             <p className="syn-caption" style={{ margin: 0, color: 'var(--syn-color-text-muted)' }}>
               The annual (flow) shares are not published yet in this data release; the stock bar is unaffected.

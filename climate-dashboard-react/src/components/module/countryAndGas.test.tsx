@@ -91,6 +91,17 @@ describe('GasComposition', () => {
     expect(bar.children).toHaveLength(4);
   });
 
+  it('names a gas segment in the read-out, as CO₂-equivalent of the year, with gas stepping (SPEC.md §5.36)', () => {
+    render(<MemoryRouter><GasComposition composition={buildComposition(COMPOSITION)!} /></MemoryRouter>);
+    const bar = screen.getByRole('img', { name: /^Gas split:/ });
+    const rowEl = bar.closest('.share-bar-row') as HTMLElement;
+    fireEvent.click(bar.children[3]);
+    expect(within(rowEl).getByText('Fluorinated gases · 2.8% of 2024 CO₂-equivalent')).toBeInTheDocument();
+    expect(within(rowEl).getByRole('button', { name: 'Next gas' })).toBeDisabled(); // the last gas; no Rest of world here
+    fireEvent.click(within(rowEl).getByRole('button', { name: 'Previous gas' }));
+    expect(within(rowEl).getAllByText('N₂O · 5.4% of 2024 CO₂-equivalent').length).toBeGreaterThan(0);
+  });
+
   it('moves the split with the year slider, onto the nearest year that has data', () => {
     render(<MemoryRouter><GasComposition composition={dense()} /></MemoryRouter>);
     const slider = screen.getByRole('slider');

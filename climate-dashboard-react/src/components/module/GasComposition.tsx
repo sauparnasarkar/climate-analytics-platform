@@ -57,7 +57,7 @@ export function GasComposition({ composition, embedded }: { composition: Composi
             <Slider label="Year" min={first} max={last} step={1} value={year} onChange={move} showValue={false} showRangeLabels showThumbValue />
           </div>
         </div>
-        <ShareBar title="Gas split" subtitle={String(year)} order={order} values={shares[yi]} tween={!reduceMotion} />
+        <ShareBar title="Gas split" subtitle={String(year)} order={order} values={shares[yi]} tween={!reduceMotion} shareOf={`of ${year} CO₂-equivalent`} itemNoun="gas" />
         <table style={{ width: '100%', maxWidth: 560, marginTop: 10, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
           <caption className="syn-caption" style={{ textAlign: 'left', color: 'var(--syn-color-text-muted)', paddingBottom: 4 }}>Greenhouse gases by share, {year}</caption>
           <thead>
