@@ -2285,9 +2285,9 @@ monthly, with a heartbeat the refresh checks (G, H), rather than short review da
 - The routine: one manual run that finds nothing for the current registry and leaves its heartbeat comment, and one against a test entry
   whose `successor` already exists (opens an issue, does not duplicate it on a second run); then the refresh reading that heartbeat.
 
-### 5.36 Share bars: the palette stays, and a read-out names every segment (Docs-first)
+### 5.36 Share bars: the palette stays, and a read-out names every segment (Shipped)
 
-**Status: Approved 2026-11-11** with three edits (folded in below: the stepping buttons' accessibility and ends, the "share of" phrase
+**Status: Shipped 2026-11-11** (PR #122; checked on the preview in both themes on desktop, and by the user on a phone). Approved 2026-11-11 with three edits (folded in below: the stepping buttons' accessibility and ends, the "share of" phrase
 from the measure and from the gas split, the hint wording by input type). One app PR (no design-system change), separate from the §5.34
 colour work.
 
