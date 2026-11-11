@@ -14,6 +14,14 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const SONNET = 'Claude Sonnet 5 (Anthropic)';
+const QWEN = 'Qwen 3.8 27B (local, 32k ctx)';
+const picker = () => screen.findByRole('combobox', { name: 'Model' });
+async function pick(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(await picker());
+  await user.click(screen.getByRole('option', { name: label }));
+}
+
 describe('AdminPage', () => {
   it('shows a loading state before getLlmChoice resolves', () => {
     vi.mocked(adminApi.getLlmChoice).mockReturnValue(new Promise(() => {}));
@@ -33,17 +41,18 @@ describe('AdminPage', () => {
     vi.mocked(adminApi.getLlmChoice).mockResolvedValue(SONNET_CHOICE);
     render(<AdminPage />);
 
-    const sonnetOption = await screen.findByRole('radio', { name: 'Claude Sonnet 5 (Anthropic)' });
-    const ollamaOption = screen.getByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' });
-    expect(sonnetOption).toBeChecked();
-    expect(ollamaOption).not.toBeChecked();
+    const user = userEvent.setup();
+    expect(await picker()).toHaveTextContent(SONNET);
+    await user.click(await picker());
+    expect(screen.getByRole('option', { name: SONNET })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('option', { name: QWEN })).toHaveAttribute('aria-selected', 'false');
   });
 
   it('applying the currently-selected option is disabled', async () => {
     vi.mocked(adminApi.getLlmChoice).mockResolvedValue(SONNET_CHOICE);
     render(<AdminPage />);
 
-    await screen.findByRole('radio', { name: 'Claude Sonnet 5 (Anthropic)' });
+    expect(await picker()).toHaveTextContent(SONNET);
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
   });
 
@@ -53,7 +62,7 @@ describe('AdminPage', () => {
     vi.mocked(adminApi.setLlmChoice).mockResolvedValue(OLLAMA_CHOICE);
     render(<AdminPage />);
 
-    await user.click(await screen.findByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' }));
+    await pick(user, QWEN);
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
     await waitFor(() => expect(adminApi.setLlmChoice).toHaveBeenCalledWith('ollama-qwen3.8-27b-ctx32k'));
@@ -66,11 +75,11 @@ describe('AdminPage', () => {
     vi.mocked(adminApi.setLlmChoice).mockResolvedValue(OLLAMA_CHOICE);
     render(<AdminPage />);
 
-    await user.click(await screen.findByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' }));
+    await pick(user, QWEN);
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     await screen.findByText('Switched to Qwen 3.8 27B (local, 32k ctx).');
 
-    expect(screen.getByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' })).toBeChecked();
+    expect(await picker()).toHaveTextContent(QWEN);
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
 
     // A second apply of the same (now-current) choice must not fire another request.
@@ -88,8 +97,7 @@ describe('AdminPage', () => {
     render(<AdminPage />);
 
     expect(await screen.findByText(/isn't one of the known options/)).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Claude Sonnet 5 (Anthropic)' })).not.toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' })).not.toBeChecked();
+    expect(await picker()).toHaveTextContent('Choose a model');
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
   });
 
@@ -99,7 +107,7 @@ describe('AdminPage', () => {
     vi.mocked(adminApi.setLlmChoice).mockRejectedValue(new Error('Could not switch models -- the new configuration failed to initialize. Still running: Claude Sonnet 5 (Anthropic).'));
     render(<AdminPage />);
 
-    await user.click(await screen.findByRole('radio', { name: 'Qwen 3.8 27B (local, 32k ctx)' }));
+    await pick(user, QWEN);
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
     expect(await screen.findByText(/Could not switch models/)).toBeInTheDocument();
