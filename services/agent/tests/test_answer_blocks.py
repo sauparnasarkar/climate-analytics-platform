@@ -281,9 +281,11 @@ def test_headline_scenario_kpis_use_the_headline_level_and_do_not_mention_fossil
 def test_scenario_source_line_names_the_slope_that_was_actually_used():
     line = lambda name: source_line(_rec("get_scenario_temperature", _scenario_result(name, 1.7, 1.8)))
     assert "fossil-only regression slope" in line("fossil_only") and "headline" not in line("fossil_only")
-    assert "the headline regression slope \u00b7" in line("headline")
+    assert line("headline") == "Source: platform pathways on OWID CO\u2082 with the headline regression slope"
     # 'both' carries fossil-only figures, but the chart draws only the headline line: don't name a line it doesn't draw.
-    assert "the headline regression slope \u00b7" in line("both") and "fossil" not in line("both")
+    assert line("both") == line("headline")
+    # the caveat is the answer's chip and guardrail note, not repeated in the source line
+    assert "illustrative" not in line("both").lower()
 
 
 # --- live-walkthrough fixes: forecast ranking and cumulative units -----------------

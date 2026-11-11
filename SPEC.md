@@ -2255,7 +2255,10 @@ re-check the training pages that quote the value (a line added to `docs/training
   agreed at COP29): they come from the model's training, not the registry.
 - The scenario source line that named a fossil-only second line the chart does not draw (`services/agent/src/agent/source_lines.py`;
   fixed 2026-11-11, it now names only the headline slope unless `line='fossil_only'`), the clipped 2040 label and the repeated
-  "illustrative" caveat: separate fixes.
+  "illustrative" caveat: separate fixes, all done 2026-11-11. The 2040 gap label is no longer clipped: the design system's `Chart` puts a reference
+  label left of its line when it would run past the right margin. The caveat now appears twice in an Ask answer (the answer's chip and the guardrail
+  note), not four times: there, the embedded scenario section leaves out its own chip and label line, and the source line drops its "illustrative"
+  tail. The Scenario Comparison page is unchanged.
 
 #### Rejected alternatives
 

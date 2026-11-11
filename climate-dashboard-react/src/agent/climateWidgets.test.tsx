@@ -157,7 +157,7 @@ describe('scenario temperatures', () => {
     mount(widget('get_scenario_temperature', SCENARIO_TEMPERATURE, { summary: { lead_includes_reading_note: true } }));
     await screen.findByRole('heading', { level: 3, name: /Implied temperature by scenario/ });
     expect(screen.queryByText(note)).toBeNull(); // the lead carries it: not printed a second time
-    expect(screen.getByText(/Slope 0\.486|Implied temperature outcomes/)).toBeInTheDocument(); // the rest of the section is intact
+    expect(screen.getByText(/Slope 0\.520/)).toBeInTheDocument(); // the rest of the section is intact
   });
 
   it('says so, rather than drawing nothing, when the result cannot be drawn', async () => {

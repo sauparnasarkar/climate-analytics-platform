@@ -30,6 +30,13 @@ describe('ScenarioSection', () => {
     expect(screen.getByText(/Slope 0\.520 °C per 1,000 GtCO2 \(Total anthropogenic CO2.*rest of world held at 10\.7% of the global total as of 2024; land-use CO₂ held flat at 4\.7 Gt a year \(2020–2024 mean\)/)).toBeInTheDocument();
   });
 
+  it('leaves out its own illustrative chip and label line when embedded in an answer, which carries the caveat already, and keeps the assumptions', () => {
+    render(<ScenarioSection view={view()} embedded />);
+    expect(screen.queryByText('Illustrative · implied outcomes, not projections')).toBeNull();
+    expect(screen.queryByText(/Implied temperature outcomes · Dependent on the selected regression period/)).toBeNull();
+    expect(screen.getByText(/Slope 0\.520 °C per 1,000 GtCO2/)).toBeInTheDocument();
+  });
+
   it('draws emissions and implied-temperature charts with the pathways dashed, the start year marked, and the anchor shown', () => {
     render(<ScenarioSection view={view()} />);
     const [emissions, temperature] = screen.getAllByTestId('chart');
