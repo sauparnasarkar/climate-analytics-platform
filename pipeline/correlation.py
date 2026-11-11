@@ -34,6 +34,7 @@ from statsmodels.tools.tools import add_constant
 
 from .berkeley_earth import PRELIMINARY_NOTE, SUMMARY_URL
 from .common import CLIMATE_DIR, NOTICES_PATH, RunReport, utc_now, write_json_atomic
+from .references import ar6_tcre
 from .harmonize import _LUC_LICENSE, _LUC_UNCERTAINTY
 from .pairing import CAUSATION_NOTE, Harmonized, align_pair, load_harmonized
 
@@ -70,14 +71,7 @@ SIMILAR_RMSE_RATIO = 1.10  # out-of-sample errors within 10% of each other are d
 SIMILAR_R2_GAP = 0.01  # in-sample R^2 within 0.01 is described as almost identical
 MIN_TEST_YEARS = 5
 
-AR6_TCRE = {
-    "unit": "°C per 1,000 GtCO2",
-    "best_estimate": 0.45,
-    "very_likely_range": [0.27, 0.63],
-    "as_per_1000_gtc": {"best_estimate": 1.65, "very_likely_range": [1.0, 2.3]},
-    "source": "IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (very likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).",
-    "note": "Derived from CO2-only forcing in Earth-system models with land-use emissions included; this platform's figure is a simplified, data-driven analog, not a restatement.",
-}
+# The IPCC AR6 TCRE range lives in pipeline/references.json (SPEC.md §5.35); `ar6_tcre()` returns it in the shape published as `ar6_reference`.
 
 METHODOLOGY = (
     "Derived from OWID cumulative CO2 from fossil fuels, cement and land-use change (Global Carbon Project), regressed against the Berkeley Earth "
@@ -277,16 +271,17 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
     x, y = frame[x_id].to_numpy(), frame[TEMPERATURE].to_numpy()
     n = len(frame)
     full = fit_line(x, y, hac_lags(n))
-    lo, hi = AR6_TCRE["very_likely_range"]
+    ar6_ref = ar6_tcre()
+    lo, hi = ar6_ref["very_likely_range"]
     slope = full["slope"]
     block = {
-        "label": label, "x_indicator": x_id, "y_indicator": TEMPERATURE, "unit": unit or AR6_TCRE["unit"],
+        "label": label, "x_indicator": x_id, "y_indicator": TEMPERATURE, "unit": unit or ar6_ref["unit"],
         "range": pair["range_used"], "n_years": n, "omitted_years": pair["omitted_years"], "contiguous": not pair["omitted_years"],
         "fit": {**full, "slope_per_1000_gtc": slope * GTCO2_PER_GTC,
                 "rule": "maxlags = floor(1.5 * n^(1/3)); Bartlett kernel; 95% CI from the HAC standard error (normal)"},
         "hac_sensitivity": [_hac_row(x, y, L) for L in HAC_SENSITIVITY_LAGS],
         "vs_ar6": {"within_very_likely_range": bool(lo <= slope <= hi), "ci_overlaps_range": bool(full["ci95_hac"][0] <= hi and full["ci95_hac"][1] >= lo),
-                   "ratio_to_best_estimate": slope / AR6_TCRE["best_estimate"]},
+                   "ratio_to_best_estimate": slope / ar6_ref["best_estimate"]},
         "windows": [],
     }
     for s in window_grid:
@@ -381,7 +376,7 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
         e = h.catalog.get(i) if h is not None else None
         inputs[i] = ({"available": True, "name": e.get("name"), "unit": e.get("unit"), "coverage": e.get("coverage"), "provenance": e.get("provenance")}
                      if e else {"available": False})
-    out = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "note": CAUSATION_NOTE, "ar6_reference": AR6_TCRE,
+    out = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "note": CAUSATION_NOTE, "ar6_reference": ar6_tcre(),
            "method": "OLS with intercept; Newey-West (HAC) standard errors", "methodology": METHODOLOGY, "definition": "total anthropogenic CO2 since 1850",
            "temperature_source_vintage": vintage, "attribution": attribution, "caveats": caveats, "inputs": inputs}
     for key, spec in VARIANTS.items():
@@ -533,7 +528,7 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, notices_path
     if out.get("headline"):
         f = out["headline"]["fit"]
         report.note(f"headline (total anthropogenic CO2) {f['slope']:.3f} °C per 1,000 GtCO2, HAC 95% CI [{f['ci95_hac'][0]:.3f}, {f['ci95_hac'][1]:.3f}], "
-                    f"R^2 {f['r_squared']:.3f}, n={f['n']}; AR6 range {AR6_TCRE['very_likely_range']}")
+                    f"R^2 {f['r_squared']:.3f}, n={f['n']}; AR6 range {ar6_tcre()['very_likely_range']}")
     if out.get("secondary_fossil_only"):
         report.note(f"fossil-only variant {out['secondary_fossil_only']['fit']['slope']:.3f} °C per 1,000 GtCO2")
     if not out["temperature_source_vintage"]["reconciled"]:

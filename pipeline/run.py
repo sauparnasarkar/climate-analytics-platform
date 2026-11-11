@@ -1,4 +1,4 @@
-"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|correlate|composition|country_share|ets_baseline|scenario_temperature|all]`.
+"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|correlate|composition|country_share|ets_baseline|scenario_temperature|references|all]`.
 
 `all` runs the active (publishable) sources, then the derived stages (the harmonized layer), only. Shelved sources (`edgar`) run only when named explicitly
 and write to `data/internal/`, never `data/climate/`.
@@ -17,7 +17,7 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, composition, correlation, country_share, edgar, ets_baseline, harmonize, noaa_gml, owid, primap_hist, scenario_temperature
+from . import berkeley_earth, composition, correlation, country_share, edgar, ets_baseline, harmonize, noaa_gml, owid, primap_hist, references, scenario_temperature
 from .common import CLIMATE_DIR, check_reshape_environment, utc_now, write_json_atomic, write_text_atomic
 
 ACTIVE_SOURCES = {
@@ -38,6 +38,8 @@ DERIVED_SOURCES = {
     "country_share": country_share.run,
     "ets_baseline": ets_baseline.run,
     "scenario_temperature": scenario_temperature.run,
+    # Not a data stage: the review-date backstop and the reference-search heartbeat on pipeline/references.json (SPEC.md §5.35 G). Deviations only.
+    "references": references.run,
 }
 SOURCES = {**ACTIVE_SOURCES, **DERIVED_SOURCES, **INTERNAL_SOURCES}
 # A derived stage that consumes one upstream stage's artifact as a whole must not run when that stage failed in the same run: it would build a

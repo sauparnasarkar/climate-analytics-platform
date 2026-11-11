@@ -81,3 +81,14 @@ def _neutral_reshape_canary(monkeypatch):
     import pipeline.run as run_module
 
     monkeypatch.setattr(run_module, "check_reshape_environment", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_github(monkeypatch):
+    """The `references` stage reads the reference-search heartbeat from GitHub: never in tests (a test that needs a response stubs `_get_json` itself)."""
+    from pipeline import references
+
+    def offline(url, timeout=15):
+        raise OSError("network disabled in tests")
+
+    monkeypatch.setattr(references, "_get_json", offline)

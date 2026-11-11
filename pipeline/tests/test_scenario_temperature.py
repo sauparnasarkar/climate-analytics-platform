@@ -172,6 +172,23 @@ def test_scenarios_are_translated_independently_and_ordered_by_their_emissions(t
     assert last["BAU"] > last["Moderate"] > last["Aggressive"]  # ordered by their emissions
 
 
+def test_each_scenario_is_compared_with_the_paris_goals_from_the_registry(tmp_path):
+    _, out = go(tmp_path)
+    assert out["paris_reference"]["goals_c"] == [1.5, 2.0] and out["paris_reference"]["edition"] == "Paris Agreement, 2015"
+    for sc, rows in out["scenarios"].items():
+        for line in ("headline", "fossil_only"):
+            g15 = out["vs_paris"][sc][line][0]
+            assert g15["goal_c"] == 1.5 and g15["horizon_year"] == rows[-1]["year"] and g15["implied_level_c"] == rows[-1][line]["level_c"]
+            assert g15["margin_c"] == pytest.approx(rows[-1][line]["level_c"] - 1.5, abs=1e-3)
+
+
+def test_an_unavailable_translation_publishes_no_paris_comparison_but_keeps_the_reference(tmp_path):
+    write(tmp_path, scenario_edit=lambda p: p.assign(year=p.year + 1))
+    T.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"), scenario_path=str(tmp_path / "scenario_projections.csv"), owid_path=str(tmp_path / "owid-co2-data.csv"))
+    out = json.loads((tmp_path / "correlation_scenario_temperature.json").read_text())
+    assert out["scenarios"] is None and out["vs_paris"] is None and out["paris_reference"]["goals_c"] == [1.5, 2.0]
+
+
 def test_base_block_states_the_last_observed_totals_and_the_cumulative_base(tmp_path):
     _, out = go(tmp_path)
     b = out["base"]
