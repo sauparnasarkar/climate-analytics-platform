@@ -2285,9 +2285,9 @@ monthly, with a heartbeat the refresh checks (G, H), rather than short review da
 - The routine: one manual run that finds nothing for the current registry and leaves its heartbeat comment, and one against a test entry
   whose `successor` already exists (opens an issue, does not duplicate it on a second run); then the refresh reading that heartbeat.
 
-### 5.36 Share bars: the palette stays, and a read-out names every segment (Docs-first)
+### 5.36 Share bars: the palette stays, and a read-out names every segment (Shipped)
 
-**Status: Approved 2026-11-11** with three edits (folded in below: the stepping buttons' accessibility and ends, the "share of" phrase
+**Status: Shipped 2026-11-11** (PR #122; checked on the preview in both themes on desktop, and by the user on a phone). Approved 2026-11-11 with three edits (folded in below: the stepping buttons' accessibility and ends, the "share of" phrase
 from the measure and from the gas split, the hint wording by input type). One app PR (no design-system change), separate from the §5.34
 colour work.
 
@@ -2332,7 +2332,9 @@ AUS and BRA unlabelled; Japan/Australia and UK/Russia are close in hue and unche
   the page surface in `night` and `tidewater`.
 - **Triggers.**
   - *Hover (mouse).* Pointer over a segment shows it; leaving the bar clears it, unless a segment is pinned.
-  - *Tap or click.* Selects and pins that segment. Tapping it again, tapping anywhere outside the bar, or pressing Escape dismisses it.
+  - *Tap or click.* Selects and pins that segment. Tapping it again, tapping anywhere outside the bar's section, or pressing Escape dismisses it.
+    The section, not the bar: its own controls (Replay, the measure switch, the table) keep the read-out open, so a replay can be watched
+    with one pinned (found on the preview: with "outside the bar", pressing Replay closed it).
     A tap on another segment moves the pin.
   - *Slivers.* A segment under about 1% can be two pixels wide on a phone, too narrow to tap. While a segment is pinned, the read-out
     shows ‹ and › buttons that step to the neighbouring segment in bar order, Rest of world included. They stop at the ends (disabled

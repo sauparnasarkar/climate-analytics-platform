@@ -198,3 +198,111 @@ describe('ShareSection', () => {
     expect(flex()).toBe('none');
   });
 });
+
+describe('ShareBar read-out (SPEC.md §5.36)', () => {
+  // GBR's flow is 0.8%: under 3%, so it has no inline label and only the read-out names it.
+  const WITH_GBR = shareResponse([
+    ['CHN', 'China', [[2022, 14, 30], [2023, 15, 31], [2024, 16, 32]]],
+    ['USA', 'United States', [[2022, 24.5, 13.5], [2023, 24.2, 13.2], [2024, 24, 13]]],
+    ['GBR', 'United Kingdom', [[2022, 4.6, 0.9], [2023, 4.5, 0.8], [2024, 4.4, 0.8]]],
+  ]);
+  const bar = (name: 'stock' | 'flow') => screen.getByRole('img', { name: new RegExp(`^The ${name}:`) });
+  const seg = (name: 'stock' | 'flow', code: string) => bar(name).querySelector(`[data-code="${code}"]`) as HTMLElement;
+  const row = (name: 'stock' | 'flow') => bar(name).closest('.share-bar-row') as HTMLElement;
+  const live = (name: 'stock' | 'flow') => row(name).querySelector('[aria-live="polite"]') as HTMLElement;
+  const ready = async (resp = WITH_GBR, countries = ['CHN', 'USA', 'GBR']) => {
+    vi.mocked(api.correlationCountryShare).mockResolvedValue(resp);
+    const r = mount(countries);
+    await screen.findByText('Share by country, 2024');
+    return r;
+  };
+
+  it('names an unlabelled sliver with its country, share and what it is of, outlined, and Rest of world too', async () => {
+    await ready();
+    expect(seg('flow', 'GBR').textContent).toBe('');
+    fireEvent.click(seg('flow', 'GBR'));
+    expect(within(row('flow')).getByText('United Kingdom · 0.8% of 2024 CO₂ emissions')).toBeInTheDocument();
+    expect(seg('flow', 'GBR').style.outline).toContain('2px solid');
+    fireEvent.click(seg('stock', 'rest'));
+    expect(within(row('stock')).getByText('Rest of world · 55.6% of cumulative CO₂ since 1750')).toBeInTheDocument();
+  });
+
+  it('shows on mouse hover and clears when the mouse leaves, unless pinned; hover is never announced', async () => {
+    await ready();
+    fireEvent.pointerEnter(seg('flow', 'CHN'), { pointerType: 'mouse' });
+    expect(within(row('flow')).getByText('China · 32.0% of 2024 CO₂ emissions')).toBeInTheDocument();
+    expect(live('flow').textContent).toBe('');
+    expect(within(row('flow')).queryByRole('button', { name: 'Next country' })).toBeNull(); // stepping only once pinned
+    fireEvent.pointerLeave(bar('flow'), { pointerType: 'mouse' });
+    expect(within(row('flow')).getByText('Hover or click a segment to see its share')).toBeInTheDocument();
+  });
+
+  it('dismisses a pinned read-out by tapping it again, tapping outside, Escape, or the clear button', async () => {
+    await ready();
+    const hint = () => within(row('flow')).queryByText('Hover or click a segment to see its share');
+    fireEvent.click(seg('flow', 'GBR'));
+    fireEvent.click(seg('flow', 'GBR'));
+    expect(hint()).toBeInTheDocument();
+    fireEvent.click(seg('flow', 'GBR'));
+    fireEvent.pointerDown(document.body);
+    expect(hint()).toBeInTheDocument();
+    fireEvent.click(seg('flow', 'GBR'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(hint()).toBeInTheDocument();
+    fireEvent.click(seg('flow', 'GBR'));
+    fireEvent.click(within(row('flow')).getByRole('button', { name: 'Clear selection' }));
+    expect(hint()).toBeInTheDocument();
+  });
+
+  it('steps with ‹ › in bar order to Rest of world, stops at both ends, and announces each step politely', async () => {
+    await ready();
+    // bar order is by stock: United States, China, United Kingdom, Rest of world
+    fireEvent.click(seg('flow', 'USA'));
+    const prev = within(row('flow')).getByRole('button', { name: 'Previous country' });
+    const next = within(row('flow')).getByRole('button', { name: 'Next country' });
+    expect(prev).toBeDisabled();
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(within(row('flow')).getAllByText('United Kingdom · 0.8% of 2024 CO₂ emissions')).toHaveLength(2); // shown, and in the live region
+    expect(live('flow').textContent).toBe('United Kingdom · 0.8% of 2024 CO₂ emissions');
+    fireEvent.click(next);
+    expect(live('flow').textContent).toBe('Rest of world · 54.2% of 2024 CO₂ emissions');
+    expect(next).toBeDisabled(); // no wrap to the first segment
+  });
+
+  it('takes its phrase from the measure', async () => {
+    await ready();
+    fireEvent.click(screen.getByRole('radio', { name: 'All GHGs · PRIMAP-hist' }));
+    await screen.findByText('Share by country, 2024');
+    fireEvent.click(seg('flow', 'CHN'));
+    expect(within(row('flow')).getByText('China · 32.0% of 2024 greenhouse-gas emissions')).toBeInTheDocument();
+    fireEvent.click(seg('stock', 'CHN'));
+    expect(within(row('stock')).getByText('China · 16.0% of cumulative greenhouse-gas emissions since 1750')).toBeInTheDocument();
+  });
+
+  it('gives the touch hint by input type (pointer: coarse), not by width', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: q === '(pointer: coarse)', media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    await ready();
+    expect(within(row('flow')).getByText('Tap a segment to see its share, then use ‹ › to step')).toBeInTheDocument();
+  });
+
+  it('follows the live value through a replay, and closes when the selected country leaves the bar', async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.correlationCountryShare).mockResolvedValue(WITH_GBR);
+    const { rerender } = mount(['CHN', 'USA', 'GBR']);
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    fireEvent.click(seg('stock', 'CHN'));
+    // Replay is in the same section: pressing it keeps the pinned read-out open
+    fireEvent.pointerDown(screen.getByRole('button', { name: '▶ Replay 2022 → 2024' }));
+    fireEvent.click(screen.getByRole('button', { name: '▶ Replay 2022 → 2024' }));
+    expect(within(row('stock')).getByText('China · 14.0% of cumulative CO₂ since 1750')).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(within(row('stock')).getByText('China · 15.0% of cumulative CO₂ since 1750')).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+    vi.mocked(api.correlationCountryShare).mockResolvedValue(shareResponse([['USA', 'United States', [[2024, 24, 13]]]]));
+    rerender(<ShareSection countries={['USA']} year={2024} pagePlaying={false} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(within(row('stock')).queryByText(/^China ·/)).toBeNull();
+    expect(within(row('stock')).getByText('Hover or click a segment to see its share')).toBeInTheDocument();
+  });
+});

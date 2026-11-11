@@ -1,11 +1,18 @@
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 
-/** The Share section's three measures: the (source, gas_scope) combinations /country-share publishes. */
+/**
+ * The Share section's three measures: the (source, gas_scope) combinations /country-share publishes. `flowOf` and `stockOf` are what a share is
+ * of, for the segment read-out (SPEC.md §5.36): "of 2024 CO₂ emissions", "of cumulative CO₂ since 1750".
+ */
 export const SHARE_MEASURES = [
-  { id: 'owid_co2', label: 'CO₂ · OWID', source: 'owid_co2', gasScope: 'co2' },
-  { id: 'primap_co2', label: 'CO₂ · PRIMAP-hist', source: 'primap_hist', gasScope: 'co2' },
-  { id: 'primap_ghg', label: 'All GHGs · PRIMAP-hist', source: 'primap_hist', gasScope: 'total_ghg' },
+  { id: 'owid_co2', label: 'CO₂ · OWID', source: 'owid_co2', gasScope: 'co2', flowOf: 'CO₂ emissions', stockOf: 'CO₂' },
+  { id: 'primap_co2', label: 'CO₂ · PRIMAP-hist', source: 'primap_hist', gasScope: 'co2', flowOf: 'CO₂ emissions', stockOf: 'CO₂' },
+  { id: 'primap_ghg', label: 'All GHGs · PRIMAP-hist', source: 'primap_hist', gasScope: 'total_ghg', flowOf: 'greenhouse-gas emissions', stockOf: 'greenhouse-gas emissions' },
 ] as const;
+
+/** The read-out's "of …" phrase for the flow bar (one year) and the stock bar (cumulative, from the data's own start when it is known). */
+export const flowShareOf = (m: (typeof SHARE_MEASURES)[number], year: number) => `of ${year} ${m.flowOf}`;
+export const stockShareOf = (m: (typeof SHARE_MEASURES)[number], from: number | null) => `of cumulative ${m.stockOf}${from != null ? ` since ${from}` : ''}`;
 export type ShareMeasureId = (typeof SHARE_MEASURES)[number]['id'];
 
 /** First animation frame (requirements §2.2: the share bars play 1970 → latest). */
