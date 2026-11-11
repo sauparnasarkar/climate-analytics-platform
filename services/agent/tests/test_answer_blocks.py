@@ -173,6 +173,14 @@ def test_a_pathway_that_reached_the_goal_but_ends_below_it_is_described_as_below
     assert "+-" not in text
 
 
+def test_above_or_below_follows_the_pipelines_unrounded_flag_when_the_margin_rounds_to_zero():
+    # Copilot on #108: margin_c is rounded to 3 dp; implied_level_above_goal is from the unrounded level.
+    tiny = {n: {"headline": {"1.5": {**_vp(m, y), "implied_level_above_goal": a}}}
+            for n, m, y, a in (("BAU", 0.0, 2040, True), ("Moderate", -0.0, None, False), ("Aggressive", -0.3, None, False))}
+    text = scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": tiny}})], "Paris?")
+    assert "above 1.5 °C for BAU +<0.01 °C, at or above it from 2040, and below it for Moderate by <0.01 °C; Aggressive by 0.30 °C." in text
+
+
 def test_a_pathway_missing_from_the_comparison_drops_the_paris_sentence_rather_than_part_of_it():
     partial = {k: v for k, v in _VS_PARIS.items() if k != "Moderate"}
     assert "Paris" not in scenario_lead([_rec("get_scenario_temperature", {**_SCEN, "summary": {**_SCEN["summary"], "vs_paris": partial}})], _PARIS_Q)

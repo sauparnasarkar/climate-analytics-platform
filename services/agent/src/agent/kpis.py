@@ -160,10 +160,14 @@ def _paris_sentence(summary: dict, names: list[str]) -> str | None:
             m, first = b["margin_c"], b.get("first_year_implied_level_at_or_above")
             # Above/below is the horizon status (the margin's sign, as the pipeline's implied_level_above_goal); the first year at or
             # above the goal is a separate fact: a pathway can reach the goal and end the horizon below it again.
-            if m > 0:
-                above.append(f"{n} +{m:.2f} °C" + (f", at or above it from {first}" if first is not None else ""))
+            # The pipeline's flag is computed from the unrounded level; margin_c is rounded, so a tiny positive margin can read 0.0.
+            flag = b.get("implied_level_above_goal")
+            is_above = flag if isinstance(flag, bool) else m > 0
+            size = "<0.01" if abs(m) < 0.005 else f"{abs(m):.2f}"
+            if is_above:
+                above.append(f"{n} +{size} °C" + (f", at or above it from {first}" if first is not None else ""))
             else:
-                below.append(f"{n} by {abs(m):.2f} °C" + (f", though at or above it in {first}" if first is not None else ""))
+                below.append(f"{n} by {size} °C" + (f", though at or above it in {first}" if first is not None else ""))
             if b.get("ci95_straddles_goal"):
                 straddles.append(f"{n} at {g} °C")
         if above and below:
