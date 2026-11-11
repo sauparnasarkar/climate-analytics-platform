@@ -139,7 +139,7 @@ export function DerivationAccordion({ derivation }: { derivation: Derivation }) 
       content: (
         <div style={body}>
           <p style={{ margin: '0 0 8px' }}>
-            The IPCC AR6 very likely range for the transient climate response to cumulative emissions is {ar6.low}–{ar6.high} {r.unit}, best estimate {ar6.best}.
+            The IPCC AR6 likely range for the transient climate response to cumulative emissions is {ar6.low}–{ar6.high} {r.unit}, best estimate {ar6.best}.
             {` This slope (${f3(r.slope)})`}
             {ar6.within !== null ? ` ${ar6.within ? 'lies within' : 'lies outside'} that range` : ''}
             {ar6.ratio !== null ? `${ar6.within !== null ? ' and' : ''} is ${ar6.ratio.toFixed(2)}× the best estimate` : ''}

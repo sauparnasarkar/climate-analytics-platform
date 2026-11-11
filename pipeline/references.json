@@ -8,9 +8,9 @@
   },
   "references": {
     "ipcc_ar6_tcre": {
-      "values": {"best_estimate": 0.45, "very_likely_range": [0.27, 0.63], "as_per_1000_gtc": {"best_estimate": 1.65, "very_likely_range": [1.0, 2.3]}},
+      "values": {"best_estimate": 0.45, "likely_range": [0.27, 0.63], "as_per_1000_gtc": {"best_estimate": 1.65, "likely_range": [1.0, 2.3]}},
       "unit": "°C per 1,000 GtCO2",
-      "citation": "IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (very likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).",
+      "citation": "IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).",
       "edition": "IPCC AR6 WGI, 2021",
       "published": "2021-08-09",
       "what_it_is": "The IPCC's assessed transient climate response to cumulative CO2 emissions (TCRE): warming per 1,000 GtCO2 emitted.",

@@ -13,12 +13,12 @@ describe('ar6FromResponse', () => {
     expect(ar6FromResponse(null)).toBeNull();
     const bad = (ref: unknown) => ar6FromResponse({ ...PAIR, fit_context: { ar6_reference: ref } });
     expect(bad({ best_estimate: 0.45 })).toBeNull();
-    expect(bad({ best_estimate: 0.9, very_likely_range: [0.27, 0.63] })).toBeNull(); // best estimate outside its own range
-    expect(bad({ best_estimate: '0.45', very_likely_range: [0.27, 0.63] })).toBeNull();
+    expect(bad({ best_estimate: 0.9, likely_range: [0.27, 0.63] })).toBeNull(); // best estimate outside its own range
+    expect(bad({ best_estimate: '0.45', likely_range: [0.27, 0.63] })).toBeNull();
   });
 
   it('keeps an older output without an edition, labelled plainly', () => {
-    const ref = ar6FromResponse({ ...PAIR, fit_context: { ar6_reference: { best_estimate: 0.45, very_likely_range: [0.27, 0.63] } } })!;
+    const ref = ar6FromResponse({ ...PAIR, fit_context: { ar6_reference: { best_estimate: 0.45, likely_range: [0.27, 0.63] } } })!;
     expect(ref.edition).toBeNull();
     expect(ar6Label(ref)).toBe('IPCC AR6');
   });

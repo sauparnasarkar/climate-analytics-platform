@@ -165,7 +165,7 @@ async def get_emissions_temperature_relationship(
     source/baseline pair is rejected with the valid combinations -- relay that rather than
     substituting another baseline. The response carries `summary` (relationship label, window,
     slope with its HAC 95% interval and unit, R², `cumulative` (the first/last cumulative emissions already in GtCO2 -- quote it; the raw `points` are in Mt, never convert them yourself), and, for the pre-industrial OWID fits only (the headline and its fossil-only
-    variant), the comparison with the AR6 very-likely range; the all-gas relationship and the
+    variant), the comparison with the AR6 likely range; the all-gas relationship and the
     1970/1990 windows never carry one) -- quote
     that. Always say this is a long-run relationship, not a complete climate model and not proof
     of cause; mention the `caveats` (including that the temperature dataset is a preliminary

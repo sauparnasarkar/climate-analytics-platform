@@ -2140,7 +2140,7 @@ WGI"). Earlier values stay in git history.
 
 | `id` | Values | Notes |
 |---|---|---|
-| `ipcc_ar6_tcre` | best 0.45, very likely 0.27–0.63 °C per 1,000 GtCO₂ (and the per-GtC form) | moved from `pipeline/correlation.py`'s `AR6_TCRE`, same values and wording |
+| `ipcc_ar6_tcre` | best 0.45, likely 0.27–0.63 °C per 1,000 GtCO₂ (and the per-GtC form) | moved from `pipeline/correlation.py`'s `AR6_TCRE`, same values; its range was labelled "very likely" until 2026-11-11, corrected to AR6 WGI SPM D.1.1's "likely" (`likely_range`, `vs_ar6.within_likely_range`) |
 | `paris_temperature_goals` | 1.5 °C and 2 °C above 1850–1900 | Article 2.1(a); `what_it_is_not`: a single year's or a projection's level crossing a goal is not the long-term warming the goals refer to, which the IPCC assesses on 20-year means |
 
 A loader in the pipeline validates every entry (required fields, a valid `review_by`) and fails the stage on a malformed registry.

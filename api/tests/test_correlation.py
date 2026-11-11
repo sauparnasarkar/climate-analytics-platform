@@ -26,7 +26,7 @@ def _windows(starts, end, slope, n_of):
 def _block(label, slope, starts, extra=None):
     b = {"label": label, "unit": "°C per 1,000 GtCO2", "range": [starts[0], 2024], "n_years": 2025 - starts[0], "fit": {"slope": slope, "intercept": -0.1, "r_squared": 0.9},
          "windows": _windows(starts, 2024, slope, lambda s: 2025 - s), "stability": {"summary": "stable", "seed": 20261002}, "hac_sensitivity": [{"maxlags": 4}],
-         "vs_ar6": {"within_very_likely_range": True}}
+         "vs_ar6": {"within_likely_range": True}}
     b.update(extra or {})
     return b
 
@@ -364,7 +364,7 @@ def test_default_is_the_owid_total_headline_pair_with_its_fit_and_full_context(a
     assert j["points"][0]["year"] == 1850 and j["points"][-1]["year"] == 2024 and j["points"][0]["cumulative_emissions"] > 0
     assert j["fit"]["slope"] == pytest.approx(0.52) and j["fit"]["n_years"] == 175 and j["fit"]["start"] == 1850 and j["fit"]["end"] == 2024 and j["fit"]["unit"] == "°C per 1,000 GtCO2"
     ctx = j["fit_context"]
-    assert ctx["ar6_reference"]["best_estimate"] == 0.45 and ctx["vs_ar6"]["within_very_likely_range"] is True and ctx["fit_quality_note"]["text"].startswith("Including land-use")
+    assert ctx["ar6_reference"]["best_estimate"] == 0.45 and ctx["vs_ar6"]["within_likely_range"] is True and ctx["fit_quality_note"]["text"].startswith("Including land-use")
     assert ctx["stability"]["seed"] == 20261002 and ctx["land_use_sensitivity"] and ctx["definition"] == "total anthropogenic CO2"
     assert j["note"] == "Paired series are shown for interpretive context." and j["source_vintage"]["file_last_modified"] == "2025-01-10" and "headline caveat" in j["caveats"]
     assert [a["series"] for a in j["attribution"]] == ["owid_world_co2_annual", "temperature_anomaly_annual"] and j["warnings"] == [] and j["omitted_years"] == []
@@ -373,7 +373,7 @@ def test_default_is_the_owid_total_headline_pair_with_its_fit_and_full_context(a
 def test_the_fossil_variant_uses_the_fossil_indicator_and_block_without_the_land_use_fit_quality_note(api):
     j = api.get(ET + "?variant=fossil").json()
     assert j["variant"] == "fossil" and j["x"]["id"] == "owid_co2_world_cumulative_mt" and j["fit"]["slope"] == pytest.approx(0.8) and j["fit"]["label"] == "Fossil + cement CO2 only"
-    assert "fit_quality_note" not in j["fit_context"] and j["fit_context"]["vs_ar6"]["within_very_likely_range"] is True
+    assert "fit_quality_note" not in j["fit_context"] and j["fit_context"]["vs_ar6"]["within_likely_range"] is True
 
 
 def test_the_1970_window_serves_the_published_secondary_fit_with_only_a_pointer_to_the_primary_context(api):

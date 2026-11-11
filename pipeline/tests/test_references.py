@@ -11,8 +11,8 @@ from pipeline.scenario_temperature import vs_paris
 
 # What correlation.py published as ar6_reference before the registry: the move must not change a value.
 OLD_AR6 = {
-    "unit": "°C per 1,000 GtCO2", "best_estimate": 0.45, "very_likely_range": [0.27, 0.63], "as_per_1000_gtc": {"best_estimate": 1.65, "very_likely_range": [1.0, 2.3]},
-    "source": "IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (very likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).",
+    "unit": "°C per 1,000 GtCO2", "best_estimate": 0.45, "likely_range": [0.27, 0.63], "as_per_1000_gtc": {"best_estimate": 1.65, "likely_range": [1.0, 2.3]},
+    "source": "IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).",
     "note": "Derived from CO2-only forcing in Earth-system models with land-use emissions included; this platform's figure is a simplified, data-driven analog, not a restatement.",
 }
 TODAY = dt.date(2026, 11, 10)

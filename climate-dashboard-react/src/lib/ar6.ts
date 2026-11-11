@@ -18,7 +18,7 @@ export function ar6FromResponse(resp: CorrelationEmissionsTemperatureResponse | 
   const ref = (resp?.fit_context as Record<string, unknown> | undefined)?.ar6_reference as Record<string, unknown> | undefined;
   if (!ref || typeof ref !== 'object') return null;
   const best = num(ref.best_estimate);
-  const range = Array.isArray(ref.very_likely_range) ? ref.very_likely_range.map(num) : [];
+  const range = Array.isArray(ref.likely_range) ? ref.likely_range.map(num) : [];
   const [low, high] = range.length === 2 ? range : [null, null];
   if (best === null || low === null || high === null || !(low <= best && best <= high)) return null;
   return { best, low, high, edition: typeof ref.edition === 'string' && ref.edition ? ref.edition : null };

@@ -82,10 +82,10 @@ def ar6_tcre(path: str | None = None) -> dict:
     """The AR6 TCRE range in the shape `correlation.py` has always published as `ar6_reference`, plus its edition."""
     e = entry("ipcc_ar6_tcre", path)
     v = e["values"]
-    lo, hi = v.get("very_likely_range") or [None, None]
+    lo, hi = v.get("likely_range") or [None, None]
     if not (isinstance(v.get("best_estimate"), (int, float)) and isinstance(lo, (int, float)) and isinstance(hi, (int, float)) and lo <= v["best_estimate"] <= hi):
-        raise RegistryError("references.json: ipcc_ar6_tcre needs best_estimate within very_likely_range")
-    return {"unit": e["unit"], "best_estimate": v["best_estimate"], "very_likely_range": [lo, hi], "as_per_1000_gtc": v.get("as_per_1000_gtc"),
+        raise RegistryError("references.json: ipcc_ar6_tcre needs best_estimate within likely_range")
+    return {"unit": e["unit"], "best_estimate": v["best_estimate"], "likely_range": [lo, hi], "as_per_1000_gtc": v.get("as_per_1000_gtc"),
             "source": e["citation"], "note": e["what_it_is_not"], "edition": e["edition"]}
 
 

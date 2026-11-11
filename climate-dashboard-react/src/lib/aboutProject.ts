@@ -4,7 +4,7 @@ import { ar6FromResponse, type Ar6Reference } from './ar6';
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const count = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null);
 
-/** How the fit's 95% HAC range sits against the AR6 very-likely range: overlapping is "in line with"; entirely outside is "above" or "below". */
+/** How the fit's 95% HAC range sits against the AR6 likely range: overlapping is "in line with"; entirely outside is "above" or "below". */
 export function compareToAr6(range: readonly [number, number] | null, ar6: Ar6Reference | null): 'in line with' | 'above' | 'below' | null {
   if (!range || !ar6 || !Number.isFinite(range[0]) || !Number.isFinite(range[1])) return null;
   const [low, high] = range[0] <= range[1] ? range : [range[1], range[0]];
