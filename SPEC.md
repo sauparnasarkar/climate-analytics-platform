@@ -2105,10 +2105,17 @@ no two series on one chart sharing a colour. Reported as a before/after table in
 
 ### 5.35 Paris temperature goals and external reference values (Docs-first)
 
-**Status: Approved 2026-11-10; in progress.** Pipeline, API, MCP server, agent and front end, in that order; the scheduled search routine is set
-up after the registry has shipped. Decided: the backstop dates as proposed (AR6 2028-06-30, Paris 2028-12-31); the Paris note only when the
-question names the goals; the search monthly with a heartbeat. **Pipeline part (A, B, G):** `pipeline/references.json`, `pipeline/references.py`
-and the `references` stage, AR6 read from the registry, `paris_reference` and `vs_paris` in the scenario stage.
+**Status: Shipped 2026-11-11.** Approved 2026-11-10 (decided: the backstop dates as proposed, AR6 2028-06-30 and Paris 2028-12-31; the Paris
+note only when the question names the goals; the search monthly with a heartbeat). Shipped in order: pipeline A, B, G (#103), API C (#104, merged
+through #105), MCP D (#105), agent E (#106, merged through #107), front end F (#107), deployed to production 2026-11-10 with `correlate`,
+`scenario_temperature` and `references` rerun. **Follow-up E fix (#108):** the scenario-only answer's lead is built in code and never reached
+the Paris prompt rule, so the comparison sentence moved into `kpis.scenario_lead` (see E below). **H (2026-11-11):** pinned tracking issue #111
+(label `reference-review`); the claude.ai routine "Monthly reference check" (1st of each month, 14:00 UTC; Claude Sonnet 5.5; GitHub through
+the routine's GitHub tools, since `gh` is not authenticated in the cloud environment; `ipcc.ch` and `unfccc.int` added to the environment's
+allowed domains); `heartbeat.issue` set to 111 (#112). **Verification done:** a manual run found nothing and left its heartbeat on #111; a test
+routine with an entry whose successor exists (AR5 TCRE, superseded by AR6) opened #113 on its first run and reported it "already open" on the
+second (closed, test routine disabled); the production `references` stage then read the heartbeat ("heartbeat ok", no deviation). The
+verification also found the AR6 range mislabelled "very likely"; corrected to "likely" (#114).
 
 **Problem.**
 1. **The scenario answer cannot speak to the Paris goals.** Asked "What do the emissions projections indicate about our pathways to the Paris
