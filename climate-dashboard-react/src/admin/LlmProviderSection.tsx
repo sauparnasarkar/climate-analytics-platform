@@ -1,26 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Button, InlineAlert, SegmentedControl, Select, Spinner } from '@syena/ds';
+import { Button, InlineAlert, Select, Spinner } from '@syena/ds';
 import { adminApi } from './adminClient';
-import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { LlmChoice } from './types';
 import { useAsync } from '../hooks/useAsync';
 
 // Mirrors services/agent/src/agent/settings.py's ALLOWED_CHOICES -- SPEC.md §14.2. Kept as a
 // small hand-synced copy rather than a shared import, matching this repo's established
 // "small per-sub-project copies over a shared import" convention (services/agent/SPEC.md
-// "Corrections applied" #15). Three entries today; a fourth would be worth revisiting for a
-// Select dropdown instead of a SegmentedControl.
+// "Corrections applied" #15). Shown in a Select at every width: the three long labels in a
+// SegmentedControl ran off a phone screen, and one control is simpler than switching by width.
 const OPTIONS = [
   { id: 'anthropic-sonnet', provider: 'anthropic', model: 'claude-sonnet-5', label: 'Claude Sonnet 5 (Anthropic)' },
   { id: 'ollama-qwen3.8-27b-ctx32k', provider: 'ollama', model: 'qwen3.8-27b-ctx32k', label: 'Qwen 3.8 27B (local, 32k ctx)' },
   { id: 'ollama-gpt-oss-20b-ctx32k', provider: 'ollama', model: 'gpt-oss:20b-ctx32k', label: 'gpt-oss 20B (local, 32k ctx)' },
 ];
-
-/**
- * Below this width the three segments (about 600 px of labels in a row) do not fit the card, and on a phone they ran off the screen. A Select
- * takes the same options there; the segments stay where they fit.
- */
-export const NARROW_PICKER_QUERY = '(max-width: 760px)';
 
 function idForChoice(choice: LlmChoice): string | undefined {
   return OPTIONS.find((o) => o.provider === choice.provider && o.model === choice.model)?.id;
@@ -35,11 +28,10 @@ export function LlmProviderSection() {
   // choice that's no longer live, letting the admin repeatedly re-POST the same switch.
   const [appliedChoice, setAppliedChoice] = useState<LlmChoice | null>(null);
   // undefined until the admin actually picks something in this session -- until then the
-  // SegmentedControl just reflects `appliedChoice`.
+  // Select just reflects `appliedChoice`.
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [applying, setApplying] = useState(false);
   const [status, setStatus] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
-  const narrow = useMediaQuery(NARROW_PICKER_QUERY);
 
   useEffect(() => {
     if (current.data) setAppliedChoice(current.data);
@@ -59,10 +51,8 @@ export function LlmProviderSection() {
   }
 
   const appliedId = idForChoice(appliedChoice);
-  // "" (not undefined) when appliedId is unrecognized -- SegmentedControl falls back to its
-  // own internal state (defaulting to the first item) whenever `value` is undefined, which
-  // would silently show Sonnet as selected even though the live choice is something else
-  // entirely. An explicit "" matches no real item, so nothing renders as selected instead.
+  // "" (not undefined) when appliedId is unrecognized: an explicit "" matches no real option, so
+  // the Select shows its placeholder rather than silently presenting Sonnet as the live choice.
   const activeId = selectedId ?? appliedId ?? '';
 
   const handleApply = async () => {
@@ -93,7 +83,7 @@ export function LlmProviderSection() {
           options below -- pick one to switch to a recognized state.
         </InlineAlert>
       )}
-      {narrow ? (
+      <div style={{ maxWidth: 420 }}>
         <Select
           ariaLabel="Model"
           options={OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
@@ -102,13 +92,7 @@ export function LlmProviderSection() {
           suppressSearch
           placeholder="Choose a model"
         />
-      ) : (
-        <SegmentedControl
-          items={OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
-          value={activeId}
-          onChange={setSelectedId}
-        />
-      )}
+      </div>
       <div>
         <Button
           onClick={handleApply}
