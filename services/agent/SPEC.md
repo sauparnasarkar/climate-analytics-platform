@@ -556,7 +556,7 @@ Tool → intent mapping (fixed lookup, no LLM judgment except the one case noted
 
 | Tool | Intent |
 |---|---|
-| `get_historical_emissions`, `get_scenario_projection`, `compare_scenarios_across_countries` | `chart` (`line`) |
+| `get_historical_emissions`, `get_scenario_projection`, `compare_scenarios_across_countries` | `chart` (`line`); `compare_scenarios_across_countries` is drawn as one panel per scenario with one colour per country and one key, and as a table past eight countries (2026-11-11) |
 | `get_forecast` | `chart` (`line` + `band`) |
 | `get_forecast_comparison` | `chart` (`line`) — the multi-country equivalent of `get_forecast` |
 | `get_top_emitters` | `chart` (`bar`, or `choropleth` per §3.1 below) |
