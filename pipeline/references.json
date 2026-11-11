@@ -2,9 +2,9 @@
   "_about": "External reference values the platform compares its own figures against (SPEC.md §5.35). Not data: each comes from a dated publication and changes only with a new edition, through a reviewed PR (change the entry, rerun the stages that compare against it, re-check docs/training). The monthly refresh flags an entry past its review_by date, and a missed heartbeat of the monthly reference-search routine. Earlier values stay in git history.",
   "heartbeat": {
     "repo": "sauparnasarkar/climate-analytics-platform",
-    "issue": null,
+    "issue": 111,
     "max_age_days": 45,
-    "_note": "issue: the number of the pinned 'Monthly reference check' issue the reference-search routine comments on every run (SPEC.md §5.35 H). null until the routine is set up; the refresh then only notes that the heartbeat is not configured."
+    "_note": "issue: the number of the pinned 'Monthly reference check' issue (#111) the reference-search routine comments on every run (SPEC.md §5.35 H; the claude.ai routine 'Monthly reference check', 1st of each month 14:00 UTC). Set to null to switch the heartbeat check off; the refresh then only notes that it is not configured."
   },
   "references": {
     "ipcc_ar6_tcre": {
