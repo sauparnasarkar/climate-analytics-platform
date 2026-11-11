@@ -73,7 +73,7 @@ describe('DerivationAccordion', () => {
   it('step 5 compares with AR6 in numbers from the response, and step 6 lists each source\'s licence and citations verbatim', () => {
     mount();
     fireEvent.click(step(5));
-    expect(within(panel(5)).getByText(/very likely range for the transient climate response to cumulative emissions is 0\.27–0\.63 °C per 1,000 GtCO2, best estimate 0\.45\. This slope \(0\.520\) lies within that range and is 1\.15× the best estimate; its 95% interval overlaps the range\./)).toBeInTheDocument();
+    expect(within(panel(5)).getByText(/likely range for the transient climate response to cumulative emissions is 0\.27–0\.63 °C per 1,000 GtCO2, best estimate 0\.45\. This slope \(0\.520\) lies within that range and is 1\.15× the best estimate; its 95% interval overlaps the range\./)).toBeInTheDocument();
     fireEvent.click(step(6));
     const body = within(panel(6));
     expect(body.getByText(/^CC BY-NC 4\.0 International/)).toBeInTheDocument();

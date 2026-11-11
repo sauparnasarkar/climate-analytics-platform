@@ -141,10 +141,10 @@ export function buildDerivation(resp: CorrelationEmissionsTemperatureResponse | 
 
   const ref = rec(ctx?.ar6_reference);
   const vs = rec(ctx?.vs_ar6);
-  const range = pair(ref?.very_likely_range);
+  const range = pair(ref?.likely_range);
   const best = num(ref?.best_estimate);
   const ar6: Ar6 | null = ref && range && best !== null
-    ? { best, low: range[0], high: range[1], source: str(ref.source), note: str(ref.note), within: typeof vs?.within_very_likely_range === 'boolean' ? vs.within_very_likely_range : null, overlaps: typeof vs?.ci_overlaps_range === 'boolean' ? vs.ci_overlaps_range : null, ratio: num(vs?.ratio_to_best_estimate) }
+    ? { best, low: range[0], high: range[1], source: str(ref.source), note: str(ref.note), within: typeof vs?.within_likely_range === 'boolean' ? vs.within_likely_range : null, overlaps: typeof vs?.ci_overlaps_range === 'boolean' ? vs.ci_overlaps_range : null, ratio: num(vs?.ratio_to_best_estimate) }
     : null;
 
   const attribution = (resp.attribution ?? []).flatMap((a): AttributionEntry[] => {

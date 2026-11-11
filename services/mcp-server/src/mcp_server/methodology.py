@@ -75,7 +75,7 @@ CLIMATE_METHODOLOGY = {
         "reference) on cumulative OWID total anthropogenic CO₂ since 1850 (fossil fuel, cement "
         "and land-use change; OWID's World series, which includes international aviation and "
         "shipping). A simplified, data-driven analog to the IPCC's TCRE (AR6 best estimate about "
-        "0.45 °C per 1,000 GtCO₂, very likely range 0.27–0.63), not a restatement of it: it also "
+        "0.45 °C per 1,000 GtCO₂, likely range 0.27–0.63), not a restatement of it: it also "
         "absorbs warming from non-CO₂ gases and aerosols that varies with CO₂, uses one observed "
         "climate history rather than a multi-model ensemble, and depends on uncertain land-use "
         "estimates. The confidence interval uses Newey-West (HAC) standard errors because plain "

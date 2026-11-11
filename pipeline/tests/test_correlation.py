@@ -116,13 +116,13 @@ def test_output_structure_conversion_ar6_and_published_sensitivities(tmp_path):
     assert h["x_indicator"] == "owid_total_co2_world_cumulative_mt" and s["x_indicator"] == "owid_co2_world_cumulative_mt" and h["y_indicator"] == "temperature_anomaly_1850_1900_c"
     assert h["range"] == [1850, 2024] and h["n_years"] == 175 and h["fit"]["maxlags"] == 8 and h["unit"] == "°C per 1,000 GtCO2"
     assert h["fit"]["slope_per_1000_gtc"] == pytest.approx(h["fit"]["slope"] * GTC, rel=1e-12)
-    assert out["ar6_reference"]["very_likely_range"] == [0.27, 0.63] and out["ar6_reference"]["best_estimate"] == 0.45
+    assert out["ar6_reference"]["likely_range"] == [0.27, 0.63] and out["ar6_reference"]["best_estimate"] == 0.45
     assert [r["maxlags"] for r in h["hac_sensitivity"]] == [4, 8, 16] and h["hac_sensitivity"][1]["se_hac"] == pytest.approx(h["fit"]["se_hac"])
     assert [w["start"] for w in h["windows"]] == [1850, 1900, 1950, 1970] and h["windows"][0]["slope"] == pytest.approx(h["fit"]["slope"])
     assert [w["n_years"] for w in h["windows"]] == [175, 125, 75, 55] and [w["maxlags"] for w in h["windows"]] == [8, 7, 6, 5]
     assert "land_use_sensitivity" in h and "land_use_sensitivity" not in s
-    lo, hi = out["ar6_reference"]["very_likely_range"]
-    assert h["vs_ar6"]["within_very_likely_range"] == (lo <= h["fit"]["slope"] <= hi)
+    lo, hi = out["ar6_reference"]["likely_range"]
+    assert h["vs_ar6"]["within_likely_range"] == (lo <= h["fit"]["slope"] <= hi)
     assert h["vs_ar6"]["ratio_to_best_estimate"] == pytest.approx(h["fit"]["slope"] / 0.45)
 
 

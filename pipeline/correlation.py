@@ -75,7 +75,7 @@ MIN_TEST_YEARS = 5
 
 METHODOLOGY = (
     "Derived from OWID cumulative CO2 from fossil fuels, cement and land-use change (Global Carbon Project), regressed against the Berkeley Earth "
-    "anomaly. A simplified, data-driven analog to the IPCC's TCRE (AR6 best estimate about 0.45 °C per 1,000 GtCO2, very likely range 0.27-0.63), "
+    "anomaly. A simplified, data-driven analog to the IPCC's TCRE (AR6 best estimate about 0.45 °C per 1,000 GtCO2, likely range 0.27-0.63), "
     "not a restatement of it: this regression also absorbs warming from non-CO2 gases and aerosols that varies with CO2, uses one observed climate "
     "history rather than a multi-model ensemble, and depends on land-use emission estimates that are themselves uncertain."
 )
@@ -272,7 +272,7 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
     n = len(frame)
     full = fit_line(x, y, hac_lags(n))
     ar6_ref = ar6_tcre()
-    lo, hi = ar6_ref["very_likely_range"]
+    lo, hi = ar6_ref["likely_range"]
     slope = full["slope"]
     block = {
         "label": label, "x_indicator": x_id, "y_indicator": TEMPERATURE, "unit": unit or ar6_ref["unit"],
@@ -280,7 +280,7 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
         "fit": {**full, "slope_per_1000_gtc": slope * GTCO2_PER_GTC,
                 "rule": "maxlags = floor(1.5 * n^(1/3)); Bartlett kernel; 95% CI from the HAC standard error (normal)"},
         "hac_sensitivity": [_hac_row(x, y, L) for L in HAC_SENSITIVITY_LAGS],
-        "vs_ar6": {"within_very_likely_range": bool(lo <= slope <= hi), "ci_overlaps_range": bool(full["ci95_hac"][0] <= hi and full["ci95_hac"][1] >= lo),
+        "vs_ar6": {"within_likely_range": bool(lo <= slope <= hi), "ci_overlaps_range": bool(full["ci95_hac"][0] <= hi and full["ci95_hac"][1] >= lo),
                    "ratio_to_best_estimate": slope / ar6_ref["best_estimate"]},
         "windows": [],
     }
@@ -528,7 +528,7 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, notices_path
     if out.get("headline"):
         f = out["headline"]["fit"]
         report.note(f"headline (total anthropogenic CO2) {f['slope']:.3f} °C per 1,000 GtCO2, HAC 95% CI [{f['ci95_hac'][0]:.3f}, {f['ci95_hac'][1]:.3f}], "
-                    f"R^2 {f['r_squared']:.3f}, n={f['n']}; AR6 range {ar6_tcre()['very_likely_range']}")
+                    f"R^2 {f['r_squared']:.3f}, n={f['n']}; AR6 range {ar6_tcre()['likely_range']}")
     if out.get("secondary_fossil_only"):
         report.note(f"fossil-only variant {out['secondary_fossil_only']['fit']['slope']:.3f} °C per 1,000 GtCO2")
     if not out["temperature_source_vintage"]["reconciled"]:
