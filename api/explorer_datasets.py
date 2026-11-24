@@ -15,6 +15,9 @@ One limit no reader can close: the pipeline publishes each source's provenance b
 fails in between leaves new provenance beside the previous harmonized CSV. `/api/correlation/*` has the same exposure. Closing it takes the pipeline publishing data and provenance as
 one versioned snapshot, which is a separate change (SPEC.md §5.37 notes it).
 
+A second, API-wide limit: every loader is lazy and startup warms none, so a first request after a failed refresh (before anyone has loaded that file) reads whatever is on disk, approved or
+not. Protecting first requests needs eager loading at startup or an approved snapshot the refresh job publishes; neither is an Explorer concern, so both are follow-ups.
+
 The data sets are never joined: a global value is never repeated on country rows. A missing climate store makes only the climate data sets unavailable.
 """
 
