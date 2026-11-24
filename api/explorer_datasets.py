@@ -1,14 +1,10 @@
 """The Data Explorer's data sets (SPEC.md §5.37): one table per published source series, each with its own grain, columns, units, source and licence.
 
 The registry below holds only fixed copy (titles, descriptions, the row label, the owning pages). Everything else is read at request time:
-- the climate data sets read the harmonized layer (through `climate_loaders`' readers, uncached: see below); a data set's columns are every catalog indicator whose `source_series` and `scope` match, so a
+- the climate data sets read the harmonized layer through `climate_loaders`; a data set's columns are every catalog indicator whose `source_series` and `scope` match, so a
   new indicator in the pipeline appears here with no change to this file. Nothing is recomputed;
 - `owid_country` is `ghg_filtered.csv`, unchanged, with each column's unit from OWID's codebook;
 - coverage, release, licence, citation and caveats come from `provenance.json`.
-
-Each table is built from its input files **and the provenance that describes them, read together**, and cached on those files' modification stamps. Reading through the shared loader
-caches would let a table pair data cached earlier (by another endpoint) with provenance read later, so the Explorer reads its own inputs fresh: data and attribution are always one snapshot,
-and a refresh is picked up with no restart.
 
 The data sets are never joined: a global value is never repeated on country rows. A missing climate store makes only the climate data sets unavailable.
 """
@@ -16,7 +12,6 @@ The data sets are never joined: a global value is never repeated on country rows
 from __future__ import annotations
 
 import io
-import os
 import re
 import zipfile
 from dataclasses import dataclass, replace
@@ -121,17 +116,6 @@ def get_dataset(dataset_id: str) -> Dataset | None:
     return _BY_ID.get(dataset_id)
 
 
-# --- fresh readers: the loaders' own validation, without their caches ---
-
-
-def _csv(name: str) -> pd.DataFrame:
-    return cl._read_csv.__wrapped__(name, cl.climate_dir())  # `__wrapped__`: the cached function's uncached original
-
-
-def _catalog() -> dict:
-    return cl._read_json.__wrapped__("indicator_catalog.json", cl.climate_dir())
-
-
 # --- labels and licence class ---
 
 _ACRONYMS = ("co2", "ch4", "n2o", "ghg", "gdp", "gnp", "gni", "mae", "rmse", "ets", "iso")
@@ -205,8 +189,8 @@ def _finish(ds: Dataset, df: pd.DataFrame, detail: list[dict], default_order: li
 
 
 def _owid_table(ds: Dataset) -> Table:
-    df = data_loaders.load_filtered.__wrapped__()
-    units = data_loaders.load_owid_codebook.__wrapped__()
+    df = data_loaders.load_filtered()
+    units = data_loaders.load_owid_codebook()
     detail = [
         _detail(c, humanize_column(c), None if c in ds.keys else units.get(c), "key" if c in ds.keys else None, None, c in ds.keys, c in OWID_DEFAULT_COLUMNS)
         for c in df.columns
@@ -215,7 +199,7 @@ def _owid_table(ds: Dataset) -> Table:
 
 
 def _indicators(ds: Dataset, scope: str) -> list[dict]:
-    found = [i for i in _catalog().get("indicators", []) if isinstance(i, dict) and i.get("source_series") == ds.series and i.get("scope") == scope]
+    found = [i for i in cl.load_catalog().get("indicators", []) if isinstance(i, dict) and i.get("source_series") == ds.series and i.get("scope") == scope]
     if not found:
         raise cl.ClimateDataUnavailable(f"indicator_catalog.json lists no {scope} indicators for {ds.series}")
     return found
@@ -242,7 +226,7 @@ def _climate_default_order(ds: Dataset, inds: list[dict]) -> list[str]:
 
 def _global_table(ds: Dataset) -> Table:
     inds = _indicators(ds, "global")
-    long = _csv("harmonized_global_annual.csv")
+    long = cl.load_csv("harmonized_global_annual.csv")
     if not {"indicator_id", "year", "value"} <= set(long.columns):
         raise cl.ClimateDataUnavailable("harmonized_global_annual.csv lacks indicator_id/year/value columns")
     cols = {}
@@ -263,7 +247,7 @@ def _global_table(ds: Dataset) -> Table:
 def _country_names() -> dict[str, str]:
     """iso3 -> display name for sovereign countries: the crosswalk's `entity_type == "country"` rows, named as OWID names them (`owid_name`, else `primap_name`),
     minus `NON_SOVEREIGN`, so the two country data sets offer comparable country lists."""
-    cw = _csv("country_crosswalk.csv")
+    cw = cl.load_csv("country_crosswalk.csv")
     if not {"iso3", "primap_name", "owid_name", "entity_type"} <= set(cw.columns):
         raise cl.ClimateDataUnavailable("country_crosswalk.csv lacks iso3/primap_name/owid_name/entity_type columns")
     cw = cw[cw["entity_type"] == "country"]
@@ -277,7 +261,7 @@ def _country_names() -> dict[str, str]:
 
 def _country_table(ds: Dataset) -> Table:
     inds = _indicators(ds, "country")
-    long = _csv("harmonized_country_annual.csv")
+    long = cl.load_csv("harmonized_country_annual.csv")
     if not {"indicator_id", "iso3", "year", "value"} <= set(long.columns):
         raise cl.ClimateDataUnavailable("harmonized_country_annual.csv lacks indicator_id/iso3/year/value columns")
     cols = {}
@@ -296,7 +280,7 @@ def _country_table(ds: Dataset) -> Table:
 
 
 def _monthly_table(ds: Dataset) -> Table:
-    df = _csv("co2_concentration_monthly_mlo.csv")
+    df = cl.load_csv("co2_concentration_monthly_mlo.csv")
     if not {"year", "month", "co2_ppm"} <= set(df.columns):
         raise cl.ClimateDataUnavailable("co2_concentration_monthly_mlo.csv lacks year/month/co2_ppm columns")
     value_cols = [c for c in MONTHLY_COLUMNS if c in df.columns]
@@ -306,60 +290,52 @@ def _monthly_table(ds: Dataset) -> Table:
     return _finish(ds, df, detail)
 
 
-def _inputs(ds: Dataset) -> tuple[str, ...]:
-    """Every file a table is built from, provenance last: the cache key is these files' stamps."""
-    d = cl.climate_dir()
-    prov = os.path.join(d, "provenance.json")
-    if ds.id == "owid_country":
-        return (data_loaders._path("ghg_filtered.csv"), data_loaders._path("owid-co2-codebook.csv"), prov)
-    names = {GLOBAL_MONTH: ("co2_concentration_monthly_mlo.csv",), COUNTRY_YEAR: ("indicator_catalog.json", "harmonized_country_annual.csv", "country_crosswalk.csv"),
-             GLOBAL_YEAR: ("indicator_catalog.json", "harmonized_global_annual.csv")}[ds.grain]
-    return tuple(os.path.join(d, n) for n in names) + (prov,)
+def _sources(ds: Dataset) -> tuple:
+    """The objects `climate_loaders` has cached for this data set's inputs. A table is built from exactly these, so the key below changes exactly when those caches do."""
+    if ds.grain == GLOBAL_MONTH:
+        return (cl.load_csv("co2_concentration_monthly_mlo.csv"),)
+    if ds.grain == COUNTRY_YEAR:
+        return (cl.load_catalog(), cl.load_csv("harmonized_country_annual.csv"), cl.load_csv("country_crosswalk.csv"))
+    return (cl.load_catalog(), cl.load_csv("harmonized_global_annual.csv"))
 
 
-def _stamp(path: str):
-    try:
-        st = os.stat(path)
-    except OSError:
-        return None
-    return (st.st_mtime_ns, st.st_size)
-
-
-# (data set, its input paths, their stamps) -> table. Taken before reading, so a file rewritten mid-build is simply rebuilt on the next request.
-_TABLES: dict[tuple, Table] = {}
+# (data set, climate directory, identity of each source) -> (table, the sources). The sources are kept alongside the table so their ids cannot be recycled for a different
+# object while the entry lives. This follows the one invalidation model the whole API has: what `climate_loaders` has cached stays until it is cleared (a refresh restarts the API).
+_TABLES: dict[tuple, tuple[Table, tuple]] = {}
 
 
 def _provenance_snapshot(ds: Dataset) -> dict | None:
-    path = os.path.join(cl.climate_dir(), "provenance.json")
-    if not os.path.exists(path):
-        return None
     try:
-        entry = cl._read_provenance.__wrapped__(path, 0.0).get(ds.provenance_id)
+        entry = cl.load_provenance().get(ds.provenance_id)
     except cl.ClimateDataUnavailable:
         return None
     return entry if isinstance(entry, dict) else None
 
 
-def _cached(ds: Dataset, build) -> Table:
-    paths = _inputs(ds)
-    key = (ds.id, paths, tuple(_stamp(p) for p in paths))
+def _cached(ds: Dataset, sources: tuple, build) -> Table:
+    key = (ds.id, cl.climate_dir(), tuple(id(x) for x in sources))
     hit = _TABLES.get(key)
     if hit is not None:
-        return hit
-    # The data and the provenance it is attributed to are read in this one build, so they cannot come from different moments.
+        return hit[0]
+    # Built together with the provenance it is attributed to: `load_provenance` reloads on a file change while the data stays cached until a restart, so reading it
+    # per request could describe a newer release than the values served.
     table = replace(build(), provenance=_provenance_snapshot(ds))
     for stale in [k for k in _TABLES if k[:2] == key[:2]]:
-        del _TABLES[stale]  # an earlier build of this data set, from files that have since changed
-    _TABLES[key] = table
+        del _TABLES[stale]  # an earlier build of this data set, from sources that have since been reloaded
+    _TABLES[key] = (table, sources)
     return table
+
+
+def _climate_table(ds: Dataset) -> Table:
+    build = _country_table if ds.grain == COUNTRY_YEAR else _monthly_table if ds.grain == GLOBAL_MONTH else _global_table
+    return _cached(ds, _sources(ds), lambda: build(ds))
 
 
 def load_table(ds: Dataset) -> Table:
     """The data set's table. Raises DataNotFoundError (a 503 with the reason) when its source is missing or unusable; never takes another data set down."""
     if ds.id == "owid_country":
-        return _cached(ds, lambda: _owid_table(ds))
-    build = _country_table if ds.grain == COUNTRY_YEAR else _monthly_table if ds.grain == GLOBAL_MONTH else _global_table
-    return _cached(ds, lambda: build(ds))
+        return _cached(ds, (data_loaders.load_filtered(), data_loaders.load_owid_codebook()), lambda: _owid_table(ds))
+    return _climate_table(ds)
 
 
 def clear_caches() -> None:

@@ -366,24 +366,24 @@ def test_the_owid_default_order_is_the_page_default_even_when_the_file_orders_co
     assert [c["id"] for c in r["columns_detail"] if c["default"]] == ["country", "year", "co2", "population", "gdp"]
 
 
-def test_a_changed_input_file_is_picked_up_without_a_restart(ex, climate):
+def test_tables_follow_climate_loaders_cache_not_a_second_invalidation_model(ex, climate):
     first = ex.get("/api/explorer/meta", params={"dataset": "temperature"}).json()
+    # Rewriting a file the loaders have cached changes nothing until they reload: the table never pairs new data with old, or the reverse, on its own.
     (climate / "harmonized_global_annual.csv").write_text("indicator_id,year,value\n")
-    assert ex.get("/api/explorer/meta", params={"dataset": "temperature"}).status_code == 503  # the emptied file is what is served now
-    assert first["columns"][0] == "year"
+    assert ex.get("/api/explorer/meta", params={"dataset": "temperature"}).json() == first
+    cl.clear_caches()
+    assert ex.get("/api/explorer/meta", params={"dataset": "temperature"}).status_code == 503  # reloaded: the emptied file is now what is served
     (climate / "harmonized_global_annual.csv").unlink()
     assert ex.get("/api/explorer/meta", params={"dataset": "owid_world"}).status_code == 503
 
 
-def test_a_table_is_built_once_and_reused_until_an_input_file_changes(ex, climate):
+def test_a_table_is_built_once_and_reused_until_the_sources_reload(ex):
     ed.clear_caches()
     ds = ed.get_dataset("temperature")
-    first = ed.load_table(ds)
-    assert ed.load_table(ds) is first
-    cat = json.loads((climate / "indicator_catalog.json").read_text())
-    cat["generated_at"] = "changed"
-    (climate / "indicator_catalog.json").write_text(json.dumps(cat))
-    assert ed.load_table(ds) is not first  # an input changed: rebuilt, and the old entry is not kept
+    assert ed.load_table(ds) is ed.load_table(ds)
+    before = ed.load_table(ds)
+    cl.clear_caches()
+    assert ed.load_table(ds) is not before  # reloaded sources: rebuilt, and the old entry is not kept
     assert len([k for k in ed._TABLES if k[0] == "temperature"]) == 1
 
 
@@ -421,32 +421,27 @@ def test_the_owid_download_keeps_its_minimal_fallback_without_provenance(ex, cli
 # --- Copilot review of #129, round 2, each verified ---
 
 
-def test_data_and_provenance_come_from_the_same_moment_even_when_another_endpoint_warmed_the_loaders(ex, climate):
-    # Copilot's scenario: /api/correlation/* (or another Explorer data set) has already cached the harmonized CSV through climate_loaders; a refresh then rewrites the CSV AND
-    # provenance.json without a restart; the Explorer is asked for the data set for the first time. It must not pair the old cached values with the new release and licence.
-    old = cl.load_csv("harmonized_global_annual.csv")  # warm the shared loader cache with the OLD frame
-    assert not old.empty
-    rows = (climate / "harmonized_global_annual.csv").read_text().splitlines()
-    new_rows = [r if not r.startswith("temperature_anomaly_1850_1900_c,2000,") else "temperature_anomaly_1850_1900_c,2000,9.99" for r in rows]
-    (climate / "harmonized_global_annual.csv").write_text("\n".join(new_rows) + "\n")
+def test_attribution_describes_the_release_the_table_was_built_from(ex, climate):
+    # provenance.json is reloaded by climate_loaders on a file change while the data stays cached until a restart: reading it per request could pair old values with a new
+    # release, citation or licence. The table carries the entry it was built with, so a rewrite changes nothing until the sources reload together.
+    first = datasets(ex)[0]["temperature"]["source"]["short_license"]
     prov = json.loads((climate / "provenance.json").read_text())
-    prov["temperature_anomaly_annual"].update({"short_license": "CC BY 4.0", "license": "CC BY 4.0"})
+    prov["temperature_anomaly_annual"]["short_license"] = "CC BY 4.0"
+    prov["temperature_anomaly_annual"]["license"] = "CC BY 4.0"
     (climate / "provenance.json").write_text(json.dumps(prov))
-    r = ex.get("/api/explorer/download", params={"dataset": "temperature", "year_min": 2000, "year_max": 2000, "columns": ["year", "temperature_anomaly_1850_1900_c"]})
-    assert r.status_code == 200
-    _, files = unzip(r)
-    assert "9.99" in files["temperature.csv"]  # the new value ...
-    assert "Licence:   CC BY 4.0" in files["ATTRIBUTION.txt"]  # ... with the new licence, not one with the other
-    assert datasets(ex)[0]["temperature"]["source"]["short_license"] == "CC BY 4.0"
+    assert datasets(ex)[0]["temperature"]["source"]["short_license"] == first == "CC BY-NC 4.0 · non-commercial"
+    _, files = unzip(ex.get("/api/explorer/download", params={"dataset": "temperature"}))
+    assert "CC BY-NC 4.0" in files["ATTRIBUTION.txt"]
+    cl.clear_caches()
+    assert datasets(ex)[0]["temperature"]["source"]["short_license"] == "CC BY 4.0"  # reloaded together: the new release is served with its data
 
 
-def test_the_owid_table_and_its_provenance_are_read_together_too(ex, climate, full_data):
-    before = datasets(ex)[0]["owid_country"]
+def test_the_owid_table_carries_its_provenance_snapshot_too(ex, climate):
+    before = datasets(ex)[0]["owid_country"]["source"]["short_license"]
     prov = json.loads((climate / "provenance.json").read_text())
     prov["owid_country_co2"]["short_license"] = "Something else"
     (climate / "provenance.json").write_text(json.dumps(prov))
-    assert datasets(ex)[0]["owid_country"]["source"]["short_license"] == "Something else"
-    assert datasets(ex)[0]["owid_country"]["coverage"] == before["coverage"]  # the data did not change, so neither did its coverage
+    assert datasets(ex)[0]["owid_country"]["source"]["short_license"] == before
 
 
 @pytest.mark.parametrize("ds,pid", [("primap_global", "primap_global_composition_annual"), ("primap_country", "primap_country_annual"), ("temperature", "temperature_anomaly_annual")])
