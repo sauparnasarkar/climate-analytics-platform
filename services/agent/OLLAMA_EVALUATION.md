@@ -239,6 +239,61 @@ more accurate than 20B. gpt-oss 20B remains the practical local choice on speed 
 production default. Per-case answers, raw SSE, rendered text and screenshots are saved outside the repo; the
 automated checks are coarse, so the answers themselves still need reading.
 
+## Inkling 2 mini (2026-11-24)
+
+`inkling-2-mini` (Thinking Machines; Ollama library, Apache 2.0) run through the in-process battery on the Mac Studio,
+alongside the other models' recorded figures above. 26B parameters, 5.4B active; it loops 12 of its 24 layers three
+times per token, so each token costs more compute. Shipped native NVFP4 (about 20 GB), MLX runner, tools and thinking
+capable, requires Ollama 0.40.17. Served as `inkling-2-mini-ctx32k` (`num_ctx 32768`, built from the library tag like the
+other local models), 22 GB resident, 100% GPU. Temperature 0, single run, thinking left at the model's default (`high`).
+
+| Model | Passed | Total time | Data-query avg | Starter-prompt avg |
+|---|---|---|---|---|
+| Claude Sonnet 5 | 34/36 | 327 s | 13.4 s | 20.1 s |
+| `qwen2.5:14b-ctx32k` | 35/36 | 344 s | 14.6 s | 28.2 s |
+| `gpt-oss:20b-ctx32k` | 32/36 | 423 s | 16.7 s | 20.1 s |
+| `gpt-oss:120b-ctx32k` | 32/36 | 529 s | 22.1 s | 36.1 s |
+| `qwen3.8-27b-ctx32k` | 35/36 | 730 s | 29.5 s | 45.6 s |
+| `qwen3.6-35b-a3b-ctx32k` | 33/36 | 800 s | 35.9 s | 26.6 s |
+| **`inkling-2-mini-ctx32k`** | **35/37** | **1381 s** | **53.4 s** | **92.4 s** |
+
+The other rows are the recorded 36-case figures from the Mac Studio re-evaluation above and were not re-run. Inkling's
+run is the current 37-case battery (it adds `dq11`, the Paris-targets prompt, which passed), so the pass counts are not on
+identical case sets. Its data-query average covers 11 cases, the others' 10.
+
+**Misses, by cause.**
+
+- `dq1` ("China vs USA total since 2000") chose `get_country_cumulative_share`, the same coarse expected-tool miss as
+  Sonnet and both gpt-oss models. The answer is right: China 213.1 GtCO2 and the USA 138.2, over a 829.3 period total.
+- `st2` (India vs other countries) **errored** with `OpenAITimeoutError` at the 150 s per-call timeout
+  (`OLLAMA_REQUEST_TIMEOUT_SECONDS`), after 183.8 s and no tool results. In production that is the generic error message
+  after a wait of about three minutes. Same failure class as Qwen 3.6 35B-A3B's two timeouts. Not rerun, so whether it
+  repeats is unknown.
+
+All other cases passed: 20 of 20 guardrail cases (off-topic, opinion, general, boundary) classified correctly with no tools
+run, and the data queries chose valid tools. No number absent from the tool results (`ungrounded` empty on all 37).
+
+**Answer quality (read for `dq1`, `dq6`, `dq8`).** Better than the faithfulness gap seen with other local models:
+
+- Since-2000 comparison: the correct cumulative figures (213.1 vs 138.2 GtCO2), the same as Sonnet and gpt-oss; it did not
+  report an annual value as a total, which Qwen 2.5 14B did.
+- Gas mix by decade: quoted figures, CO2 70.3% (1990) to 75.0% (2010) and 74.9% (2020), methane 22.6% to 19.1%, plus the
+  1970-2024 changes. Qwen 2.5 14B and gpt-oss 120B gave no numbers here.
+- Brazil since 1990: 218.7 to 483.0, a rise of 264.3. It does not give a percentage, but the figures are right.
+- Only these three answers were read; a judge pass over all data answers is still to do.
+
+**Speed is the problem.** It is the slowest model tested on the in-process battery, about 4.2x Sonnet's total time and
+1.7x the previous slowest (Qwen 3.6 35B-A3B). Off-topic cases take 2.5-4.7 s, but opinion and general-climate answers take
+11-24 s with no tools, and data queries 30-132 s. Whether thinking mode, the looped layers or the MLX runner dominates was
+not isolated; thinking was left at `high`, so a run with lower thinking is the obvious next test. Resident footprint (22 GB)
+is mid-range: above gpt-oss 20B (12 GB), below gpt-oss 120B (64 GB).
+
+**Verdict.** Correct tool calling and faithful numbers, with no structured-output or argument-serialisation failures seen
+(the one error was a timeout, not a parse failure). That puts it level with the best local models on accuracy, but at 53 s
+average data-query latency and a timeout on a starter prompt it is not a practical choice over gpt-oss 20B or Sonnet. Not
+added to `ALLOWED_CHOICES`. Raw results are on the Studio at `~/ClaudeWorkspace/eval-results/results-inkling2mini.json`,
+outside the repo; this run was not repeated through the UI battery.
+
 ## Reproducing the battery
 
 The original 30-case script was not preserved. [`evals/run_battery.py`](evals/run_battery.py) is a
