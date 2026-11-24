@@ -306,10 +306,13 @@ def test_a_job_listening_on_another_address_does_not_count_while_127_0_0_1_answe
 REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True, name="previewapi.plist", exe="/venv/bin/uvicorn"):
+def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True, name="previewapi.plist", exe="/venv/bin/uvicorn", env=None):
     plist = tmp_path / name
     args = [exe, "api.main:app", "--host", "127.0.0.1"] + (["--port", port] if with_port else [])
-    plist.write_bytes(plistlib.dumps({"Label": label, "WorkingDirectory": working_directory, "ProgramArguments": args}))
+    d = {"Label": label, "WorkingDirectory": working_directory, "ProgramArguments": args}
+    if env:
+        d["EnvironmentVariables"] = env
+    plist.write_bytes(plistlib.dumps(d))
     return str(plist)
 
 
@@ -349,18 +352,33 @@ def test_a_job_that_is_not_the_preview_api_or_not_this_checkout_is_left_alone(tm
     assert "names no --port" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["no --port"])[2]
 
 
-def api_run(tmp_path, api_listens_on, loaded_dir=None):
+def loaded_definition(args, working_directory, env):
+    """What `launchctl print` shows for a loaded job: the command, the working directory and the job's own environment, plus the 'inherited' and 'default' environment
+    blocks, which are not the job's and must never be read as its environment."""
+    lines = ["\tstate = running", f"\tprogram = {args[0]}", "\targuments = {"] + [f"\t\t{a}" for a in args] + ["\t}"]
+    if working_directory:
+        lines.append(f"\tworking directory = {working_directory}")
+    lines += ["\tinherited environment = {", "\t\tGHG_DATA_DIR => /decoy/inherited", "\t}", "\tdefault environment = {", "\t}", "\tenvironment = {"]
+    lines += [f"\t\t{k} => {v}" for k, v in (env or {}).items()] + ["\t}", "\tpid = 5151"]
+    return "\n".join(lines) + "\n"
+
+
+def api_run(tmp_path, api_listens_on, loaded_dir=None, loaded_args=None, loaded_env=None, plist_env=None, preview_env=None):
     """A real run with both jobs as launchd jobs (stub launchctl: front end pid 4242, API pid 5151) and an lsof stub that answers only for the pid and address it is
     asked about. `api_listens_on`: where pid 5151 listens ('127.0.0.1', '::1', or None for no listener); the front end always listens on 127.0.0.1:4273. The curl
-    stub answers 200 to everything, as another server squatting on the API's port would. `loaded_dir`: the working directory `launchctl print` reports for the LOADED API
-    job (default: this checkout; '' reports none). Every launchctl call is logged to tmp_path/launchctl.log."""
+    stub answers 200 to everything, as another server squatting on the API's port would. The LOADED API definition `launchctl print` shows defaults to exactly what the
+    plist on disk says (with this checkout as its working directory); `loaded_dir`/`loaded_args`/`loaded_env` change what is loaded ('' dir: none shown), `plist_env`
+    what the file's environment says. Every launchctl call is logged to tmp_path/launchctl.log."""
     script, bins = make_stub_checkout(tmp_path, "exit 0\n")
     repo = tmp_path / "repo"
-    shown = str(repo) if loaded_dir is None else loaded_dir
-    wd_line = f"\\tworking directory = {shown}\\n" if shown else ""
+    plist_env = {"GHG_DATA_DIR": "/prod/data"} if plist_env is None else plist_env
+    api_plist = api_job(tmp_path, working_directory=str(repo), name="previewapi-real.plist", env=plist_env)
+    disk_args = plistlib.load(open(api_plist, "rb"))["ProgramArguments"]
+    shown = loaded_definition(loaded_args or disk_args, str(repo) if loaded_dir is None else loaded_dir, plist_env if loaded_env is None else loaded_env)
+    (tmp_path / "api-print.txt").write_text(shown)
     log = tmp_path / "launchctl.log"
     (bins / "launchctl").write_text(f'#!/bin/bash\necho "$*" >> {log}\n'
-                                    f'if [ "$1" = print ]; then case "$*" in *previewapi*) printf \'\\tpid = 5151\\n{wd_line}\';; *) printf \'\\tpid = 4242\\n\';; esac; fi\nexit 0\n')
+                                    f'if [ "$1" = print ]; then case "$*" in *previewapi*) cat {tmp_path / "api-print.txt"};; *) printf \'\\tpid = 4242\\n\';; esac; fi\nexit 0\n')
     (bins / "launchctl").chmod(0o755)
     api_answers = "true" if api_listens_on == "127.0.0.1" else "false"
     (bins / "lsof").write_text("#!/bin/bash\n"
@@ -369,9 +387,13 @@ def api_run(tmp_path, api_listens_on, loaded_dir=None):
                                "exit 0\n")
     (bins / "lsof").chmod(0o755)
     app = repo / "climate-dashboard-react"
+    front = plistlib.loads(open(preview_job(tmp_path, working_directory=str(app)), "rb").read())
+    if preview_env is not None:
+        front["EnvironmentVariables"] = preview_env
+    front_plist = tmp_path / "preview-front.plist"
+    front_plist.write_bytes(plistlib.dumps(front))
     env = {"PATH": f"{bins}:{os.environ['PATH']}", "HOME": str(tmp_path), "NO_PULL": "1", "PREVIEW_STATE_DIR": str(tmp_path / "state"),
-           "PREVIEW_LAUNCHD_PLIST": preview_job(tmp_path, working_directory=str(app)),
-           "PREVIEW_API_LAUNCHD_PLIST": api_job(tmp_path, working_directory=str(repo), name="previewapi-real.plist")}
+           "PREVIEW_LAUNCHD_PLIST": str(front_plist), "PREVIEW_API_LAUNCHD_PLIST": api_plist}
     return subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env, timeout=120)
 
 
@@ -392,21 +414,49 @@ def test_an_api_job_listening_on_another_address_does_not_count(tmp_path):
     assert out.returncode != 0 and "preview API restarted" not in out.stdout and "is not the one answering" in out.stderr
 
 
+def no_api_kickstart(tmp_path):
+    log = (tmp_path / "launchctl.log").read_text()
+    return "kickstart" in log and not any("kickstart" in l and "previewapi" in l for l in log.splitlines())  # the front end's job yes, the API's never
+
+
+def test_a_loaded_definition_that_matches_the_plist_on_disk_is_restarted(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1")
+    assert out.returncode == 0, out.stderr
+    assert "LOADED definition" not in out.stderr and "preview API restarted" in out.stdout
+
+
 def test_a_loaded_definition_for_another_checkout_is_left_alone_even_when_the_plist_on_disk_is_right(tmp_path):
     other = tmp_path / "elsewhere"
     other.mkdir()
-    out = api_run(tmp_path, "127.0.0.1", loaded_dir=str(other))  # bootstrapped from another checkout; the plist was edited since, without bootout and bootstrap
+    out = api_run(tmp_path, "127.0.0.1", loaded_dir=str(other))  # bootstrapped from another checkout; the plist was edited since, without a reload
     assert out.returncode == 0, out.stderr  # the front end is still restarted
-    assert "LOADED definition of com.ghgemissions.previewapi does not run this checkout" in out.stderr and "needs the job reloaded" in out.stderr or "need the job reloaded" in out.stderr
-    assert "preview API restarted" not in out.stdout
-    log = (tmp_path / "launchctl.log").read_text()
-    assert "kickstart" in log and not any("kickstart" in l and "previewapi" in l for l in log.splitlines())  # the front end's job yes, the API's never
+    assert "LOADED definition of com.ghgemissions.previewapi" in out.stderr and f"it runs from '{other}', not this checkout" in out.stderr and "needs the job reloaded" in out.stderr or "need the job reloaded" in out.stderr
+    assert "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
 
 
 def test_a_loaded_definition_that_cannot_be_verified_is_not_restarted_either(tmp_path):
     out = api_run(tmp_path, "127.0.0.1", loaded_dir="")  # launchctl print shows no working directory
-    assert out.returncode == 0 and "working directory 'unknown'" in out.stderr and "preview API restarted" not in out.stdout
-    assert not any("kickstart" in l and "previewapi" in l for l in (tmp_path / "launchctl.log").read_text().splitlines())
+    assert out.returncode == 0 and "an unknown directory" in out.stderr and "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
+
+
+def test_a_loaded_command_that_differs_from_the_plist_is_not_restarted(tmp_path):
+    """The interpreter whose packages the drift check inspects comes from the plist; if launchd has another command loaded, the API that would restart is not the one
+    that was checked."""
+    out = api_run(tmp_path, "127.0.0.1", loaded_args=["/old/venv/bin/uvicorn", "api.main:app", "--host", "127.0.0.1", "--port", "8082"])
+    assert out.returncode == 0 and "its loaded command differs from the plist on disk" in out.stderr
+    assert "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
+
+
+def test_a_loaded_data_directory_that_differs_from_the_plist_is_not_restarted(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1", loaded_env={"GHG_DATA_DIR": "/some/other/data"})
+    assert out.returncode == 0 and "its loaded GHG_DATA_DIR differs from the plist on disk" in out.stderr
+    assert "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
+
+
+def test_only_the_jobs_own_environment_block_counts_not_the_inherited_one(tmp_path):
+    # The stub prints GHG_DATA_DIR => /decoy/inherited in the *inherited* block. A plist without the variable and a job environment without it must agree; the decoy must not make them differ.
+    out = api_run(tmp_path, "127.0.0.1", plist_env={"OTHER": "1"}, loaded_env={"OTHER": "1"})
+    assert out.returncode == 0 and "GHG_DATA_DIR differs" not in out.stderr and "preview API restarted" in out.stdout
 
 
 # --- the preview API's own Python environment: checked against requirements.txt, never modified ---
@@ -439,12 +489,58 @@ def test_an_environment_that_matches_requirements_or_cannot_be_inspected_says_no
     assert code == 0 and "differs from requirements.txt" not in err
 
 
-def test_the_drift_check_reads_requirements_with_the_real_interpreter_and_never_installs(tmp_path):
-    """The embedded check run for real against this repository's own requirements.txt: it must parse every pin and write nothing."""
+def drift(tmp_path, requirements):
+    """The embedded check, run for real with this interpreter against a requirements file."""
     text = open(SCRIPT).read()
     snippet = text.split("<<'PY' 2>/dev/null || true\nimport re, sys")[1].split("\nPY\n)")[0]
-    code = "import re, sys" + snippet
-    done = subprocess.run([sys.executable, "-c", code, os.path.join(REPO_ROOT, "requirements.txt")], capture_output=True, text=True)
+    req = tmp_path / "requirements.txt"
+    req.write_text(requirements)
+    done = subprocess.run([sys.executable, "-c", "import re, sys" + snippet, str(req)], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
-    assert all(part.count("requirements.txt wants") == 1 for part in done.stdout.strip().split("; ") if part)
+    return done.stdout.strip()
+
+
+def test_the_drift_check_reads_requirements_with_the_real_interpreter_and_never_installs(tmp_path):
+    """Against this repository's own requirements.txt: every pin parses, and nothing is installed."""
+    out = subprocess.run([sys.executable, "-c", "pass"], capture_output=True)  # the interpreter works
+    assert out.returncode == 0
+    result = drift(tmp_path, open(os.path.join(REPO_ROOT, "requirements.txt")).read())
+    assert all(part.count("requirements.txt wants") == 1 for part in result.split("; ") if part)
+    text = open(SCRIPT).read()
     assert "pip install" not in text and "pip3 install" not in text
+
+
+def test_the_drift_check_understands_minimum_versions_as_well_as_exact_pins(tmp_path):
+    assert drift(tmp_path, "pytest>=1.0\n") == ""  # installed and at least that
+    assert drift(tmp_path, "pytest>=9999.0\n").startswith("pytest ") and "requirements.txt wants at least 9999.0" in drift(tmp_path, "pytest>=9999.0\n")
+    assert drift(tmp_path, "definitely-not-installed-xyz>=1.0\n") == "definitely-not-installed-xyz missing (requirements.txt wants at least 1.0)"
+    assert drift(tmp_path, "definitely-not-installed-xyz==1.0\n") == "definitely-not-installed-xyz missing (requirements.txt wants 1.0)"
+    assert drift(tmp_path, "pytest==0.0.1\n").endswith("(requirements.txt wants 0.0.1)")
+    assert drift(tmp_path, "# a comment\n\npytest>=1.0\n") == ""
+    both = drift(tmp_path, "definitely-not-installed-a>=2\ndefinitely-not-installed-b==3\n")
+    assert "definitely-not-installed-a" in both and "definitely-not-installed-b" in both
+
+
+# --- the proxy target travels with the preview API ---
+
+def test_the_fallback_front_end_is_started_with_the_preview_apis_proxy_target(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0, err
+    assert any("PREVIEW_NOINDEX=1 API_PROXY_TARGET=http://127.0.0.1:8082 nohup" in l and "vite preview" in l for l in steps(out))
+
+
+def test_without_a_preview_api_job_the_fallback_front_end_has_no_proxy_target(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=str(tmp_path / "missing.plist"), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0 and not any("API_PROXY_TARGET" in l for l in steps(out))
+    assert any("PREVIEW_NOINDEX=1 nohup" in l for l in steps(out))
+
+
+def test_the_front_end_job_is_warned_about_when_its_plist_does_not_point_at_the_preview_api(tmp_path):
+    api = api_job(tmp_path)
+    pointing = tmp_path / "front-ok.plist"
+    pointing.write_bytes(plistlib.dumps({"Label": "com.ghgemissions.preview", "WorkingDirectory": REPO_APP, "EnvironmentVariables": {"API_PROXY_TARGET": "http://127.0.0.1:8082"},
+                                         "ProgramArguments": ["/node", "vite.js", "preview", "--port", "4273", "--strictPort", "--host", "127.0.0.1"]}))
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api, PREVIEW_LAUNCHD_PLIST=str(pointing))
+    assert code == 0 and "API_PROXY_TARGET" not in err
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api, PREVIEW_LAUNCHD_PLIST=preview_job(tmp_path))  # no API_PROXY_TARGET in it
+    assert code == 0 and "will still call production's API" in err and "API_PROXY_TARGET=http://127.0.0.1:8082" in err

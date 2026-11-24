@@ -76,6 +76,7 @@ fi
 # The preview may have its own API job: this checkout's api/ on its own port, reading production's data read-only, so the preview shows this checkout's API
 # changes without touching production's. Restart it with the front end so the two stay in step. Used only when it is plainly that job for this checkout.
 api_plist="${PREVIEW_API_LAUNCHD_PLIST:-$HOME/Library/LaunchAgents/com.ghgemissions.previewapi.plist}"
+api_proxy_target=""  # set once a verified preview API job is being restarted: the front end must call it, not production's API
 if [[ -f "$api_plist" ]]; then
   api_info="$(python3 - "$api_plist" <<'PY' 2>/dev/null || true
 import plistlib, sys
@@ -94,12 +95,42 @@ PY
     # `kickstart` restarts the definition launchd has LOADED, not the file on disk: a plist edited since it was bootstrapped still runs its old working directory,
     # possibly another checkout, and the pid and health checks below would then pass for the wrong API. So the loaded definition is verified, and when it cannot
     # be, the job is left alone (a plist's changes need the job reloaded: deploy/launchd/README.md).
-    loaded_dir=""
+    loaded_problem=""
     if [[ "$dry" != 1 ]]; then
-      loaded_dir="$(launchctl print "gui/$(id -u)/$api_label" 2>/dev/null | sed -n 's/^[[:space:]]*working directory = //p' | head -n 1)"
+      # One comparison of the LOADED definition (`launchctl print`) with the plist on disk, on everything this script acts on or reports: the working directory (this
+      # checkout), the command (so the interpreter whose packages are checked below is the one that runs), and GHG_DATA_DIR (the data it reads). Anything that differs, or
+      # that cannot be read, means the job needs reloading first.
+      # The output goes in through the environment: the script itself arrives on stdin (the heredoc), so a pipe into the same stdin would be silently ignored.
+      loaded_text="$(launchctl print "gui/$(id -u)/$api_label" 2>/dev/null || true)"
+      loaded_problem="$(LOADED_TEXT="$loaded_text" python3 - "$api_plist" "$repo" <<'PY' 2>/dev/null || echo "its loaded definition could not be read"
+import os, plistlib, re, sys
+disk = plistlib.load(open(sys.argv[1], "rb"))
+repo = os.path.realpath(sys.argv[2])
+text = os.environ.get("LOADED_TEXT", "")
+
+
+def block(name):
+    m = re.search(r"^\s*" + re.escape(name) + r" = \{\n(.*?)^\s*\}", text, re.M | re.S)
+    return None if m is None else [line.strip() for line in m.group(1).splitlines() if line.strip()]
+
+
+wd = re.search(r"^\s*working directory = (.+)$", text, re.M)
+loaded_dir = wd.group(1).strip() if wd else ""
+args, env = block("arguments"), block("environment")
+problems = []
+if not loaded_dir or not os.path.isdir(loaded_dir) or os.path.realpath(loaded_dir) != repo:
+    problems.append(f"it runs from '{loaded_dir or 'an unknown directory'}', not this checkout")
+if args is None or args != [str(a) for a in disk.get("ProgramArguments", [])]:
+    problems.append("its loaded command differs from the plist on disk, or could not be read")
+loaded_env = dict(line.split(" => ", 1) for line in (env or []) if " => " in line)
+if loaded_env.get("GHG_DATA_DIR") != disk.get("EnvironmentVariables", {}).get("GHG_DATA_DIR"):
+    problems.append("its loaded GHG_DATA_DIR differs from the plist on disk")
+print("; ".join(problems))
+PY
+)"
     fi
-    if [[ "$dry" != 1 && ( -z "$loaded_dir" || ! -d "$loaded_dir" || "$(cd "$loaded_dir" && pwd -P)" != "$(cd "$repo" && pwd -P)" ) ]]; then
-      echo "warning: the LOADED definition of $api_label does not run this checkout (working directory '${loaded_dir:-unknown}'); leaving it alone. A plist's changes need the job reloaded (deploy/launchd/README.md)" >&2
+    if [[ -n "$loaded_problem" ]]; then
+      echo "warning: the LOADED definition of $api_label is not what is expected ($loaded_problem); leaving it alone. A plist's changes need the job reloaded (deploy/launchd/README.md)" >&2
     else
     # The preview API runs in its own Python environment (not production's), so nothing here updates it; say so when it has fallen behind this checkout's pins.
     api_py="$(dirname "${api_exec:-/nonexistent/x}")/python"
@@ -109,21 +140,24 @@ import re, sys
 from importlib import metadata
 out = []
 for line in open(sys.argv[1]):
-    m = re.match(r"^\s*([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?\s*==\s*([^\s;#]+)", line)
+    m = re.match(r"^\s*([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?\s*(==|>=)\s*([^\s;#]+)", line)
     if not m:
         continue
-    name, want = m.groups()
+    name, op, want = m.groups()
     try:
         have = metadata.version(name)
     except metadata.PackageNotFoundError:
         have = None
-    if have != want:
-        out.append(f"{name} {have or 'missing'} (requirements.txt wants {want})")
+    num = lambda v: tuple(int(x) for x in re.findall(r"\d+", v))
+    behind = have is None or (have != want if op == "==" else num(have) < num(want))
+    if behind:
+        out.append(f"{name} {have or 'missing'} (requirements.txt wants {'at least ' if op == '>=' else ''}{want})")
 print("; ".join(out))
 PY
 )"
       [[ -z "$drift" ]] || echo "warning: the preview API's Python environment ($api_py) differs from requirements.txt: $drift. Install requirements.txt into that environment before relying on this preview (deploy/launchd/README.md)" >&2
     fi
+    api_proxy_target="http://127.0.0.1:$api_port"
     run launchctl kickstart -k "gui/$(id -u)/$api_label"
     if [[ "$dry" == 1 ]]; then
       echo "+ curl http://127.0.0.1:$api_port/api/health until it answers"
@@ -179,6 +213,10 @@ PY
 fi
 
 if [[ -n "$job_label" ]]; then
+  if [[ -n "$api_proxy_target" ]]; then
+    front_target="$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb")).get("EnvironmentVariables", {}).get("API_PROXY_TARGET", ""))' "$job_plist" 2>/dev/null || true)"
+    [[ "$front_target" == "$api_proxy_target" ]] || echo "warning: $job_label's plist does not set API_PROXY_TARGET=$api_proxy_target, so the preview front end will still call production's API; add it and reload the job (deploy/launchd/README.md)" >&2
+  fi
   run launchctl kickstart -k "gui/$(id -u)/$job_label"
   if [[ "$dry" == 1 ]]; then
     echo "+ curl http://127.0.0.1:$port/ until it answers"
@@ -213,13 +251,14 @@ elif [[ -f "$state/preview.pid" ]]; then
 fi
 
 if [[ "$dry" == 1 ]]; then
-  echo "+ PREVIEW_NOINDEX=1 nohup $app/node_modules/.bin/vite preview --port $port --strictPort --host 127.0.0.1 > $state/preview.log 2>&1 &"
+  echo "+ PREVIEW_NOINDEX=1 ${api_proxy_target:+API_PROXY_TARGET=$api_proxy_target }nohup $app/node_modules/.bin/vite preview --port $port --strictPort --host 127.0.0.1 > $state/preview.log 2>&1 &"
   echo "+ curl http://127.0.0.1:$port/ until it answers"
 else
   # The server is started directly (not through npx), so the pid kept is the server's own and a later run can find and stop it.
   (
     cd "$app"
-    PREVIEW_NOINDEX=1 nohup "$app/node_modules/.bin/vite" preview --port "$port" --strictPort --host 127.0.0.1 > "$state/preview.log" 2>&1 &
+    # The proxy target travels with the server started here too: the job's own plist is not in play on this path, and without it the front end would call production's API.
+    env PREVIEW_NOINDEX=1 ${api_proxy_target:+"API_PROXY_TARGET=$api_proxy_target"} nohup "$app/node_modules/.bin/vite" preview --port "$port" --strictPort --host 127.0.0.1 > "$state/preview.log" 2>&1 &
     echo $! > "$state/preview.pid"
   )
   pid="$(cat "$state/preview.pid")"
