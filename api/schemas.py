@@ -283,11 +283,78 @@ class CountriesResponse(BaseModel):
     sovereign: list[str]
 
 
+class ExplorerColumnDetail(BaseModel):
+    id: str
+    label: str
+    unit: str | None = None  # as the catalog (climate data sets) or OWID's codebook (OWID) writes it; None when there is none
+    kind: str | None = None  # the catalog's indicator kind (level, cumulative, derived, ...); "key" for a row key
+    decimals: int | None = None
+    is_key: bool = False
+    default: bool = False
+
+
 class ExplorerMetaResponse(BaseModel):
-    countries: list[str]
+    countries: list[str]  # [] for a global data set
     columns: list[str]
     year_min: int
     year_max: int
+    dataset: str = "owid_country"
+    grain: str = "country_year"
+    keys: list[str] = ["country", "year"]
+    columns_detail: list[ExplorerColumnDetail] = []
+
+
+class ExplorerDatasetCoverage(BaseModel):
+    first: str  # "YYYY", or "YYYY-MM" for a monthly data set
+    last: str
+    countries: int | None = None  # None for a global data set
+
+
+class ExplorerDatasetSource(BaseModel):
+    """The provenance entry behind a data set (the same SOURCE_KEYS `/correlation/meta` serves, trimmed to what the card and download use)."""
+
+    provenance_id: str
+    name: str | None = None
+    short_citation: str | None = None
+    short_license: str | None = None
+    license: str | None = None
+    required_citation_format: str | None = None
+    landing_links: list[dict] = []
+    source_urls: list[str] = []
+    source_release: dict | str | None = None
+    retrieved_at: str | None = None
+    caveats: list[str] = []
+    citations: list[str] = []
+
+
+class ExplorerChartedOn(BaseModel):
+    label: str
+    path: str
+
+
+class ExplorerDataset(BaseModel):
+    id: str
+    title: str
+    source_label: str
+    description: str
+    row_label: str
+    grain: str  # country_year | global_year | global_month
+    keys: list[str]
+    chain_step: str  # emissions | concentration | temperature
+    available: bool
+    unavailable_reason: str | None = None
+    coverage: ExplorerDatasetCoverage | None = None
+    default_year_range: list[int] | None = None
+    licence_class: str | None = None  # open | non_commercial | non_commercial_share_alike; None without provenance
+    source: ExplorerDatasetSource | None = None
+    excluded_incomplete_years: list[int] = []
+    charted_on: list[ExplorerChartedOn] = []
+    method_note: str
+    methods_anchor: str = "sources"
+
+
+class ExplorerDatasetsResponse(BaseModel):
+    datasets: list[ExplorerDataset]
 
 
 class ExplorerDataResponse(BaseModel):
