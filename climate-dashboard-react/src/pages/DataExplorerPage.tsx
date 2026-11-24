@@ -65,12 +65,14 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
   const [columns, setColumns] = useState<string[]>(defaultColumns.length ? defaultColumns : meta.columns.slice(0, 7));
   const [page, setPage] = useState(1);
 
+  // An empty selection fetches nothing: the client leaves an empty `columns` list out of the request, which the API reads as "all columns", so a fetch here
+  // would show columns the reader has just cleared.
   const data = useAsync(
-    () => api.explorerData(dataset.id, countries, yearMin, yearMax, columns, page, PAGE_SIZE),
+    () => (columns.length ? api.explorerData(dataset.id, countries, yearMin, yearMax, columns, page, PAGE_SIZE) : Promise.resolve(null)),
     [countries, yearMin, yearMax, columns, page],
   );
   const summary = useAsync(
-    () => api.explorerSummary(dataset.id, countries, yearMin, yearMax, columns),
+    () => (columns.length ? api.explorerSummary(dataset.id, countries, yearMin, yearMax, columns) : Promise.resolve(null)),
     [countries, yearMin, yearMax, columns],
   );
 
@@ -192,7 +194,9 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
       <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '4px 0 8px' }}>
         One row per selected column, over the filtered rows.{keyNames.length ? ` The row keys (${keyNames.join(', ')}) are not summarised.` : ''}
       </p>
-      {summary.loading ? (
+      {columns.length === 0 ? (
+        <InlineAlert variant="default">Select at least one column to summarise the data.</InlineAlert>
+      ) : summary.loading ? (
         <Spinner label="Loading…" />
       ) : summary.error ? (
         <InlineAlert variant="error">{summary.error}</InlineAlert>

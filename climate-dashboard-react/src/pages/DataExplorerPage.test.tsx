@@ -412,6 +412,26 @@ describe('DataExplorerPage', () => {
     expect(screen.getByText(/The row keys \(country, year\) are not summarised/)).toBeInTheDocument();
   });
 
+  it('fetches and shows nothing when every column is cleared, rather than the API\'s "all columns" for an empty list', async () => {
+    setUp();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('1 rows · page 1 of 1');
+    vi.mocked(api.explorerData).mockClear();
+    vi.mocked(api.explorerSummary).mockClear();
+
+    await user.click(screen.getByRole('combobox', { name: /Columns/ }));
+    for (const name of ['Country', 'Year', 'CO2']) await user.click(screen.getByRole('option', { name }));
+
+    expect(await screen.findByText('Select at least one column to preview the data.')).toBeInTheDocument();
+    expect(screen.getByText('Select at least one column to summarise the data.')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Summary statistics' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Country emissions, 1990–2023' })).not.toBeInTheDocument();
+    // No request was made for the empty selection (the last ones were for the selections on the way down, never for []).
+    for (const call of vi.mocked(api.explorerData).mock.calls) expect(call[4]).not.toEqual([]);
+    for (const call of vi.mocked(api.explorerSummary).mock.calls) expect(call[4]).not.toEqual([]);
+  });
+
   it('sets both tables in the compact density, since they are long lists read down', async () => {
     setUp();
     renderPage();
