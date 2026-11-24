@@ -74,13 +74,18 @@ The preview front end (`deploy/preview/deploy-preview.sh`, its own job `com.ghge
 without touching production, run a second API from the **preview checkout** and point only the preview at it. Neither plist is a template here; they are
 local to the host, like the preview's own:
 
-- a job `com.ghgemissions.previewapi`: the same command as the production API job, from the preview checkout's `.venv` (or production's, when the
-  dependencies match), `WorkingDirectory` the preview checkout, a spare loopback port (for example 8084; check with `lsof -iTCP:<port>` first, since other projects on the host use neighbouring ones), and `GHG_DATA_DIR` set to **production's** `data` folder, so it reads
+- a job `com.ghgemissions.previewapi`: the same command as the production API job, from the **preview checkout's own `.venv`** (never production's: keeping the preview current must not
+  mean changing a shared environment), `WorkingDirectory` the preview checkout, a spare loopback port (for example 8084; check with `lsof -iTCP:<port>` first, since other projects on the host use neighbouring ones), and `GHG_DATA_DIR` set to **production's** `data` folder, so it reads
   the real data (read-only: the API writes nothing there). The climate folder follows it (`<GHG_DATA_DIR>/climate`);
 - in the preview front end's own job environment, `API_PROXY_TARGET=http://127.0.0.1:8084` (loopback only; anything else stops the server).
 
+The `.venv` is created once in the preview checkout (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, adding
+`-c constraints/root.txt` for the tested versions) and is **not updated by the deploy**: `deploy-preview.sh` compares it with `requirements.txt` and prints a warning naming every
+package that differs, so a branch that changes the pins is noticed before the preview is trusted; re-run the `pip install` when it does.
+
 `deploy-preview.sh` restarts the preview API job after the build, when its plist exists and is plainly that job for this checkout (label
-`com.ghgemissions.previewapi`, working directory this checkout, a `--port`), so the two stay in step; otherwise it says why it left it alone. It never touches
+`com.ghgemissions.previewapi`, working directory this checkout, a `--port`, and the same working directory in the definition launchd has **loaded**: `kickstart` runs the loaded
+definition, not the file, so an edited plist needs `bootout` and `bootstrap` first and is otherwise left alone), so the two stay in step; otherwise it says why it left it alone. It never touches
 the production API job. Changing a plist's environment needs `bootout` and `bootstrap`, as above.
 
 **It serves what it loaded until it restarts.** Like any API process (`SPEC.md` §5.37, decision 8), the preview API caches its data for the life of the process, and the

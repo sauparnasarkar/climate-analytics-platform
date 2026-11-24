@@ -2,6 +2,7 @@
 steps and the guards can be checked without a Mac Mini, a network or a build."""
 import os
 import subprocess
+import sys
 
 SCRIPT = os.path.join(os.path.dirname(__file__), "..", "..", "deploy", "preview", "deploy-preview.sh")
 
@@ -305,9 +306,9 @@ def test_a_job_listening_on_another_address_does_not_count_while_127_0_0_1_answe
 REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True, name="previewapi.plist"):
+def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True, name="previewapi.plist", exe="/venv/bin/uvicorn"):
     plist = tmp_path / name
-    args = ["/venv/bin/uvicorn", "api.main:app", "--host", "127.0.0.1"] + (["--port", port] if with_port else [])
+    args = [exe, "api.main:app", "--host", "127.0.0.1"] + (["--port", port] if with_port else [])
     plist.write_bytes(plistlib.dumps({"Label": label, "WorkingDirectory": working_directory, "ProgramArguments": args}))
     return str(plist)
 
@@ -348,12 +349,18 @@ def test_a_job_that_is_not_the_preview_api_or_not_this_checkout_is_left_alone(tm
     assert "names no --port" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["no --port"])[2]
 
 
-def api_run(tmp_path, api_listens_on):
+def api_run(tmp_path, api_listens_on, loaded_dir=None):
     """A real run with both jobs as launchd jobs (stub launchctl: front end pid 4242, API pid 5151) and an lsof stub that answers only for the pid and address it is
     asked about. `api_listens_on`: where pid 5151 listens ('127.0.0.1', '::1', or None for no listener); the front end always listens on 127.0.0.1:4273. The curl
-    stub answers 200 to everything, as another server squatting on the API's port would."""
+    stub answers 200 to everything, as another server squatting on the API's port would. `loaded_dir`: the working directory `launchctl print` reports for the LOADED API
+    job (default: this checkout; '' reports none). Every launchctl call is logged to tmp_path/launchctl.log."""
     script, bins = make_stub_checkout(tmp_path, "exit 0\n")
-    (bins / "launchctl").write_text('#!/bin/bash\nif [ "$1" = print ]; then case "$*" in *previewapi*) printf \'\\tpid = 5151\\n\';; *) printf \'\\tpid = 4242\\n\';; esac; fi\nexit 0\n')
+    repo = tmp_path / "repo"
+    shown = str(repo) if loaded_dir is None else loaded_dir
+    wd_line = f"\\tworking directory = {shown}\\n" if shown else ""
+    log = tmp_path / "launchctl.log"
+    (bins / "launchctl").write_text(f'#!/bin/bash\necho "$*" >> {log}\n'
+                                    f'if [ "$1" = print ]; then case "$*" in *previewapi*) printf \'\\tpid = 5151\\n{wd_line}\';; *) printf \'\\tpid = 4242\\n\';; esac; fi\nexit 0\n')
     (bins / "launchctl").chmod(0o755)
     api_answers = "true" if api_listens_on == "127.0.0.1" else "false"
     (bins / "lsof").write_text("#!/bin/bash\n"
@@ -361,7 +368,6 @@ def api_run(tmp_path, api_listens_on):
                                f'[ "$*" = "-nP -a -p 5151 -iTCP@127.0.0.1:8082 -sTCP:LISTEN -t" ] && {api_answers} && echo 5151\n'
                                "exit 0\n")
     (bins / "lsof").chmod(0o755)
-    repo = tmp_path / "repo"
     app = repo / "climate-dashboard-react"
     env = {"PATH": f"{bins}:{os.environ['PATH']}", "HOME": str(tmp_path), "NO_PULL": "1", "PREVIEW_STATE_DIR": str(tmp_path / "state"),
            "PREVIEW_LAUNCHD_PLIST": preview_job(tmp_path, working_directory=str(app)),
@@ -384,3 +390,61 @@ def test_another_server_answering_health_on_the_api_port_does_not_make_the_deplo
 def test_an_api_job_listening_on_another_address_does_not_count(tmp_path):
     out = api_run(tmp_path, "::1")
     assert out.returncode != 0 and "preview API restarted" not in out.stdout and "is not the one answering" in out.stderr
+
+
+def test_a_loaded_definition_for_another_checkout_is_left_alone_even_when_the_plist_on_disk_is_right(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    out = api_run(tmp_path, "127.0.0.1", loaded_dir=str(other))  # bootstrapped from another checkout; the plist was edited since, without bootout and bootstrap
+    assert out.returncode == 0, out.stderr  # the front end is still restarted
+    assert "LOADED definition of com.ghgemissions.previewapi does not run this checkout" in out.stderr and "needs the job reloaded" in out.stderr or "need the job reloaded" in out.stderr
+    assert "preview API restarted" not in out.stdout
+    log = (tmp_path / "launchctl.log").read_text()
+    assert "kickstart" in log and not any("kickstart" in l and "previewapi" in l for l in log.splitlines())  # the front end's job yes, the API's never
+
+
+def test_a_loaded_definition_that_cannot_be_verified_is_not_restarted_either(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1", loaded_dir="")  # launchctl print shows no working directory
+    assert out.returncode == 0 and "working directory 'unknown'" in out.stderr and "preview API restarted" not in out.stdout
+    assert not any("kickstart" in l and "previewapi" in l for l in (tmp_path / "launchctl.log").read_text().splitlines())
+
+
+# --- the preview API's own Python environment: checked against requirements.txt, never modified ---
+
+def venv_with_python(tmp_path, prints):
+    """A fake environment folder whose `python` prints what the drift check would print."""
+    bin_dir = tmp_path / "preview-venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "uvicorn").write_text("#!/bin/bash\nexit 0\n")
+    (bin_dir / "python").write_text(f"#!/bin/bash\necho '{prints}'\n")
+    for f in bin_dir.iterdir():
+        f.chmod(0o755)
+    return str(bin_dir / "uvicorn")
+
+
+def test_a_preview_api_environment_behind_requirements_is_said_out_loud_but_does_not_stop_the_deploy(tmp_path):
+    exe = venv_with_python(tmp_path, "pandas 3.0.3 (requirements.txt wants 2.3.0); numpy missing (requirements.txt wants 2.3.5)")
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, exe=exe))
+    assert code == 0, err
+    assert "differs from requirements.txt: pandas 3.0.3 (requirements.txt wants 2.3.0); numpy missing" in err
+    assert "Install requirements.txt into that environment" in err
+    assert any(l.startswith("launchctl kickstart -k gui/") and l.endswith("/com.ghgemissions.previewapi") for l in steps(out))
+
+
+def test_an_environment_that_matches_requirements_or_cannot_be_inspected_says_nothing(tmp_path):
+    exe = venv_with_python(tmp_path, "")
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, exe=exe))
+    assert code == 0 and "differs from requirements.txt" not in err
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, exe="/nonexistent/venv/bin/uvicorn", name="gone.plist"))
+    assert code == 0 and "differs from requirements.txt" not in err
+
+
+def test_the_drift_check_reads_requirements_with_the_real_interpreter_and_never_installs(tmp_path):
+    """The embedded check run for real against this repository's own requirements.txt: it must parse every pin and write nothing."""
+    text = open(SCRIPT).read()
+    snippet = text.split("<<'PY' 2>/dev/null || true\nimport re, sys")[1].split("\nPY\n)")[0]
+    code = "import re, sys" + snippet
+    done = subprocess.run([sys.executable, "-c", code, os.path.join(REPO_ROOT, "requirements.txt")], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    assert all(part.count("requirements.txt wants") == 1 for part in done.stdout.strip().split("; ") if part)
+    assert "pip install" not in text and "pip3 install" not in text

@@ -82,15 +82,48 @@ import plistlib, sys
 d = plistlib.load(open(sys.argv[1], "rb"))
 args = d.get("ProgramArguments", [])
 port = args[args.index("--port") + 1] if "--port" in args and args.index("--port") + 1 < len(args) else ""
-print(d.get("Label", ""), port, d.get("WorkingDirectory", ""), sep="|")
+print(d.get("Label", ""), port, d.get("WorkingDirectory", ""), args[0] if args else "", sep="|")
 PY
 )"
-  IFS='|' read -r api_label api_port api_dir <<< "$api_info"
+  IFS='|' read -r api_label api_port api_dir api_exec <<< "$api_info"
   if [[ "$api_label" != "com.ghgemissions.previewapi" ]]; then
     echo "warning: $api_plist is not the preview's API job (label '${api_label:-unreadable}'); leaving it alone" >&2
   elif [[ -z "$api_port" || -z "$api_dir" || ! -d "$api_dir" || "$(cd "$api_dir" && pwd -P)" != "$(cd "$repo" && pwd -P)" ]]; then
     echo "warning: $api_label does not run this checkout (or names no --port); leaving it alone" >&2
   elif [[ "$dry" == 1 ]] || launchctl print "gui/$(id -u)/$api_label" >/dev/null 2>&1; then
+    # `kickstart` restarts the definition launchd has LOADED, not the file on disk: a plist edited since it was bootstrapped still runs its old working directory,
+    # possibly another checkout, and the pid and health checks below would then pass for the wrong API. So the loaded definition is verified, and when it cannot
+    # be, the job is left alone (a plist's changes need the job reloaded: deploy/launchd/README.md).
+    loaded_dir=""
+    if [[ "$dry" != 1 ]]; then
+      loaded_dir="$(launchctl print "gui/$(id -u)/$api_label" 2>/dev/null | sed -n 's/^[[:space:]]*working directory = //p' | head -n 1)"
+    fi
+    if [[ "$dry" != 1 && ( -z "$loaded_dir" || ! -d "$loaded_dir" || "$(cd "$loaded_dir" && pwd -P)" != "$(cd "$repo" && pwd -P)" ) ]]; then
+      echo "warning: the LOADED definition of $api_label does not run this checkout (working directory '${loaded_dir:-unknown}'); leaving it alone. A plist's changes need the job reloaded (deploy/launchd/README.md)" >&2
+    else
+    # The preview API runs in its own Python environment (not production's), so nothing here updates it; say so when it has fallen behind this checkout's pins.
+    api_py="$(dirname "${api_exec:-/nonexistent/x}")/python"
+    if [[ -x "$api_py" && -f "$repo/requirements.txt" ]]; then
+      drift="$("$api_py" - "$repo/requirements.txt" <<'PY' 2>/dev/null || true
+import re, sys
+from importlib import metadata
+out = []
+for line in open(sys.argv[1]):
+    m = re.match(r"^\s*([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?\s*==\s*([^\s;#]+)", line)
+    if not m:
+        continue
+    name, want = m.groups()
+    try:
+        have = metadata.version(name)
+    except metadata.PackageNotFoundError:
+        have = None
+    if have != want:
+        out.append(f"{name} {have or 'missing'} (requirements.txt wants {want})")
+print("; ".join(out))
+PY
+)"
+      [[ -z "$drift" ]] || echo "warning: the preview API's Python environment ($api_py) differs from requirements.txt: $drift. Install requirements.txt into that environment before relying on this preview (deploy/launchd/README.md)" >&2
+    fi
     run launchctl kickstart -k "gui/$(id -u)/$api_label"
     if [[ "$dry" == 1 ]]; then
       echo "+ curl http://127.0.0.1:$api_port/api/health until it answers"
@@ -108,6 +141,7 @@ PY
       done
       if [[ "$api_up" == 1 ]]; then echo "preview API restarted via $api_label (pid $api_pid), up on 127.0.0.1:$api_port (HTTP 200)"
       else echo "preview API job $api_label is not the one answering on port $api_port after the restart; see ~/Library/Logs and what holds the port (lsof -iTCP:$api_port)" >&2; exit 1; fi
+    fi
     fi
   else
     echo "warning: $api_label is not loaded; leaving it alone" >&2
