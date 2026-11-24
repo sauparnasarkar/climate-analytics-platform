@@ -50,12 +50,12 @@ const USED_FOR: Array<[matches: (id: string) => boolean, usedFor: string]> = [
 ];
 
 /** A vintage with the date it is compared by (ISO, so the string order is the time order) and the label shown. */
-interface Vintage {
+export interface Vintage {
   date: string;
   label: string;
 }
 
-function vintageOf(entry: Record<string, unknown>): Vintage | null {
+export function vintageOf(entry: Record<string, unknown>): Vintage | null {
   const release = rec(entry.source_release);
   const published = str(release?.published);
   if (published) return { date: day(published), label: `published ${day(published)}${str(release?.version) ? ` (${str(release?.version)})` : ''}` };

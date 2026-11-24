@@ -3,6 +3,7 @@ import type {
   CountryProfileResponse,
   EtsParametersResponse,
   ExplorerDataResponse,
+  ExplorerDatasetsResponse,
   ExplorerMetaResponse,
   FeatureImportanceResponse,
   ForecastCountryResponse,
@@ -54,8 +55,9 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function buildExplorerParams(countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]): URLSearchParams {
+function buildExplorerParams(dataset: string, countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]): URLSearchParams {
   const params = new URLSearchParams();
+  params.set('dataset', dataset);
   countries.forEach((c) => params.append('countries', c));
   if (yearMin !== null) params.set('year_min', String(yearMin));
   if (yearMax !== null) params.set('year_max', String(yearMax));
@@ -135,9 +137,12 @@ export const api = {
     return get<ScenarioCompareResponse>(`/scenarios/compare?${params}`);
   },
 
-  explorerMeta: () => get<ExplorerMetaResponse>('/explorer/meta'),
+  explorerDatasets: () => get<ExplorerDatasetsResponse>('/explorer/datasets'),
+
+  explorerMeta: (dataset: string) => get<ExplorerMetaResponse>(`/explorer/meta?${new URLSearchParams({ dataset })}`),
 
   explorerData: (
+    dataset: string,
     countries: string[],
     yearMin: number | null,
     yearMax: number | null,
@@ -145,17 +150,17 @@ export const api = {
     page: number,
     pageSize: number,
   ) => {
-    const params = buildExplorerParams(countries, yearMin, yearMax, columns);
+    const params = buildExplorerParams(dataset, countries, yearMin, yearMax, columns);
     params.set('page', String(page));
     params.set('page_size', String(pageSize));
     return get<ExplorerDataResponse>(`/explorer/data?${params}`);
   },
 
-  explorerSummary: (countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]) =>
-    get<ModelComparisonResponse>(`/explorer/summary?${buildExplorerParams(countries, yearMin, yearMax, columns)}`),
+  explorerSummary: (dataset: string, countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]) =>
+    get<ModelComparisonResponse>(`/explorer/summary?${buildExplorerParams(dataset, countries, yearMin, yearMax, columns)}`),
 
-  explorerDownloadUrl: (countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]) =>
-    `${import.meta.env.BASE_URL}api/explorer/download?${buildExplorerParams(countries, yearMin, yearMax, columns)}`,
+  explorerDownloadUrl: (dataset: string, countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]) =>
+    `${import.meta.env.BASE_URL}api/explorer/download?${buildExplorerParams(dataset, countries, yearMin, yearMax, columns)}`,
 
   // Area 2 correlation domain. Read-only over the pipeline's outputs;
   // unsupported source/baseline combinations are rejected by the API with a 422, never substituted.
