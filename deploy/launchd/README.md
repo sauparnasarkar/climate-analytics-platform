@@ -81,10 +81,10 @@ local to the host, like the preview's own:
 
 The `.venv` is created once in the preview checkout (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, adding
 `-c constraints/root.txt` for the tested versions) and is **not updated by the deploy**: `deploy-preview.sh` compares it with `requirements.txt` and prints a warning naming every
-package that differs, so a branch that changes the pins is noticed before the preview is trusted; re-run the `pip install` when it does.
+package that differs (exact `==` pins and `>=` minimums alike), so a branch that changes the pins is noticed before the preview is trusted; re-run the `pip install` when it does.
 
 `deploy-preview.sh` restarts the preview API job after the build, when its plist exists and is plainly that job for this checkout (label
-`com.ghgemissions.previewapi`, working directory this checkout, a `--port`, and the same working directory in the definition launchd has **loaded**: `kickstart` runs the loaded
+`com.ghgemissions.previewapi`, working directory this checkout, a `--port`, and the definition launchd has **loaded** agrees with the file on the working directory, the command and `GHG_DATA_DIR`: `kickstart` runs the loaded
 definition, not the file, so an edited plist needs `bootout` and `bootstrap` first and is otherwise left alone), so the two stay in step; otherwise it says why it left it alone. It never touches
 the production API job. Changing a plist's environment needs `bootout` and `bootstrap`, as above.
 
@@ -92,6 +92,10 @@ the production API job. Changing a plist's environment needs `bootout` and `boot
 monthly refresh restarts only production's API. After a refresh the preview API keeps the old data until it is restarted: run `deploy-preview.sh`, or
 `launchctl kickstart -k gui/$(id -u)/com.ghgemissions.previewapi`. It reads production's data folder directly, so it shares the known first-request limit in
 `STATUS.md` (a first read during a refresh can see a partly written file).
+
+**The front end must point at it.** `API_PROXY_TARGET` is read from the preview front end's own environment. When the script restarts the preview API it warns if the
+front end's plist does not set `API_PROXY_TARGET` to that API (the preview would still call production's), and when it has to start the front end itself (no usable preview
+job) it starts it with that target set.
 
 No Cloudflare change is needed: the preview hostname's `/api` requests reach the preview's Vite server (its responses carry its `x-robots-tag: noindex`) and
 are proxied from there, on the host. The check after setting it up is that `https://degreesofcarbon-preview.syena.io/api/explorer/datasets` answers 200.
