@@ -526,6 +526,7 @@ def test_missing_codebook_url_in_constants_is_a_warning_not_a_failure(tmp_path):
     "description,unit\nx,y\n",  # no `column` field
     "column,description,unit\nco2,x,\ngdp,y,\n",  # every unit blank: owid.py would reject it, so it must not replace a good one
     "column,description,unit\n\n",  # a header followed by a blank line
+    'column,description,unit\nco2,x,Mt\ngdp,"truncated\n',  # a usable first unit, then a truncated row: the whole file must parse
 ])
 def test_codebook_with_the_wrong_shape_never_replaces_the_previous_one(tmp_path, body):
     out, log, book, _ = run_codebook(tmp_path, curl_writing(body), previous="column,description,unit\nold,x,y\n")

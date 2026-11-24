@@ -182,12 +182,16 @@ esac
 CODEBOOK_FILE="$REPO_DIR/data/owid-co2-codebook.csv"
 OWID_CODEBOOK_URL=$(sed -n "s/^OWID_CODEBOOK_URL[[:space:]]*=[[:space:]]*[\"']\([^\"']*\)[\"'].*/\1/p" "$REPO_DIR/notebook/constants.py" | head -n 1)
 codebook_is_usable() {
+  # The same read pipeline/owid.py's register_codebook does (pandas, the two columns, at least one unit), over the WHOLE file, so a
+  # truncated or malformed remainder is refused here rather than accepted and then rejected at registration. Any exception is "not usable".
   "$PY" - "$1" 2>/dev/null <<'PYEOF'
-import csv, sys
-with open(sys.argv[1], newline="", encoding="utf-8-sig") as f:
-    rows = csv.DictReader(f)
-    names = rows.fieldnames or []
-    ok = "column" in names and "unit" in names and any((r.get("unit") or "").strip() for r in rows)
+import sys
+import pandas as pd
+try:
+    book = pd.read_csv(sys.argv[1], usecols=lambda c: c in ("column", "unit"))
+    ok = "column" in book.columns and "unit" in book.columns and int(book["unit"].notna().sum()) > 0
+except Exception:
+    ok = False
 sys.exit(0 if ok else 1)
 PYEOF
 }
