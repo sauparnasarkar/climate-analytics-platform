@@ -3,6 +3,7 @@ the Mac Mini and can't be run from here). The functions are extracted between th
 import os
 import re
 import subprocess
+import sys
 import textwrap
 
 import pytest
@@ -476,7 +477,7 @@ def run_codebook(tmp_path, curl_body, previous=None, url_line='OWID_CODEBOOK_URL
     curl.chmod(0o755)
     log = tmp_path / "log"
     script = f'''
-REPO_DIR="{repo}"; LOG_FILE="{log}"
+REPO_DIR="{repo}"; LOG_FILE="{log}"; PY="{sys.executable}"
 log() {{ echo "$1" >> "$LOG_FILE"; }}
 {codebook_source()}
 fetch_codebook
@@ -523,6 +524,8 @@ def test_missing_codebook_url_in_constants_is_a_warning_not_a_failure(tmp_path):
     "column,description,unitless\nco2,x,y\n",  # `unit` only as a substring of another field
     "column,description,unit\n",  # header only: nothing to read a unit from
     "description,unit\nx,y\n",  # no `column` field
+    "column,description,unit\nco2,x,\ngdp,y,\n",  # every unit blank: owid.py would reject it, so it must not replace a good one
+    "column,description,unit\n\n",  # a header followed by a blank line
 ])
 def test_codebook_with_the_wrong_shape_never_replaces_the_previous_one(tmp_path, body):
     out, log, book, _ = run_codebook(tmp_path, curl_writing(body), previous="column,description,unit\nold,x,y\n")
@@ -532,3 +535,9 @@ def test_codebook_with_the_wrong_shape_never_replaces_the_previous_one(tmp_path,
 def test_codebook_with_quoted_header_and_crlf_is_installed(tmp_path):
     out, log, book, _ = run_codebook(tmp_path, curl_writing('"column","description","unit"\r\nco2,x,million tonnes\r\n'))
     assert "RC=0" in out and "Downloaded OWID codebook OK" in log and "million tonnes" in book.read_text()
+
+
+def test_codebook_with_one_unit_among_blanks_and_quoted_commas_is_installed(tmp_path):
+    body = 'column,description,unit\ncountry,"A place, any place",\nco2,Annual CO2,million tonnes\n'
+    out, log, book, _ = run_codebook(tmp_path, curl_writing(body), previous="column,description,unit\nold,x,y\n")
+    assert "Downloaded OWID codebook OK" in log and "million tonnes" in book.read_text() and "old" not in book.read_text()
