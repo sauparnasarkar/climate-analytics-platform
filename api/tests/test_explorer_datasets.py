@@ -53,12 +53,15 @@ def built(tmp_path_factory):
                                              "source_urls": ["https://example.org/mlo.csv"], "landing_links": [{"label": "NOAA", "url": "https://gml.noaa.gov/ccgg/trends/"}]}
     prov["owid_country_co2"] = {"source": "Our World in Data CO2 and GHG emissions dataset", "coverage": [1750, 2024], "license": "CC BY 4.0 for OWID's compilation.",
                                 "short_license": "CC BY 4.0 (OWID compilation)", "retrieved_at": "2026-11-10T09:30:06+00:00", "short_citation": "Our World in Data",
-                                "required_citation_format": "Global Carbon Project. (<year>).", "source_urls": ["https://example.org/owid.csv"]}
+                                "required_citation_format": "Global Carbon Project. (<year>).", "source_urls": ["https://example.org/owid.csv"],
+                                "land_use_license_note": "Land-use CO2 originates from the Global Carbon Project; cite the original source."}
     for pid in ("primap_country_annual", "primap_global_composition_annual"):
         prov[pid]["short_license"] = "CC BY-NC-SA 4.0 · non-commercial"
         prov[pid]["caveats"] = ["National totals exclude international aviation and shipping."]
         prov[pid]["excluded_incomplete_years"] = [{"year": 2025, "reasons": "total -28.3% vs prior year"}]
     prov["temperature_anomaly_annual"]["short_license"] = "CC BY-NC 4.0 · non-commercial"
+    for entry in prov.values():  # the stub run writes no citations; real provenance always has one, and a download needs it
+        entry.setdefault("short_citation", "A. Author, a source, 2026")
     (d / "provenance.json").write_text(json.dumps(prov))
     return d
 
@@ -413,3 +416,80 @@ def test_the_owid_download_keeps_its_minimal_fallback_without_provenance(ex, cli
     r = ex.get("/api/explorer/download")
     assert r.status_code == 200
     assert "Provenance was not available" in unzip(r)[1]["ATTRIBUTION.txt"]
+
+
+# --- Copilot review of #129, round 2, each verified ---
+
+
+def test_attribution_describes_the_release_the_table_was_built_from(ex, climate):
+    # provenance.json is reloaded by climate_loaders on a file change while the data stays cached until a restart: reading it per request could pair old values with a new
+    # release, citation or licence. The table carries the entry it was built with, so a rewrite changes nothing until the sources reload together.
+    first = datasets(ex)[0]["temperature"]["source"]["short_license"]
+    prov = json.loads((climate / "provenance.json").read_text())
+    prov["temperature_anomaly_annual"]["short_license"] = "CC BY 4.0"
+    prov["temperature_anomaly_annual"]["license"] = "CC BY 4.0"
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    assert datasets(ex)[0]["temperature"]["source"]["short_license"] == first == "CC BY-NC 4.0 · non-commercial"
+    _, files = unzip(ex.get("/api/explorer/download", params={"dataset": "temperature"}))
+    assert "CC BY-NC 4.0" in files["ATTRIBUTION.txt"]
+    cl.clear_caches()
+    assert datasets(ex)[0]["temperature"]["source"]["short_license"] == "CC BY 4.0"  # reloaded together: the new release is served with its data
+
+
+def test_the_owid_table_carries_its_provenance_snapshot_too(ex, climate):
+    before = datasets(ex)[0]["owid_country"]["source"]["short_license"]
+    prov = json.loads((climate / "provenance.json").read_text())
+    prov["owid_country_co2"]["short_license"] = "Something else"
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    assert datasets(ex)[0]["owid_country"]["source"]["short_license"] == before
+
+
+@pytest.mark.parametrize("ds,pid", [("primap_global", "primap_global_composition_annual"), ("primap_country", "primap_country_annual"), ("temperature", "temperature_anomaly_annual")])
+def test_an_incomplete_provenance_entry_blocks_the_download_but_not_browsing(ex, climate, ds, pid):
+    prov = json.loads((climate / "provenance.json").read_text())
+    prov[pid] = {}
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    cl.clear_caches()
+    r = ex.get("/api/explorer/download", params={"dataset": ds})
+    assert r.status_code == 503 and "provenance" in r.json()["detail"]
+    assert ex.get("/api/explorer/data", params={"dataset": ds}).status_code == 200
+
+
+def test_a_download_needs_both_a_licence_and_a_citation(ex, climate):
+    prov = json.loads((climate / "provenance.json").read_text())
+    entry = prov["temperature_anomaly_annual"]
+    no_cite = {k: v for k, v in entry.items() if k not in ("short_citation", "required_citation_format", "citations")}
+    prov["temperature_anomaly_annual"] = {**no_cite, "short_citation": "  "}
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    cl.clear_caches()
+    r = ex.get("/api/explorer/download", params={"dataset": "temperature"})
+    assert r.status_code == 503 and "no citation" in r.json()["detail"]
+    prov["temperature_anomaly_annual"] = {**entry, "license": "", "short_license": None}
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    cl.clear_caches()
+    assert "no licence" in ex.get("/api/explorer/download", params={"dataset": "temperature"}).json()["detail"]
+
+
+def test_a_primap_download_is_refused_unless_its_provenance_gives_the_share_alike_licence(ex, climate):
+    prov = json.loads((climate / "provenance.json").read_text())
+    prov["primap_global_composition_annual"]["short_license"] = "see Zenodo"
+    prov["primap_global_composition_annual"]["license"] = "see Zenodo"
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    cl.clear_caches()
+    r = ex.get("/api/explorer/download", params={"dataset": "primap_global"})
+    assert r.status_code == 503 and "non-commercial-share-alike" in r.json()["detail"]
+    assert ex.get("/api/explorer/download", params={"dataset": "temperature"}).status_code == 200  # the other data sets are unaffected
+
+
+def test_the_owid_attribution_carries_the_land_use_terms_its_licence_refers_to(ex):
+    _, owid = unzip(ex.get("/api/explorer/download"))
+    assert "Land-use CO2: Land-use CO2 originates from the Global Carbon Project" in owid["ATTRIBUTION.txt"]
+    _, temp = unzip(ex.get("/api/explorer/download", params={"dataset": "temperature"}))
+    assert "Land-use CO2" not in temp["ATTRIBUTION.txt"]  # only where the provenance has such a note
+
+
+def test_cumulative_columns_are_disclosed_as_computed_like_the_derived_ones(ex):
+    _, cum = unzip(ex.get("/api/explorer/download", params={"dataset": "primap_global", "columns": ["year", "primap_ghg_total_cumulative_mtco2e"]}))
+    assert "cumulative totals are computed by the Degrees of Carbon pipeline" in cum["ATTRIBUTION.txt"]
+    _, base = unzip(ex.get("/api/explorer/download", params={"dataset": "primap_global", "columns": ["year", "primap_co2_mt"]}))
+    assert "computed by the Degrees of Carbon pipeline" not in base["ATTRIBUTION.txt"]

@@ -12,9 +12,9 @@ from ..explorer_datasets import (
     Table,
     build_zip,
     get_dataset,
+    attribution_gap,
     listing,
     load_table,
-    source_block,
     summary_rows,
 )
 from ..params import distinct
@@ -150,9 +150,9 @@ def download_explorer_data(
 ):
     """A zip of the selected CSV and `ATTRIBUTION.txt`, so the licence and citation travel with the data (SPEC.md §5.37)."""
     table, df = _filter(ds, countries, year_min, year_max, columns)
-    if ds.needs_climate_store and source_block(ds) is None:
-        # Fail closed: these data sets are shared under licences that require the notice and citation to travel with them (PRIMAP-hist's CC BY-NC-SA above all), so a
-        # download without its provenance is refused rather than shipped bare. Browsing the table is unaffected.
-        raise HTTPException(status_code=503, detail=f"{ds.title} cannot be downloaded: its provenance (licence and citation) is not available.")
+    gap = attribution_gap(ds, table)
+    if gap:
+        # Fail closed: a download that cannot carry its licence notice and citation is refused rather than shipped bare. Browsing the table is unaffected.
+        raise HTTPException(status_code=503, detail=f"{ds.title} cannot be downloaded: {gap}.")
     body, name = build_zip(ds, table, df, distinct(countries), year_min, year_max)
     return Response(content=body, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})

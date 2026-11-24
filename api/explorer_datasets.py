@@ -14,7 +14,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -59,6 +59,8 @@ class Dataset:
     extra_default_columns: tuple[str, ...] = ()
     needs_climate_store: bool = True
     methods_anchor: str = "sources"
+    # A licence this data set must be published under: a download whose provenance says otherwise (or nothing) is refused, never shipped without its notice.
+    expected_licence_class: str | None = None
 
 
 REGISTRY: tuple[Dataset, ...] = (
@@ -73,7 +75,7 @@ REGISTRY: tuple[Dataset, ...] = (
         description="National greenhouse gas emissions by country and gas, in CO₂-equivalent (AR5 GWP-100).",
         row_label="a country in a year", grain=COUNTRY_YEAR, keys=("country", "iso3", "year"), provenance_id="primap_country_annual", chain_step="emissions", series="primap_country_annual",
         method_note="From PRIMAP-hist, country-reported scenario, excluding land use. Sovereign countries only, as in the Our World in Data table.",
-        charted_on=(("Overview", "/overview"), ("Country Profile", "/country-profile")), default_year_min=1970),
+        charted_on=(("Overview", "/overview"), ("Country Profile", "/country-profile")), default_year_min=1970, expected_licence_class=NON_COMMERCIAL_SHARE_ALIKE),
     Dataset(
         id="owid_world", title="World CO₂ emissions", source_label="Our World in Data",
         description="The world's annual CO₂ emissions, fossil and land-use, with their cumulative totals.",
@@ -86,7 +88,7 @@ REGISTRY: tuple[Dataset, ...] = (
         row_label="the world (sum of national totals) in a year", grain=GLOBAL_YEAR, keys=("year",), provenance_id="primap_global_composition_annual", chain_step="emissions",
         series="primap_global_composition_annual",
         method_note="From PRIMAP-hist, country-reported scenario, excluding land use: the sum of the national totals, not a world aggregate.",
-        charted_on=(("Climate Correlation", "/climate-correlation"),), default_year_min=1970),
+        charted_on=(("Climate Correlation", "/climate-correlation"),), default_year_min=1970, expected_licence_class=NON_COMMERCIAL_SHARE_ALIKE),
     Dataset(
         id="co2_annual", title="Atmospheric CO₂, annual", source_label="NOAA and Law Dome",
         description="The yearly average CO₂ concentration of the atmosphere, with its uncertainty where the source gives one.",
@@ -154,6 +156,7 @@ class Table:
     last: str
     first_year: int
     last_year: int
+    provenance: dict | None = None  # the provenance entry as it was when this table was built, so data and attribution describe the same snapshot
 
 
 def _detail(id_: str, label: str, unit: str | None, kind: str | None, decimals: int | None, is_key: bool, default: bool) -> dict:
@@ -301,23 +304,37 @@ def _sources(ds: Dataset) -> tuple:
 _TABLES: dict[tuple, tuple[Table, tuple]] = {}
 
 
-def _climate_table(ds: Dataset) -> Table:
-    sources = _sources(ds)
+def _provenance_snapshot(ds: Dataset) -> dict | None:
+    try:
+        entry = cl.load_provenance().get(ds.provenance_id)
+    except cl.ClimateDataUnavailable:
+        return None
+    return entry if isinstance(entry, dict) else None
+
+
+def _cached(ds: Dataset, sources: tuple, build) -> Table:
     key = (ds.id, cl.climate_dir(), tuple(id(x) for x in sources))
     hit = _TABLES.get(key)
     if hit is not None:
         return hit[0]
-    table = _country_table(ds) if ds.grain == COUNTRY_YEAR else _monthly_table(ds) if ds.grain == GLOBAL_MONTH else _global_table(ds)
+    # Built together with the provenance it is attributed to: `load_provenance` reloads on a file change while the data stays cached until a restart, so reading it
+    # per request could describe a newer release than the values served.
+    table = replace(build(), provenance=_provenance_snapshot(ds))
     for stale in [k for k in _TABLES if k[:2] == key[:2]]:
         del _TABLES[stale]  # an earlier build of this data set, from sources that have since been reloaded
     _TABLES[key] = (table, sources)
     return table
 
 
+def _climate_table(ds: Dataset) -> Table:
+    build = _country_table if ds.grain == COUNTRY_YEAR else _monthly_table if ds.grain == GLOBAL_MONTH else _global_table
+    return _cached(ds, _sources(ds), lambda: build(ds))
+
+
 def load_table(ds: Dataset) -> Table:
     """The data set's table. Raises DataNotFoundError (a 503 with the reason) when its source is missing or unusable; never takes another data set down."""
     if ds.id == "owid_country":
-        return _owid_table(ds)
+        return _cached(ds, (data_loaders.load_filtered(), data_loaders.load_owid_codebook()), lambda: _owid_table(ds))
     return _climate_table(ds)
 
 
@@ -328,16 +345,8 @@ def clear_caches() -> None:
 # --- provenance ---
 
 
-def provenance_entry(ds: Dataset) -> dict | None:
-    try:
-        entry = cl.load_provenance().get(ds.provenance_id)
-    except cl.ClimateDataUnavailable:
-        return None
-    return entry if isinstance(entry, dict) else None
-
-
-def source_block(ds: Dataset) -> dict | None:
-    e = provenance_entry(ds)
+def source_block(ds: Dataset, table: Table) -> dict | None:
+    e = table.provenance
     if e is None:
         return None
     keep = {k: e[k] for k in SOURCE_KEYS if k in e and k != "source"}
@@ -349,11 +358,32 @@ def source_block(ds: Dataset) -> dict | None:
             "citations": [x for x in (keep.get("citations") or []) if isinstance(x, str)]}
 
 
-def excluded_incomplete_years(ds: Dataset) -> list[int]:
+def excluded_incomplete_years(table: Table) -> list[int]:
     """Years the pipeline held back as incomplete (PRIMAP-hist's latest year, today), straight from the provenance entry."""
-    e = provenance_entry(ds) or {}
+    e = table.provenance or {}
     out = {int(x["year"]) for x in (e.get("excluded_incomplete_years") or []) if isinstance(x, dict) and isinstance(x.get("year"), (int, float))}
     return sorted(out)
+
+
+def _text(x) -> bool:
+    return isinstance(x, str) and bool(x.strip())
+
+
+def attribution_gap(ds: Dataset, table: Table) -> str | None:
+    """Why this data set's download cannot carry the licence and citation it needs, or None. The data sets read from the climate store are shared under licences that
+    require both to travel with them (PRIMAP-hist's CC BY-NC-SA above all), so an absent or incomplete provenance entry means no download, never a bare one."""
+    if not ds.needs_climate_store:
+        return None
+    e = table.provenance
+    if not e:
+        return "its provenance (licence and citation) is not available"
+    if not (_text(e.get("license")) or _text(e.get("short_license"))):
+        return "its provenance names no licence"
+    if not (_text(e.get("required_citation_format")) or _text(e.get("short_citation")) or any(_text(c) for c in (e.get("citations") or []))):
+        return "its provenance names no citation"
+    if ds.expected_licence_class and licence_class(e) != ds.expected_licence_class:
+        return f"its provenance does not give the {ds.expected_licence_class.replace('_', '-')} licence this data set is published under"
+    return None
 
 
 def default_year_range(ds: Dataset, table: Table) -> list[int]:
@@ -372,11 +402,11 @@ def listing(ds: Dataset) -> dict:
     except DataNotFoundError as e:
         return {**base, "available": False, "unavailable_reason": e.message, "coverage": None, "default_year_range": None, "licence_class": None, "source": None,
                 "excluded_incomplete_years": []}
-    source = source_block(ds)
+    source = source_block(ds, table)
     return {**base, "available": True, "unavailable_reason": None,
             "coverage": {"first": table.first, "last": table.last, "countries": len(table.countries) if ds.grain == COUNTRY_YEAR else None},
-            "default_year_range": default_year_range(ds, table), "licence_class": licence_class(provenance_entry(ds)), "source": source,
-            "excluded_incomplete_years": excluded_incomplete_years(ds)}
+            "default_year_range": default_year_range(ds, table), "licence_class": licence_class(table.provenance), "source": source,
+            "excluded_incomplete_years": excluded_incomplete_years(table)}
 
 
 # --- summary and download ---
@@ -418,13 +448,15 @@ def _release_text(source: dict) -> str:
 def attribution_text(ds: Dataset, table: Table, countries: list[str] | None, year_range: tuple[int, int], columns: list[str], now: datetime | None = None) -> str:
     """ATTRIBUTION.txt, built only from provenance and the request (SPEC.md §5.37)."""
     now = now or datetime.now(timezone.utc)
-    source = source_block(ds)
+    source = source_block(ds, table)
     lines = [f"Degrees of Carbon: {ds.title} ({ds.source_label})", f"Downloaded {now.strftime('%Y-%m-%d %H:%M:%S')} UTC from {SITE_URL}/data-explorer?dataset={ds.id}", ""]
     if source:
         links = [x.get("url") for x in source["landing_links"] if x.get("url")] + source["source_urls"]
         lines += [f"Source:    {source.get('name') or ds.source_label}", f"Release:   {_release_text(source)}",
                   f"Cite as:   {source.get('required_citation_format') or source.get('short_citation') or 'see the source'}",
                   f"Licence:   {source.get('license') or source.get('short_license') or 'see the source'}", f"Links:     {', '.join(dict.fromkeys(links)) or 'none recorded'}"]
+        if _text(source.get("land_use_license_note")):
+            lines.append(f"Land-use CO2: {source['land_use_license_note']}")
         if source["citations"]:
             lines += ["", "Citations:"] + [f"- {c}" for c in source["citations"]]
     else:
@@ -432,8 +464,10 @@ def attribution_text(ds: Dataset, table: Table, countries: list[str] | None, yea
     by_id = {d["id"]: d for d in table.detail}
     lines += ["", "Changes made by Degrees of Carbon:",
               f"- Filtered to {', '.join(countries) if countries else 'all countries' if ds.grain == COUNTRY_YEAR else 'the whole series'}, {year_range[0]}–{year_range[1]}, columns: {', '.join(columns)}"]
-    if any(by_id.get(c, {}).get("kind") == "derived" for c in columns):
-        lines.append("- Year-on-year %, trailing 5-year means and indices are computed by the Degrees of Carbon pipeline from the source series (see Methods & data).")
+    if any(by_id.get(c, {}).get("kind") in ("derived", "cumulative") for c in columns):
+        # The catalog does not say which cumulative series a source publishes itself (only OWID's own fossil CO2 cumulative is one), so all are disclosed.
+        lines.append("- Year-on-year %, trailing 5-year means, indices and cumulative totals are computed by the Degrees of Carbon pipeline from the source series (see Methods & data); "
+                     "a cumulative column the source publishes itself is noted in its catalog description.")
     if ds.id == "owid_country":
         lines.append("- Sovereign countries only; regional and income-group aggregates removed.")
     if ds.id == "primap_country":
@@ -441,7 +475,7 @@ def attribution_text(ds: Dataset, table: Table, countries: list[str] | None, yea
     caveats = (source or {}).get("caveats") or []
     if caveats:
         lines += ["", "Caveats:"] + [f"- {c}" for c in caveats]
-    if licence_class(provenance_entry(ds)) == NON_COMMERCIAL_SHARE_ALIKE:
+    if licence_class(table.provenance) == NON_COMMERCIAL_SHARE_ALIKE:
         lines += ["", "This file contains data derived from PRIMAP-hist and is shared under CC BY-NC-SA 4.0. Any data you publish from it must carry the same licence and this "
                       "attribution. Non-commercial use only."]
     return "\n".join(lines) + "\n"
