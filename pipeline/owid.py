@@ -62,6 +62,12 @@ ROW_DROP_DEVIATION_PCT = 5.0  # the week-1 notebook hard-fails at the same thres
 SERIES_WORLD = "owid_world_co2_annual"
 SERIES_COUNTRY = "owid_country_co2"
 
+# OWID's codebook, downloaded by the refresh job beside the data file. The Data Explorer shows its `unit` column as the unit of each
+# OWID column (SPEC.md §5.37). Units are a label, so a missing or old codebook is a deviation, never an error.
+CODEBOOK_NAME = "owid-co2-codebook.csv"
+CODEBOOK_MAX_LAG_DAYS = 35  # one monthly refresh plus slack: older than the data file by more than this means a refresh skipped it
+CODEBOOK_COLUMNS = ("column", "unit")
+
 LAND_USE_LICENSE_NOTE = (
     "Land-use CO2 data originates from the Global Carbon Project via OWID. No formal license (e.g., CC BY) is stated on the Global Carbon "
     "Project's data page; use is conditional on citing the original source per their stated terms. The required citation is included in this "
@@ -87,6 +93,57 @@ def owid_url(root: str = ROOT) -> str:
     if not m:
         raise ValueError("notebook/constants.py: OWID_URL not found")
     return m.group(1)
+
+
+def owid_codebook_url(root: str = ROOT) -> str:
+    """OWID_CODEBOOK_URL from notebook/constants.py, read the same way as `owid_url`."""
+    text = open(os.path.join(root, "notebook", "constants.py")).read()
+    m = re.search(r'^OWID_CODEBOOK_URL\s*=\s*["\']([^"\']+)["\']', text, re.M)
+    if not m:
+        raise ValueError("notebook/constants.py: OWID_CODEBOOK_URL not found")
+    return m.group(1)
+
+
+def register_codebook(codebook_path: str, data_modified: datetime, report: RunReport) -> dict | None:
+    """Provenance entry for the codebook the refresh job downloaded, or None (with a deviation) when there is nothing usable to register.
+
+    Never raises: the codebook only labels columns, so the series this step publishes do not depend on it."""
+    if not os.path.exists(codebook_path):
+        report.deviate(f"OWID codebook {CODEBOOK_NAME} is missing: the Data Explorer shows OWID columns without units (the data and every series are unaffected)")
+        return None
+    try:
+        # Every filesystem touch is inside the handler: a directory at the path, a permissions error or a vanished file is a deviation, not a failed OWID step.
+        raw = open(codebook_path, "rb").read()
+        book = pd.read_csv(codebook_path, usecols=lambda c: c in CODEBOOK_COLUMNS)
+        modified = datetime.fromtimestamp(os.stat(codebook_path).st_mtime, tz=timezone.utc).replace(microsecond=0)
+    except (OSError, ValueError, pd.errors.ParserError, UnicodeDecodeError) as e:
+        report.deviate(f"OWID codebook {CODEBOOK_NAME} could not be read ({e.__class__.__name__}): the Data Explorer shows OWID columns without units")
+        return None
+    absent = [c for c in CODEBOOK_COLUMNS if c not in book.columns]
+    if absent:
+        report.deviate(f"OWID codebook {CODEBOOK_NAME} has no {', '.join(absent)} column: the Data Explorer shows OWID columns without units")
+        return None
+    if book["unit"].notna().sum() == 0:
+        report.deviate(f"OWID codebook {CODEBOOK_NAME} lists no units ({len(book)} row(s)): the Data Explorer shows OWID columns without units")
+        return None
+    try:
+        source_urls = [owid_codebook_url()]
+    except ValueError as e:
+        # The refresh job treats a missing URL as a warning and keeps the previous codebook, so registration must not turn that into a failed step.
+        report.deviate(f"{e}: the codebook is registered without its source URL")
+        source_urls = []
+    lag_days = (data_modified - modified).days
+    if lag_days > CODEBOOK_MAX_LAG_DAYS:
+        report.deviate(f"OWID codebook is {lag_days} days older than the data file (limit {CODEBOOK_MAX_LAG_DAYS}): the refresh job has not been replacing it, so units may be stale")
+    report.note(f"OWID codebook registered: {len(book)} column(s), {int(book['unit'].notna().sum())} with a unit")
+    return {
+        "path": f"data/{CODEBOOK_NAME}",
+        "source_urls": source_urls,
+        "retrieved_at": modified.isoformat(),
+        "retrieved_at_basis": "file modification time on disk (downloaded by the refresh job; this step does not download)",
+        "raw_sha256": {CODEBOOK_NAME: sha256_hex(raw)},
+        "rows": len(book),
+    }
 
 
 def assess_trailing(world: pd.Series, countries_wide: pd.DataFrame) -> tuple[int, list[dict]]:
@@ -130,8 +187,9 @@ def assess_trailing(world: pd.Series, countries_wide: pd.DataFrame) -> tuple[int
     return first - 1, trimmed
 
 
-def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None) -> RunReport:
+def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None, codebook_path: str | None = None) -> RunReport:
     today = today or date.today()
+    codebook_path = codebook_path or os.path.join(os.path.dirname(path), CODEBOOK_NAME)  # beside the data file, as the refresh job writes it
     report = RunReport("owid")
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} not found -- the refresh job downloads it (see pipeline/owid.py)")
@@ -228,6 +286,8 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
     report.count(SERIES_WORLD, len(out))
     report.count(SERIES_COUNTRY, rows)
 
+    codebook = register_codebook(codebook_path, modified, report)
+
     sha = sha256_hex(raw)
     base = {
         "source": "Our World in Data CO2 and GHG emissions dataset (OWID, from the Global Carbon Project)",
@@ -272,7 +332,9 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
         {**base, "path": "data/owid-co2-data.csv", "rows_in_source": rows, "rows": rows,
          "coverage": [int(df["year"].min()), int(df["year"].max())],
          "geography": "country level (served by the existing historical/overview/country-profile endpoints)",
-         "note": "Registered, not re-published: the existing API reads the CSV directly; this entry gives it provenance and a checksum."},
+         "note": "Registered, not re-published: the existing API reads the CSV directly; this entry gives it provenance and a checksum.",
+         # Only when the codebook is usable: `codebook` is the API's pointer to the units file, and the checksum sits beside the data file's own.
+         **({"codebook": codebook, "raw_sha256": {**base["raw_sha256"], **codebook["raw_sha256"]}} if codebook else {})},
         provenance_path,
     )
     return report

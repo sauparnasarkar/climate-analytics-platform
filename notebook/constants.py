@@ -8,6 +8,8 @@ import json
 import os
 
 OWID_URL = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"
+# OWID's codebook (one row per column: description and unit), the source of the Data Explorer's OWID column units (SPEC.md §5.37).
+OWID_CODEBOOK_URL = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-codebook.csv"
 
 FEATURED_COUNTRIES = [
     "China", "United States", "India", "Russia", "Japan",

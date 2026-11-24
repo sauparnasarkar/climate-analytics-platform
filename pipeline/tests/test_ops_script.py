@@ -3,6 +3,7 @@ the Mac Mini and can't be run from here). The functions are extracted between th
 import os
 import re
 import subprocess
+import sys
 import textwrap
 
 import pytest
@@ -450,3 +451,94 @@ cp -p "$BACKUP" "$DATA_FILE"  # a forced download failure: the script's own rest
 '''
     assert subprocess.run(["bash", "-c", script], capture_output=True, text=True).returncode == 0
     assert abs(os.stat(live).st_mtime - newer) < 2, "the restored file looks 35 days staler than it is"
+
+
+# --- the OWID codebook step: a failure is a warning, never a failed refresh (SPEC.md §5.37) ---
+
+def codebook_source():
+    text = open(SCRIPT).read()
+    m = re.search(r"# >>> owid_codebook.*?# <<< owid_codebook", text, re.S)
+    assert m, "owid_codebook markers not found"
+    return m.group(0)
+
+
+def run_codebook(tmp_path, curl_body, previous=None, url_line='OWID_CODEBOOK_URL = "https://example.org/owid-co2-codebook.csv"'):
+    repo = tmp_path / "repo"
+    (repo / "data").mkdir(parents=True)
+    (repo / "notebook").mkdir()
+    (repo / "notebook" / "constants.py").write_text(url_line + "\n")
+    book = repo / "data" / "owid-co2-codebook.csv"
+    if previous is not None:
+        book.write_text(previous)
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    curl = stubs / "curl"
+    curl.write_text("#!/bin/bash\n" + textwrap.dedent(curl_body))
+    curl.chmod(0o755)
+    log = tmp_path / "log"
+    script = f'''
+REPO_DIR="{repo}"; LOG_FILE="{log}"; PY="{sys.executable}"
+log() {{ echo "$1" >> "$LOG_FILE"; }}
+{codebook_source()}
+fetch_codebook
+echo "RC=$?"
+'''
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env={**os.environ, "PATH": f"{stubs}:{os.environ['PATH']}"})
+    assert out.returncode == 0, out.stderr
+    return out.stdout, log.read_text() if log.exists() else "", book, repo
+
+
+# A stub curl that honours `-o <file>` and writes the given body there.
+def curl_writing(body):
+    return f'''
+while [ $# -gt 0 ]; do [ "$1" = "-o" ] && {{ out="$2"; shift; }}; shift; done
+printf '%s' '{body}' > "$out"
+'''
+
+
+def test_codebook_download_replaces_the_previous_file(tmp_path):
+    out, log, book, repo = run_codebook(tmp_path, curl_writing("column,description,unit\nco2,x,million tonnes\n"), previous="column,description,unit\nold,x,y\n")
+    assert "RC=0" in out and "Downloaded OWID codebook OK" in log
+    assert "million tonnes" in book.read_text() and not (repo / "data" / "owid-co2-codebook.csv.new").exists()
+
+
+def test_codebook_curl_failure_keeps_the_previous_file_and_does_not_fail(tmp_path):
+    out, log, book, repo = run_codebook(tmp_path, "exit 22\n", previous="column,description,unit\nold,x,y\n")
+    assert "RC=0" in out and "WARNING" in log and "keeping the previous codebook" in log
+    assert "old" in book.read_text() and not (repo / "data" / "owid-co2-codebook.csv.new").exists()
+
+
+def test_codebook_that_is_not_a_codebook_is_never_installed(tmp_path):
+    out, log, book, _ = run_codebook(tmp_path, curl_writing("<html>404: Not Found</html>"), previous="column,description,unit\nold,x,y\n")
+    assert "RC=0" in out and "looked wrong" in log and "old" in book.read_text()
+    out2, _, book2, _ = run_codebook(tmp_path / "second", curl_writing("<html>404</html>"))
+    assert "RC=0" in out2 and not book2.exists()  # no previous codebook and a bad download: still nothing installed, still not a failure
+
+
+def test_missing_codebook_url_in_constants_is_a_warning_not_a_failure(tmp_path):
+    out, log, _, _ = run_codebook(tmp_path, "exit 0\n", url_line="OWID_URL = 'x'")
+    assert "RC=0" in out and "could not read OWID_CODEBOOK_URL" in log
+
+
+@pytest.mark.parametrize("body", [
+    "column,description,unitless\nco2,x,y\n",  # `unit` only as a substring of another field
+    "column,description,unit\n",  # header only: nothing to read a unit from
+    "description,unit\nx,y\n",  # no `column` field
+    "column,description,unit\nco2,x,\ngdp,y,\n",  # every unit blank: owid.py would reject it, so it must not replace a good one
+    "column,description,unit\n\n",  # a header followed by a blank line
+    'column,description,unit\nco2,x,Mt\ngdp,"truncated\n',  # a usable first unit, then a truncated row: the whole file must parse
+])
+def test_codebook_with_the_wrong_shape_never_replaces_the_previous_one(tmp_path, body):
+    out, log, book, _ = run_codebook(tmp_path, curl_writing(body), previous="column,description,unit\nold,x,y\n")
+    assert "RC=0" in out and "looked wrong" in log and "old" in book.read_text()
+
+
+def test_codebook_with_quoted_header_and_crlf_is_installed(tmp_path):
+    out, log, book, _ = run_codebook(tmp_path, curl_writing('"column","description","unit"\r\nco2,x,million tonnes\r\n'))
+    assert "RC=0" in out and "Downloaded OWID codebook OK" in log and "million tonnes" in book.read_text()
+
+
+def test_codebook_with_one_unit_among_blanks_and_quoted_commas_is_installed(tmp_path):
+    body = 'column,description,unit\ncountry,"A place, any place",\nco2,Annual CO2,million tonnes\n'
+    out, log, book, _ = run_codebook(tmp_path, curl_writing(body), previous="column,description,unit\nold,x,y\n")
+    assert "Downloaded OWID codebook OK" in log and "million tonnes" in book.read_text() and "old" not in book.read_text()

@@ -41,6 +41,8 @@ from this repository, not from a copy). What it does:
    scenarios (one month behind, and unavailable via the stale-scenario guard whenever OWID gained a year). It still runs
    in both failure branches (its own failure domain), so Area 2 files are refreshed even when a notebook fails.
 
+After the OWID file downloads and passes the size check, the script also fetches OWID's codebook to `data/owid-co2-codebook.csv` (column units for the Data Explorer, SPEC.md §5.37). That download is a **warning, not a failure**: if it fails or the file does not look like a codebook, the previous one is kept, the data backup is not restored and no week is skipped; `pipeline/owid.py` reports a deviation when the codebook is missing or old.
+
 The OWID step **does not download**: the script's existing backup → download → week-1 validation → restore
 flow stays the single authority for that file; `pipeline/owid.py` only verifies and registers what is on disk
 (provenance, checksum, completeness of the latest year) and publishes `data/climate/owid_world_co2_annual.csv`.

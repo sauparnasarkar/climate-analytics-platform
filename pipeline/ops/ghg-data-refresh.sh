@@ -175,6 +175,50 @@ case "$OWID_URL" in
 esac
 # <<< owid_url
 
+# >>> owid_codebook
+# OWID's codebook (column descriptions and units) is downloaded beside the data file for the Data Explorer's column units
+# (SPEC.md §5.37). Units are a label, not data, so a failed codebook download is a warning, never a failed refresh: the previous
+# codebook is kept, nothing is restored and no week is skipped. pipeline/owid.py records a deviation when it is missing or old.
+CODEBOOK_FILE="$REPO_DIR/data/owid-co2-codebook.csv"
+OWID_CODEBOOK_URL=$(sed -n "s/^OWID_CODEBOOK_URL[[:space:]]*=[[:space:]]*[\"']\([^\"']*\)[\"'].*/\1/p" "$REPO_DIR/notebook/constants.py" | head -n 1)
+codebook_is_usable() {
+  # The same read pipeline/owid.py's register_codebook does (pandas, the two columns, at least one unit), over the WHOLE file, so a
+  # truncated or malformed remainder is refused here rather than accepted and then rejected at registration. Any exception is "not usable".
+  "$PY" - "$1" 2>/dev/null <<'PYEOF'
+import sys
+import pandas as pd
+try:
+    book = pd.read_csv(sys.argv[1], usecols=lambda c: c in ("column", "unit"))
+    ok = "column" in book.columns and "unit" in book.columns and int(book["unit"].notna().sum()) > 0
+except Exception:
+    ok = False
+sys.exit(0 if ok else 1)
+PYEOF
+}
+fetch_codebook() {
+  local tmp="$CODEBOOK_FILE.new"
+  case "$OWID_CODEBOOK_URL" in
+    https://*) ;;
+    *)
+      log "WARNING: could not read OWID_CODEBOOK_URL from notebook/constants.py (got: '$OWID_CODEBOOK_URL'); codebook not refreshed."
+      return 0
+      ;;
+  esac
+  rm -f "$tmp"
+  # Installed only if it is usable by the same test pipeline/owid.py applies: whole `column` and `unit` header fields and at least one
+  # non-empty unit, so an HTML error page, a renamed codebook, a header-only file or one with every unit blank never replaces the last
+  # usable one. (A CSV parser, not grep: descriptions hold quoted commas.)
+  if curl -fsSL --max-time 60 -o "$tmp" "$OWID_CODEBOOK_URL" && codebook_is_usable "$tmp"; then
+    mv -f "$tmp" "$CODEBOOK_FILE"
+    log "Downloaded OWID codebook OK"
+  else
+    rm -f "$tmp"
+    log "WARNING: OWID codebook download failed or looked wrong; keeping the previous codebook (if any). Column units may be missing or stale."
+  fi
+  return 0
+}
+# <<< owid_codebook
+
 # --- Step 1: backup ---
 # `cp -p` everywhere the data file is copied (here and on every restore below): pipeline/owid.py takes the file's
 # mtime as its retrieval time and uses it to detect a stopped refresh job, so a restored (old) file must keep
@@ -231,6 +275,7 @@ if [ "$NEW_SIZE" -lt "$MIN_BYTES" ]; then
 fi
 log "Downloaded new file OK ($NEW_SIZE bytes)"
 prune_backups
+fetch_codebook
 
 # --- Step 3: run week1 (includes validation against the backup) ---
 rm -f data/.refresh_status data/.refresh_row_diff

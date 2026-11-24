@@ -47,8 +47,56 @@ def write(tmp_path, df, name="owid.csv", age_days=1):
     return str(p)
 
 
-def run(tmp_path, path, **kw):
+CODEBOOK = "column,title,description,unit,source\nco2,CO2,Annual CO2.,million tonnes,GCP\ngdp,GDP,Gross domestic product.,international-$ in 2011 prices,Maddison\ncountry,Country,Geographic location.,,OWID\n"
+
+
+def write_codebook(tmp_path, text=CODEBOOK, age_days=1):
+    p = tmp_path / owid.CODEBOOK_NAME
+    p.write_text(text)
+    t = datetime(TODAY.year, TODAY.month, TODAY.day, tzinfo=timezone.utc).timestamp() - age_days * 86400
+    os.utime(p, (t, t))
+    return str(p)
+
+
+def run(tmp_path, path, codebook=True, **kw):
+    # A codebook beside the data file, as the refresh job leaves it, so a run with nothing else wrong reports no deviation.
+    if codebook and not (tmp_path / owid.CODEBOOK_NAME).exists():
+        write_codebook(tmp_path)
     return owid.run(path, out_dir=str(tmp_path / "out"), provenance_path=str(tmp_path / "p.json"), today=kw.pop("today", TODAY), **kw)
+
+
+def test_codebook_is_registered_beside_the_data_file(tmp_path):
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert rep.deviations == []
+    c = json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+    assert c["codebook"]["rows"] == 3 and c["codebook"]["path"] == "data/owid-co2-codebook.csv"
+    assert c["codebook"]["source_urls"] == [owid.owid_codebook_url()] and "does not download" in c["codebook"]["retrieved_at_basis"]
+    assert set(c["raw_sha256"]) == {"owid-co2-data.csv", "owid-co2-codebook.csv"} and len(c["raw_sha256"]["owid-co2-codebook.csv"]) == 64
+    assert "codebook" not in json.loads((tmp_path / "p.json").read_text())["owid_world_co2_annual"]
+    assert any("codebook registered: 3 column(s), 2 with a unit" in n for n in rep.notes)
+
+
+def test_missing_codebook_is_a_deviation_not_an_error_and_the_series_still_publish(tmp_path):
+    rep = run(tmp_path, write(tmp_path, make_df()), codebook=False)
+    assert any("codebook" in d and "missing" in d and "without units" in d for d in rep.deviations)
+    assert (tmp_path / "out" / "owid_world_co2_annual.csv").exists()
+    c = json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+    assert "codebook" not in c and set(c["raw_sha256"]) == {"owid-co2-data.csv"}
+
+
+def test_codebook_without_a_unit_column_is_a_deviation(tmp_path):
+    write_codebook(tmp_path, "column,title\nco2,CO2\n")
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert any("no unit column" in d for d in rep.deviations)
+    assert "codebook" not in json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+
+
+def test_codebook_older_than_the_data_file_by_more_than_a_refresh_deviates(tmp_path):
+    write_codebook(tmp_path, age_days=1 + owid.CODEBOOK_MAX_LAG_DAYS + 1)
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert any("days older than the data file" in d for d in rep.deviations)
+    write_codebook(tmp_path, age_days=1 + owid.CODEBOOK_MAX_LAG_DAYS)  # exactly at the limit: still fine
+    assert not any("older than the data file" in d for d in run(tmp_path, write(tmp_path, make_df())).deviations)
 
 
 def test_run_publishes_world_series_and_provenance(tmp_path):
@@ -223,3 +271,30 @@ def test_land_use_observations_before_the_start_year_are_ignored_not_accumulated
     assert any("10 observation(s) before 2000 (1990-1999); ignored" in n for n in rep.notes)
     assert not any("land-use" in d.lower() for d in rep.deviations)  # trimmed, so no late-start or gap deviation either
     assert s["co2_mt"].notna().all()  # the fossil series is untouched
+
+
+def test_unreadable_codebook_is_a_deviation_not_a_failed_step(tmp_path):
+    (tmp_path / owid.CODEBOOK_NAME).mkdir()  # a directory where the file should be: exists() is true, open() raises
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert any("could not be read" in d and "without units" in d for d in rep.deviations)
+    assert (tmp_path / "out" / "owid_world_co2_annual.csv").exists()
+    assert "codebook" not in json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+
+
+def test_header_only_or_unitless_codebook_is_a_deviation(tmp_path):
+    for text in ("column,description,unit\n", "column,description,unit\nco2,x,\ngdp,y,\n"):
+        write_codebook(tmp_path, text)
+        rep = run(tmp_path, write(tmp_path, make_df()))
+        assert any("lists no units" in d for d in rep.deviations), text
+        assert "codebook" not in json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+
+
+def test_missing_codebook_url_in_constants_does_not_fail_registration(tmp_path, monkeypatch):
+    def no_url(root=None):
+        raise ValueError("notebook/constants.py: OWID_CODEBOOK_URL not found")
+
+    monkeypatch.setattr(owid, "owid_codebook_url", no_url)
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert any("OWID_CODEBOOK_URL not found" in d and "without its source URL" in d for d in rep.deviations)
+    c = json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+    assert c["codebook"]["source_urls"] == [] and c["codebook"]["rows"] == 3  # still registered: the units are usable
