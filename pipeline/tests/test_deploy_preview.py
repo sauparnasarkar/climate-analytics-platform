@@ -305,8 +305,8 @@ def test_a_job_listening_on_another_address_does_not_count_while_127_0_0_1_answe
 REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True):
-    plist = tmp_path / "previewapi.plist"
+def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True, name="previewapi.plist"):
+    plist = tmp_path / name
     args = ["/venv/bin/uvicorn", "api.main:app", "--host", "127.0.0.1"] + (["--port", port] if with_port else [])
     plist.write_bytes(plistlib.dumps({"Label": label, "WorkingDirectory": working_directory, "ProgramArguments": args}))
     return str(plist)
@@ -331,9 +331,56 @@ def test_no_preview_api_job_means_the_script_behaves_as_before(tmp_path):
 def test_a_job_that_is_not_the_preview_api_or_not_this_checkout_is_left_alone(tmp_path):
     other = tmp_path / "elsewhere"
     other.mkdir()
-    for plist in (api_job(tmp_path, label="com.ghgemissions.uvicorn"),  # the production API: never touched
-                  api_job(tmp_path, working_directory=str(other)), api_job(tmp_path, with_port=False)):
+    # One plist file per scenario: they are all built before the loop runs, so a shared file would leave every iteration testing the last one.
+    scenarios = {
+        "the production API job": api_job(tmp_path, label="com.ghgemissions.uvicorn", name="production.plist"),
+        "another checkout": api_job(tmp_path, working_directory=str(other), name="other-checkout.plist"),
+        "no --port": api_job(tmp_path, with_port=False, name="no-port.plist"),
+    }
+    assert len(set(scenarios.values())) == 3
+    for what, plist in scenarios.items():
         code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=plist)
-        assert code == 0 and "warning" in err and "leaving it alone" in err, err
-        assert not any("kickstart" in l and "previewapi" in l for l in steps(out))
-        assert not any(l.endswith("/com.ghgemissions.uvicorn") for l in steps(out))
+        assert code == 0 and "warning" in err and "leaving it alone" in err, (what, err)
+        assert not any("kickstart" in l and "previewapi" in l for l in steps(out)), what
+        assert not any(l.endswith("/com.ghgemissions.uvicorn") for l in steps(out)), what
+    assert "not the preview's API job (label 'com.ghgemissions.uvicorn')" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["the production API job"])[2]
+    assert "does not run this checkout" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["another checkout"])[2]
+    assert "names no --port" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["no --port"])[2]
+
+
+def api_run(tmp_path, api_listens_on):
+    """A real run with both jobs as launchd jobs (stub launchctl: front end pid 4242, API pid 5151) and an lsof stub that answers only for the pid and address it is
+    asked about. `api_listens_on`: where pid 5151 listens ('127.0.0.1', '::1', or None for no listener); the front end always listens on 127.0.0.1:4273. The curl
+    stub answers 200 to everything, as another server squatting on the API's port would."""
+    script, bins = make_stub_checkout(tmp_path, "exit 0\n")
+    (bins / "launchctl").write_text('#!/bin/bash\nif [ "$1" = print ]; then case "$*" in *previewapi*) printf \'\\tpid = 5151\\n\';; *) printf \'\\tpid = 4242\\n\';; esac; fi\nexit 0\n')
+    (bins / "launchctl").chmod(0o755)
+    api_answers = "true" if api_listens_on == "127.0.0.1" else "false"
+    (bins / "lsof").write_text("#!/bin/bash\n"
+                               '[ "$*" = "-nP -a -p 4242 -iTCP@127.0.0.1:4273 -sTCP:LISTEN -t" ] && echo 4242 && exit 0\n'
+                               f'[ "$*" = "-nP -a -p 5151 -iTCP@127.0.0.1:8082 -sTCP:LISTEN -t" ] && {api_answers} && echo 5151\n'
+                               "exit 0\n")
+    (bins / "lsof").chmod(0o755)
+    repo = tmp_path / "repo"
+    app = repo / "climate-dashboard-react"
+    env = {"PATH": f"{bins}:{os.environ['PATH']}", "HOME": str(tmp_path), "NO_PULL": "1", "PREVIEW_STATE_DIR": str(tmp_path / "state"),
+           "PREVIEW_LAUNCHD_PLIST": preview_job(tmp_path, working_directory=str(app)),
+           "PREVIEW_API_LAUNCHD_PLIST": api_job(tmp_path, working_directory=str(repo), name="previewapi-real.plist")}
+    return subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env, timeout=120)
+
+
+def test_the_api_restart_counts_only_when_the_job_itself_listens_on_the_probed_address(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1")
+    assert out.returncode == 0, out.stderr
+    assert "preview API restarted via com.ghgemissions.previewapi (pid 5151)" in out.stdout and "preview restarted via" in out.stdout
+
+
+def test_another_server_answering_health_on_the_api_port_does_not_make_the_deploy_succeed(tmp_path):
+    out = api_run(tmp_path, None)  # the job holds no listener; the curl stub answers 200 as a squatter on the port would
+    assert out.returncode != 0
+    assert "preview API restarted" not in out.stdout and "is not the one answering on port 8082" in out.stderr
+
+
+def test_an_api_job_listening_on_another_address_does_not_count(tmp_path):
+    out = api_run(tmp_path, "::1")
+    assert out.returncode != 0 and "preview API restarted" not in out.stdout and "is not the one answering" in out.stderr

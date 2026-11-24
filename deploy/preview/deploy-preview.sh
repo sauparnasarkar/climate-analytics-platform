@@ -96,12 +96,18 @@ PY
       echo "+ curl http://127.0.0.1:$api_port/api/health until it answers"
     else
       api_up=0
+      sleep 2
       for _ in $(seq 1 30); do
-        [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$api_port/api/health" || true)" == 200 ]] && { api_up=1; break; }
+        # As for the front end: an answer counts only while the server on the port is the job's own process, listening on exactly the probed address. Another
+        # server already holding the port would make the job fail to bind, and could still answer /api/health with a 200.
+        api_pid="$(launchctl print "gui/$(id -u)/$api_label" 2>/dev/null | awk '$1 == "pid" && $2 == "=" {print $3; exit}')"
+        if [[ -n "$api_pid" ]] && [[ -n "$(lsof -nP -a -p "$api_pid" -iTCP@127.0.0.1:"$api_port" -sTCP:LISTEN -t 2>/dev/null)" ]]; then
+          [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$api_port/api/health" || true)" == 200 ]] && { api_up=1; break; }
+        fi
         sleep 1
       done
-      if [[ "$api_up" == 1 ]]; then echo "preview API restarted via $api_label, up on 127.0.0.1:$api_port (HTTP 200)"
-      else echo "preview API job $api_label did not answer on port $api_port after the restart; see ~/Library/Logs" >&2; exit 1; fi
+      if [[ "$api_up" == 1 ]]; then echo "preview API restarted via $api_label (pid $api_pid), up on 127.0.0.1:$api_port (HTTP 200)"
+      else echo "preview API job $api_label is not the one answering on port $api_port after the restart; see ~/Library/Logs and what holds the port (lsof -iTCP:$api_port)" >&2; exit 1; fi
     fi
   else
     echo "warning: $api_label is not loaded; leaving it alone" >&2

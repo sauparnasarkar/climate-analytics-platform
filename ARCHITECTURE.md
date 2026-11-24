@@ -304,8 +304,8 @@ hosting. Five `launchd` agents plus the tunnel (`~/Library/LaunchAgents/com.ghge
 | `datarefresh` | `pipeline/ops/ghg-data-refresh.sh` | — | Monthly (day 10, 03:30), §2 above |
 
 **The preview's own API.** The preview front end (`com.ghgemissions.preview`, port 4273) proxies `/api` to production's API by default, so
-it has no way to show a change that adds an endpoint. A second API job, `com.ghgemissions.previewapi` (the preview checkout's `api/` on port 8082,
-`GHG_DATA_DIR` pointing at production's `data`, read-only), plus `API_PROXY_TARGET=http://127.0.0.1:8082` in the preview job's environment, lets the preview run
+it has no way to show a change that adds an endpoint. A second API job, `com.ghgemissions.previewapi` (the preview checkout's `api/` on a spare loopback port such as 8084,
+`GHG_DATA_DIR` pointing at production's `data`, read-only), plus `API_PROXY_TARGET=http://127.0.0.1:8084` in the preview job's environment, lets the preview run
 ahead of production without touching it. Both plists are local to the host (`deploy/launchd/README.md`); `deploy-preview.sh` restarts the API job with the front end.
 
 **Deploy sequencing**: `syena-design-system` must be pulled (`git merge --ff-only`) *before*

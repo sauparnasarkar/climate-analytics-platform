@@ -75,13 +75,18 @@ without touching production, run a second API from the **preview checkout** and 
 local to the host, like the preview's own:
 
 - a job `com.ghgemissions.previewapi`: the same command as the production API job, from the preview checkout's `.venv` (or production's, when the
-  dependencies match), `WorkingDirectory` the preview checkout, a spare loopback port (8082), and `GHG_DATA_DIR` set to **production's** `data` folder, so it reads
+  dependencies match), `WorkingDirectory` the preview checkout, a spare loopback port (for example 8084; check with `lsof -iTCP:<port>` first, since other projects on the host use neighbouring ones), and `GHG_DATA_DIR` set to **production's** `data` folder, so it reads
   the real data (read-only: the API writes nothing there). The climate folder follows it (`<GHG_DATA_DIR>/climate`);
-- in the preview front end's own job environment, `API_PROXY_TARGET=http://127.0.0.1:8082` (loopback only; anything else stops the server).
+- in the preview front end's own job environment, `API_PROXY_TARGET=http://127.0.0.1:8084` (loopback only; anything else stops the server).
 
 `deploy-preview.sh` restarts the preview API job after the build, when its plist exists and is plainly that job for this checkout (label
 `com.ghgemissions.previewapi`, working directory this checkout, a `--port`), so the two stay in step; otherwise it says why it left it alone. It never touches
 the production API job. Changing a plist's environment needs `bootout` and `bootstrap`, as above.
+
+**It serves what it loaded until it restarts.** Like any API process (`SPEC.md` §5.37, decision 8), the preview API caches its data for the life of the process, and the
+monthly refresh restarts only production's API. After a refresh the preview API keeps the old data until it is restarted: run `deploy-preview.sh`, or
+`launchctl kickstart -k gui/$(id -u)/com.ghgemissions.previewapi`. It reads production's data folder directly, so it shares the known first-request limit in
+`STATUS.md` (a first read during a refresh can see a partly written file).
 
 No Cloudflare change is needed: the preview hostname's `/api` requests reach the preview's Vite server (its responses carry its `x-robots-tag: noindex`) and
 are proxied from there, on the host. The check after setting it up is that `https://degreesofcarbon-preview.syena.io/api/explorer/datasets` answers 200.
