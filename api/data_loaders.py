@@ -200,6 +200,24 @@ def load_filtered() -> pd.DataFrame:
 
 
 @lru_cache(maxsize=1)
+def load_owid_codebook() -> dict[str, str]:
+    """OWID's own unit for each column of its CO₂ dataset (`data/owid-co2-codebook.csv`, downloaded by the refresh job; SPEC.md §5.37).
+
+    Units are a label, not data, so unlike every other loader here this never raises: a missing, unreadable or unit-less codebook gives `{}`
+    and the Data Explorer shows OWID's columns without units. The unit text is kept exactly as OWID writes it."""
+    path = _path("owid-co2-codebook.csv")
+    if not os.path.exists(path):
+        return {}
+    try:
+        book = pd.read_csv(path, usecols=lambda c: c in ("column", "unit"))
+    except (OSError, ValueError, pd.errors.ParserError, UnicodeDecodeError):
+        return {}
+    if not {"column", "unit"} <= set(book.columns):
+        return {}
+    return {str(c): u.strip() for c, u in zip(book["column"], book["unit"]) if isinstance(u, str) and u.strip()}
+
+
+@lru_cache(maxsize=1)
 def load_model_comparison() -> pd.DataFrame:
     path = _path("model_comparison.csv")
     if not os.path.exists(path):

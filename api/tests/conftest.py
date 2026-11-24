@@ -30,6 +30,7 @@ _LOADERS = [
     data_loaders._world_map_raw,
     data_loaders.load_world_map_series,
     data_loaders.load_filtered,
+    data_loaders.load_owid_codebook,
     data_loaders.load_expanded_countries,
     data_loaders.load_model_comparison,
     data_loaders.load_ets_parameters,
