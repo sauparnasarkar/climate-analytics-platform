@@ -6,6 +6,15 @@ The registry below holds only fixed copy (titles, descriptions, the row label, t
 - `owid_country` is `ghg_filtered.csv`, unchanged, with each column's unit from OWID's codebook;
 - coverage, release, licence, citation and caveats come from `provenance.json`.
 
+**What a table serves is what the API loaded, until it is restarted.** The refresh job restarts the API only for an approved run; after a failed week or an urgent pipeline summary it
+deliberately leaves the API serving the previous data, because the new files may be partly written or unapproved. So the Explorer reads through the loaders' process caches
+(`climate_loaders`, `data_loaders`) like every other endpoint, never the files directly, and a table is rebuilt only when those caches are (a restart, or `clear_caches`).
+Each table also carries the provenance entry read when it was built, so one served table does not change its release, citation or licence under it.
+
+One limit no reader can close: the pipeline publishes each source's provenance before the harmonized layer is built, with no common version across the two, so a run that
+fails in between leaves new provenance beside the previous harmonized CSV. `/api/correlation/*` has the same exposure. Closing it takes the pipeline publishing data and provenance as
+one versioned snapshot, which is a separate change (SPEC.md §5.37 notes it).
+
 The data sets are never joined: a global value is never repeated on country rows. A missing climate store makes only the climate data sets unavailable.
 """
 

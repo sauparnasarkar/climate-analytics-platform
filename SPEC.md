@@ -2406,6 +2406,7 @@ The Data Explorer browses each published source series as its own table, chosen 
 5. **`primap_country` uses the same sovereign rule as OWID**: crosswalk `entity_type == "country"`, then `NON_SOVEREIGN` matched on `owid_name`, falling back to `primap_name` where it is blank. (Today every crosswalk row is `country`, so the second step does the work.)
 6. **Chain order only in the switcher**, no group headings (grouping `Select` options would need a design-system change).
 7. The PRIMAP-hist authors were notified on 2026-10-02 (§5.26, Licensing); no further notice.
+8. **The Explorer serves what the API loaded, until it restarts.** Its tables are built through the same process caches as every other endpoint, never from the files directly: the refresh job restarts the API only for an approved run and, after a failed week or an urgent summary, leaves it serving the previous data because the new files may be partly written or unapproved. Each table carries the provenance entry read when it was built. *Known limit:* the pipeline writes each source's provenance before the harmonized layer, with no common version, so a run that fails in between leaves new provenance beside the previous harmonized CSV; `/api/correlation/*` has the same exposure. Closing it needs the pipeline to publish data and provenance as one versioned snapshot, a separate change.
 
 #### Verification before building
 

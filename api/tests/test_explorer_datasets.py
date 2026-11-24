@@ -493,3 +493,27 @@ def test_cumulative_columns_are_disclosed_as_computed_like_the_derived_ones(ex):
     assert "cumulative totals are computed by the Degrees of Carbon pipeline" in cum["ATTRIBUTION.txt"]
     _, base = unzip(ex.get("/api/explorer/download", params={"dataset": "primap_global", "columns": ["year", "primap_co2_mt"]}))
     assert "computed by the Degrees of Carbon pipeline" not in base["ATTRIBUTION.txt"]
+
+
+# --- Copilot review of #129, round 4: the restart is the approval gate ---
+
+
+def test_the_owid_table_is_not_read_live_either_it_follows_the_api_process_cache(ex, full_data):
+    # Week 1 overwrites ghg_filtered.csv in place, and after a failed week 2-5 the refresh job deliberately does not restart the API so it keeps serving the previous data.
+    # A request during a write, or after a failed run, must not see the new file until the API reloads.
+    from api import data_loaders
+
+    before = ex.get("/api/explorer/data", params={"countries": ["Kenya"]}).json()
+    (full_data / "ghg_filtered.csv").write_text("country,year,co2,population\nKenya,1990,999999,1\n")  # a new (or half-written) file on disk
+    assert ex.get("/api/explorer/data", params={"countries": ["Kenya"]}).json() == before
+    data_loaders.load_filtered.cache_clear()
+    ed.clear_caches()  # the API restarted
+    after = ex.get("/api/explorer/data", params={"countries": ["Kenya"]}).json()
+    assert after["total_rows"] == 1 and after["rows"][0]["co2"] == 999999
+
+
+def test_a_half_written_or_unapproved_climate_file_is_not_served_until_the_api_reloads(ex, climate):
+    first = ex.get("/api/explorer/data", params={"dataset": "temperature", "page_size": 2}).json()
+    (climate / "harmonized_global_annual.csv").write_text("indicator_id,year,va")  # truncated mid-write
+    assert ex.get("/api/explorer/data", params={"dataset": "temperature", "page_size": 2}).json() == first
+    assert ex.get("/api/explorer/download", params={"dataset": "temperature"}).status_code == 200
