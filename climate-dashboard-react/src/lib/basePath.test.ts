@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { apiRuntimeCachePattern, backendProxyKey, navigateFallbackDenylist, stripTrailingSlash } from './basePath';
+import { apiRuntimeCachePattern, backendProxyKey, navigateFallbackDenylist, apiProxyTarget, stripTrailingSlash } from './basePath';
 
 const denied = (base: string, url: string) => navigateFallbackDenylist(base).some((re) => re.test(url));
+
+describe('apiProxyTarget', () => {
+  it('is production\'s API port unless API_PROXY_TARGET names a loopback address', () => {
+    expect(apiProxyTarget(undefined)).toBe('http://localhost:8081');
+    expect(apiProxyTarget('')).toBe('http://localhost:8081');
+    expect(apiProxyTarget('http://127.0.0.1:8082')).toBe('http://127.0.0.1:8082');
+    expect(apiProxyTarget('http://localhost:8082')).toBe('http://localhost:8082');
+  });
+  it('refuses anything else, so an API call is never proxied to another host', () => {
+    for (const bad of ['https://evil.example', 'http://evil.example:8082', 'http://127.0.0.1', 'http://127.0.0.1:8082/api', 'http://127.0.0.1.evil.example:8082', '127.0.0.1:8082']) {
+      expect(() => apiProxyTarget(bad)).toThrow(/API_PROXY_TARGET/);
+    }
+  });
+});
 
 describe('stripTrailingSlash', () => {
   it('keeps the bare root and strips one trailing slash otherwise', () => {

@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { apiRuntimeCachePattern, backendProxyKey, navigateFallbackDenylist, stripTrailingSlash } from './src/lib/basePath.js'
+import { apiProxyTarget, apiRuntimeCachePattern, backendProxyKey, navigateFallbackDenylist, stripTrailingSlash } from './src/lib/basePath.js'
 import { SECURITY_HEADERS } from './src/lib/securityHeaders.js'
 import { WORKER_CACHE_CONTROL, isWorkerScript } from './src/lib/workerCache.js'
 import { savedCopyPlugin } from './src/lib/savedCopy.js'
@@ -66,7 +66,7 @@ function redirectBareBasePlugin(): Plugin {
 // forwards the full request path with no automatic prefix-stripping — the backend's
 // own routes are mounted at plain /api/..., so strip `base` back off before forwarding.
 const apiProxy = {
-  target: 'http://localhost:8081',
+  target: apiProxyTarget(process.env.API_PROXY_TARGET),
   changeOrigin: true,
   // Anchored to the leading prefix specifically — a plain p.replace(base, '/') would
   // rewrite the *first* occurrence of `base` anywhere in the path, not necessarily

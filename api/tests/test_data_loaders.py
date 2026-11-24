@@ -1,6 +1,6 @@
 import pytest
 
-from api.data_loaders import DataNotFoundError, load_raw, load_raw_sovereign
+from api.data_loaders import DataNotFoundError, default_data_dir, load_raw, load_raw_sovereign
 
 from .conftest import FIXTURE_COUNTRIES, write_fixture
 
@@ -72,3 +72,8 @@ def test_load_expanded_countries_reads_json_file(data_dir):
         json.dump({"expanded": ["China", "France"]}, f)
 
     assert data_loaders.load_expanded_countries() == ["China", "France"]
+
+
+def test_the_data_folder_is_the_repos_unless_ghg_data_dir_names_another():
+    assert default_data_dir({}).endswith("/data") and default_data_dir({"GHG_DATA_DIR": ""}).endswith("/data")
+    assert default_data_dir({"GHG_DATA_DIR": "/srv/other/data"}) == "/srv/other/data"

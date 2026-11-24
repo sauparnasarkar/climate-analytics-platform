@@ -57,3 +57,14 @@ export function navigateFallbackDenylist(base: string): RegExp[] {
 export function backendProxyKey(base: string, segment: string): string {
   return `^${escapeRegExp(base)}${segment}(?:[/?]|$)`;
 }
+
+const DEFAULT_API_TARGET = 'http://localhost:8081';
+const LOOPBACK_TARGET = /^http:\/\/(127\.0\.0\.1|localhost):\d{2,5}$/;
+
+/** Where the dev and preview servers proxy `/api` to: production's API port by default. `API_PROXY_TARGET` points a preview at its own API instance instead.
+ * Loopback only: this is a proxy target, so a value naming another host would send the app's API calls there. A bad value stops the server rather than being ignored. */
+export function apiProxyTarget(value: string | undefined): string {
+  if (!value) return DEFAULT_API_TARGET;
+  if (!LOOPBACK_TARGET.test(value)) throw new Error(`API_PROXY_TARGET must be http://127.0.0.1:<port> or http://localhost:<port>, not ${JSON.stringify(value)}`);
+  return value;
+}

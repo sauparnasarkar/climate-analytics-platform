@@ -66,3 +66,23 @@ backends directly with `curl` on their spare ports.
 
 Keep the previous plists as `<name>.plist.pre-<date>` before replacing a live one. To go back, `bootout` the label,
 restore the saved file, `bootstrap` it again, in the same dependency order.
+
+## The preview's own API
+
+The preview front end (`deploy/preview/deploy-preview.sh`, its own job `com.ghgemissions.preview` on port 4273) proxies `/api` to production's API
+(port 8081) unless told otherwise, so a preview of a change that adds an API endpoint would call an API that does not have it. To preview such a change
+without touching production, run a second API from the **preview checkout** and point only the preview at it. Neither plist is a template here; they are
+local to the host, like the preview's own:
+
+- a job `com.ghgemissions.previewapi`: the same command as the production API job, from the preview checkout's `.venv` (or production's, when the
+  dependencies match), `WorkingDirectory` the preview checkout, a spare loopback port (8082), and `GHG_DATA_DIR` set to **production's** `data` folder, so it reads
+  the real data (read-only: the API writes nothing there). The climate folder follows it (`<GHG_DATA_DIR>/climate`);
+- in the preview front end's own job environment, `API_PROXY_TARGET=http://127.0.0.1:8082` (loopback only; anything else stops the server).
+
+`deploy-preview.sh` restarts the preview API job after the build, when its plist exists and is plainly that job for this checkout (label
+`com.ghgemissions.previewapi`, working directory this checkout, a `--port`), so the two stay in step; otherwise it says why it left it alone. It never touches
+the production API job. Changing a plist's environment needs `bootout` and `bootstrap`, as above.
+
+No Cloudflare change is needed: the preview hostname's `/api` requests reach the preview's Vite server (its responses carry its `x-robots-tag: noindex`) and
+are proxied from there, on the host. The check after setting it up is that `https://degreesofcarbon-preview.syena.io/api/explorer/datasets` answers 200.
+

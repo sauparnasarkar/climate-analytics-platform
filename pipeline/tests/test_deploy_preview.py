@@ -298,3 +298,42 @@ def test_a_job_listening_on_another_address_does_not_count_while_127_0_0_1_answe
     out = job_run(tmp_path, "::1")  # job on ::1, an unrelated server on 127.0.0.1 supplies the 200
     assert out.returncode != 0
     assert "up on" not in out.stdout and "not the one answering" in out.stderr
+
+
+# ---------------------------------------------------------------- the preview's own API job
+
+REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+
+def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True):
+    plist = tmp_path / "previewapi.plist"
+    args = ["/venv/bin/uvicorn", "api.main:app", "--host", "127.0.0.1"] + (["--port", port] if with_port else [])
+    plist.write_bytes(plistlib.dumps({"Label": label, "WorkingDirectory": working_directory, "ProgramArguments": args}))
+    return str(plist)
+
+
+def test_the_preview_api_job_for_this_checkout_is_restarted_after_the_build_and_before_the_front_end(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path), PREVIEW_LAUNCHD_PLIST=preview_job(tmp_path))
+    assert code == 0, err
+    lines = steps(out)
+    api_kick = next(i for i, l in enumerate(lines) if l.startswith("launchctl kickstart -k gui/") and l.endswith("/com.ghgemissions.previewapi"))
+    front_kick = next(i for i, l in enumerate(lines) if l.startswith("launchctl kickstart -k gui/") and l.endswith("/com.ghgemissions.preview"))
+    assert index_of(lines, "npm run build") < api_kick < front_kick
+    assert any("http://127.0.0.1:8082/api/health" in l for l in lines)
+
+
+def test_no_preview_api_job_means_the_script_behaves_as_before(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0 and "warning" not in err
+    assert not any("previewapi" in l for l in steps(out))
+
+
+def test_a_job_that_is_not_the_preview_api_or_not_this_checkout_is_left_alone(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    for plist in (api_job(tmp_path, label="com.ghgemissions.uvicorn"),  # the production API: never touched
+                  api_job(tmp_path, working_directory=str(other)), api_job(tmp_path, with_port=False)):
+        code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=plist)
+        assert code == 0 and "warning" in err and "leaving it alone" in err, err
+        assert not any("kickstart" in l and "previewapi" in l for l in steps(out))
+        assert not any(l.endswith("/com.ghgemissions.uvicorn") for l in steps(out))

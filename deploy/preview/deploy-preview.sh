@@ -22,6 +22,10 @@
 #                      is loaded, names this checkout's climate-dashboard-react as its working directory and the same port, the script restarts
 #                      that job (launchctl kickstart -k) instead of starting its own server. Any other case falls back to the pid-file server.
 #                      The production job's label is refused.
+#   PREVIEW_API_LAUNCHD_PLIST  the launchd plist of the preview's own API job, $HOME/Library/LaunchAgents/com.ghgemissions.previewapi.plist by default. When it
+#                      exists and plainly runs THIS checkout's api/ (its label is com.ghgemissions.previewapi, its working directory is this checkout) the script
+#                      restarts it after the build, so the preview's API and front end move together; the front end reaches it through API_PROXY_TARGET in the
+#                      preview job's environment. Any other case leaves it alone and says so. The production API job's label is never touched.
 #   DRY_RUN=1          print each step as "+ ..." and run nothing
 #   PRODUCTION_FRONTEND_PLIST  the launchd plist of the production front-end job, $HOME/Library/LaunchAgents/com.ghgemissions.vitepreview.plist by default;
 #                      the script refuses to run in the folder that plist names as its working directory (see the guard below)
@@ -67,6 +71,41 @@ if [[ "$dry" == 1 ]]; then
 else
   (cd "$app" && DEPLOY_BASE_PATH=/ SITE_ORIGIN="$site_origin" npm run build) > "$state/build.log" 2>&1 || { echo "build failed; see $state/build.log" >&2; exit 1; }
   echo "build ok"
+fi
+
+# The preview may have its own API job: this checkout's api/ on its own port, reading production's data read-only, so the preview shows this checkout's API
+# changes without touching production's. Restart it with the front end so the two stay in step. Used only when it is plainly that job for this checkout.
+api_plist="${PREVIEW_API_LAUNCHD_PLIST:-$HOME/Library/LaunchAgents/com.ghgemissions.previewapi.plist}"
+if [[ -f "$api_plist" ]]; then
+  api_info="$(python3 - "$api_plist" <<'PY' 2>/dev/null || true
+import plistlib, sys
+d = plistlib.load(open(sys.argv[1], "rb"))
+args = d.get("ProgramArguments", [])
+port = args[args.index("--port") + 1] if "--port" in args and args.index("--port") + 1 < len(args) else ""
+print(d.get("Label", ""), port, d.get("WorkingDirectory", ""), sep="|")
+PY
+)"
+  IFS='|' read -r api_label api_port api_dir <<< "$api_info"
+  if [[ "$api_label" != "com.ghgemissions.previewapi" ]]; then
+    echo "warning: $api_plist is not the preview's API job (label '${api_label:-unreadable}'); leaving it alone" >&2
+  elif [[ -z "$api_port" || -z "$api_dir" || ! -d "$api_dir" || "$(cd "$api_dir" && pwd -P)" != "$(cd "$repo" && pwd -P)" ]]; then
+    echo "warning: $api_label does not run this checkout (or names no --port); leaving it alone" >&2
+  elif [[ "$dry" == 1 ]] || launchctl print "gui/$(id -u)/$api_label" >/dev/null 2>&1; then
+    run launchctl kickstart -k "gui/$(id -u)/$api_label"
+    if [[ "$dry" == 1 ]]; then
+      echo "+ curl http://127.0.0.1:$api_port/api/health until it answers"
+    else
+      api_up=0
+      for _ in $(seq 1 30); do
+        [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$api_port/api/health" || true)" == 200 ]] && { api_up=1; break; }
+        sleep 1
+      done
+      if [[ "$api_up" == 1 ]]; then echo "preview API restarted via $api_label, up on 127.0.0.1:$api_port (HTTP 200)"
+      else echo "preview API job $api_label did not answer on port $api_port after the restart; see ~/Library/Logs" >&2; exit 1; fi
+    fi
+  else
+    echo "warning: $api_label is not loaded; leaving it alone" >&2
+  fi
 fi
 
 # The preview may be a launchd job (KeepAlive, so it comes back after a reboot). Then the job, not this script, owns the port: stopping a

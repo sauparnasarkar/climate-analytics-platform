@@ -9,7 +9,13 @@ import pandas as pd
 
 from .constants import CUMULATIVE_BASE_YEAR, FEATURED_COUNTRIES, WORLD_MAP_YEAR_EARLIEST, WORLD_MAP_YEAR_END, WORLD_MAP_YEAR_START
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+def default_data_dir(env=os.environ) -> str:
+    """`<repo>/data`, unless `GHG_DATA_DIR` names another folder. The override exists for a second API instance that runs this checkout's code against another checkout's
+    data (the preview's own API reads production's data, read-only); the climate folder follows it (`<DATA_DIR>/climate`) unless `CLIMATE_DATA_DIR` says otherwise."""
+    return env.get("GHG_DATA_DIR") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+
+DATA_DIR = default_data_dir()
 
 
 class DataNotFoundError(Exception):
