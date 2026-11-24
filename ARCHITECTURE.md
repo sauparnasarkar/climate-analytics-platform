@@ -128,6 +128,19 @@ the served pair exactly; nothing is fitted on the fly. The API tests build their
 by running the real `pipeline` stages on small stubbed inputs, so a pipeline schema change breaks
 them rather than production.
 
+**Data Explorer data sets** (`api/explorer_datasets.py`, `api/routers/explorer.py`; `SPEC.md` §5.37): the explorer router
+serves seven tables, one per published source series, each with its own grain (country × year, world × year, world × month). This is a
+new data flow for that router: besides `data/ghg_filtered.csv` (OWID, as before) it now reads the climate store through
+`climate_loaders`, with a data set's columns taken from the indicator catalog by `source_series` and `scope`, so a new indicator
+in the pipeline appears with no API change; the tables are joined to nothing, so a global value is never repeated on country rows.
+OWID's column units come from OWID's own codebook (`data/owid-co2-codebook.csv`), downloaded by the refresh job beside the data
+file and registered in provenance; a missing codebook is a deviation and `unit: null`, never a 503. Tables are built through the
+same process caches as every other endpoint, so what is served is what the API loaded until it restarts: the refresh job restarts
+it only for an approved run, and reading files live would defeat that. Each table carries the provenance entry read when it
+was built. A download is a zip of the CSV and an `ATTRIBUTION.txt` built from provenance, and is refused (503) for a climate
+data set whose provenance lacks a licence and a citation. Two limits are inherited from how the whole API and the pipeline publish
+(lazy loading, and provenance written before the harmonized layer with no shared version); both are in `STATUS.md`.
+
 **Deploy-prefix handling** (`api/main.py`): `DEPLOY_BASE_PATH` (same env var the frontend
 build reads, see §6) is normalized and used two ways — `root_path=DEPLOY_PATH_PREFIX` on
 the `FastAPI()` instance so Starlette's own URL generation (`/docs`, `/redoc`,
