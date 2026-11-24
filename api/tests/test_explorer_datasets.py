@@ -334,3 +334,82 @@ def test_an_unusable_codebook_is_never_a_503(ex, full_data, text):
 
 def test_humanize_column_matches_the_front_end_headers():
     assert [ed.humanize_column(c) for c in ("co2_per_capita", "total_ghg", "gdp", "population", "country", "iso_code")] == ["CO2 Per Capita", "Total GHG", "GDP", "Population", "Country", "ISO Code"]
+
+
+# --- Copilot review of #129, each verified ---
+
+
+def test_defaults_come_first_in_order_not_in_source_file_order(ex, full_data):
+    # OWID: country, year, then the default columns in the order the page has always opened them, then every other column as it came.
+    owid = ex.get("/api/explorer/meta").json()
+    assert owid["columns"] == ["country", "year", "co2", "population"]
+    assert [c["id"] for c in owid["columns_detail"] if c["default"]] == ["country", "year", "co2", "population"]
+    # Climate: the base series in catalog order, the temperature 5-year mean after them, offered columns (derived, cumulative) after that.
+    ids = ex.get("/api/explorer/meta", params={"dataset": "temperature"}).json()["columns"]
+    assert ids[:5] == ["year", "temperature_anomaly_1850_1900_c", "temperature_anomaly_1951_1980_c", "temperature_uncertainty_95_c", "temperature_anomaly_1850_1900_c__mean5y"]
+    detail = ex.get("/api/explorer/meta", params={"dataset": "temperature"}).json()["columns_detail"]
+    flags = [c["default"] for c in detail]
+    assert flags == sorted(flags, reverse=True)  # every default column precedes every other column
+    data = ex.get("/api/explorer/data", params={"dataset": "temperature", "page_size": 1}).json()
+    assert data["columns"] == ids  # the table follows the same order
+
+
+def test_the_owid_default_order_is_the_page_default_even_when_the_file_orders_columns_differently(full_data):
+    import pandas as pd
+
+    pd.DataFrame({"population": [1, 2], "gdp": [3, 4], "year": [1990, 1990], "iso_code": ["AAA", "BBB"], "co2": [5, 6], "country": ["A", "B"]}).to_csv(full_data / "ghg_filtered.csv", index=False)
+    r = TestClient(app).get("/api/explorer/meta").json()
+    assert r["columns"] == ["country", "year", "co2", "population", "gdp", "iso_code"]
+    assert [c["id"] for c in r["columns_detail"] if c["default"]] == ["country", "year", "co2", "population", "gdp"]
+
+
+def test_tables_follow_climate_loaders_cache_not_a_second_invalidation_model(ex, climate):
+    first = ex.get("/api/explorer/meta", params={"dataset": "temperature"}).json()
+    # Rewriting a file the loaders have cached changes nothing until they reload: the table never pairs new data with old, or the reverse, on its own.
+    (climate / "harmonized_global_annual.csv").write_text("indicator_id,year,value\n")
+    assert ex.get("/api/explorer/meta", params={"dataset": "temperature"}).json() == first
+    cl.clear_caches()
+    assert ex.get("/api/explorer/meta", params={"dataset": "temperature"}).status_code == 503  # reloaded: the emptied file is now what is served
+    (climate / "harmonized_global_annual.csv").unlink()
+    assert ex.get("/api/explorer/meta", params={"dataset": "owid_world"}).status_code == 503
+
+
+def test_a_table_is_built_once_and_reused_until_the_sources_reload(ex):
+    ed.clear_caches()
+    ds = ed.get_dataset("temperature")
+    assert ed.load_table(ds) is ed.load_table(ds)
+    before = ed.load_table(ds)
+    cl.clear_caches()
+    assert ed.load_table(ds) is not before  # reloaded sources: rebuilt, and the old entry is not kept
+    assert len([k for k in ed._TABLES if k[0] == "temperature"]) == 1
+
+
+def test_attribution_lists_every_citation_the_provenance_carries(ex, climate):
+    prov = json.loads((climate / "provenance.json").read_text())
+    prov["primap_global_composition_annual"]["citations"] = ["Gütschow, J., Pflüger, M. (2026): PRIMAP-hist v2.8. Zenodo. doi:10.5281/zenodo.22876287", "Gütschow et al. (2016) ESSD 8, 571-603"]
+    prov["owid_country_co2"]["citations"] = ["Our World in Data, CO2 and Greenhouse Gas Emissions (https://github.com/owid/co2-data), CC BY 4.0.", "Friedlingstein, P. et al., Global Carbon Budget."]
+    (climate / "provenance.json").write_text(json.dumps(prov))
+    cl.clear_caches()
+    _, primap = unzip(ex.get("/api/explorer/download", params={"dataset": "primap_global"}))
+    assert "Citations:" in primap["ATTRIBUTION.txt"] and "doi:10.5281/zenodo.22876287" in primap["ATTRIBUTION.txt"] and "ESSD 8, 571-603" in primap["ATTRIBUTION.txt"]
+    _, owid = unzip(ex.get("/api/explorer/download"))
+    assert "Our World in Data, CO2 and Greenhouse Gas Emissions" in owid["ATTRIBUTION.txt"] and "Global Carbon Project. (<year>)." in owid["ATTRIBUTION.txt"]
+    _, temp = unzip(ex.get("/api/explorer/download", params={"dataset": "temperature"}))
+    assert "Citations:" not in temp["ATTRIBUTION.txt"]  # none recorded: no empty heading
+
+
+@pytest.mark.parametrize("ds", ["primap_global", "primap_country", "temperature", "owid_world", "co2_annual", "co2_monthly"])
+def test_a_climate_download_fails_closed_without_provenance_but_the_table_still_browses(ex, climate, ds):
+    (climate / "provenance.json").write_text("not json")
+    cl.clear_caches()
+    r = ex.get("/api/explorer/download", params={"dataset": ds})
+    assert r.status_code == 503 and "provenance" in r.json()["detail"]
+    assert ex.get("/api/explorer/data", params={"dataset": ds}).status_code == 200
+
+
+def test_the_owid_download_keeps_its_minimal_fallback_without_provenance(ex, climate):
+    (climate / "provenance.json").write_text("not json")
+    cl.clear_caches()
+    r = ex.get("/api/explorer/download")
+    assert r.status_code == 200
+    assert "Provenance was not available" in unzip(r)[1]["ATTRIBUTION.txt"]

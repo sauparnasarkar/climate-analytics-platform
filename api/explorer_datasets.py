@@ -12,12 +12,10 @@ The data sets are never joined: a global value is never repeated on country rows
 from __future__ import annotations
 
 import io
-import os
 import re
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from functools import lru_cache
 
 import pandas as pd
 
@@ -162,8 +160,18 @@ def _detail(id_: str, label: str, unit: str | None, kind: str | None, decimals: 
     return {"id": id_, "label": label, "unit": unit, "kind": kind, "decimals": decimals, "is_key": is_key, "default": default}
 
 
-def _finish(ds: Dataset, df: pd.DataFrame, detail: list[dict]) -> Table:
-    df = df.sort_values(list(ds.keys), kind="stable").reset_index(drop=True)
+def _in_default_order(ds: Dataset, detail: list[dict], default_order: list[str]) -> list[dict]:
+    """Keys first (in the data set's declared key order), then the default columns in the order given, then every other column as it came. The table's columns, `meta.columns` and `columns_detail` all follow this, so
+    the picker lists the common columns first and the opening selection reads in a sensible order (not the source file's)."""
+    rank = {c: i for i, c in enumerate(default_order)}
+    keys = sorted((d for d in detail if d["is_key"]), key=lambda d: ds.keys.index(d["id"]) if d["id"] in ds.keys else len(ds.keys))
+    defaults = sorted((d for d in detail if d["default"] and not d["is_key"]), key=lambda d: rank.get(d["id"], len(rank)))
+    return keys + defaults + [d for d in detail if not d["default"] and not d["is_key"]]
+
+
+def _finish(ds: Dataset, df: pd.DataFrame, detail: list[dict], default_order: list[str] | tuple[str, ...] = ()) -> Table:
+    detail = _in_default_order(ds, detail, list(default_order))
+    df = df[[d["id"] for d in detail]].sort_values(list(ds.keys), kind="stable").reset_index(drop=True)
     if df.empty:
         raise DataNotFoundError(f"{ds.title} has no rows")
     years = df["year"].astype(int)
@@ -184,7 +192,7 @@ def _owid_table(ds: Dataset) -> Table:
         _detail(c, humanize_column(c), None if c in ds.keys else units.get(c), "key" if c in ds.keys else None, None, c in ds.keys, c in OWID_DEFAULT_COLUMNS)
         for c in df.columns
     ]
-    return _finish(ds, df, detail)
+    return _finish(ds, df, detail, OWID_DEFAULT_COLUMNS)
 
 
 def _indicators(ds: Dataset, scope: str) -> list[dict]:
@@ -208,6 +216,11 @@ def _climate_detail(ds: Dataset, inds: list[dict], present: set[str], keys_detai
     return detail
 
 
+def _climate_default_order(ds: Dataset, inds: list[dict]) -> list[str]:
+    """The base series in catalog order, then the data set's extra defaults (the temperature 5-year mean) last."""
+    return [i["id"] for i in inds if i.get("kind") in BASE_KINDS] + list(ds.extra_default_columns)
+
+
 def _global_table(ds: Dataset) -> Table:
     inds = _indicators(ds, "global")
     long = cl.load_csv("harmonized_global_annual.csv")
@@ -225,7 +238,7 @@ def _global_table(ds: Dataset) -> Table:
     wide.index.name = "year"
     df = wide.reset_index()
     keys = [_detail("year", KEY_LABELS["year"], None, "key", None, True, True)]
-    return _finish(ds, df, _climate_detail(ds, inds, set(cols), keys))
+    return _finish(ds, df, _climate_detail(ds, inds, set(cols), keys), _climate_default_order(ds, inds))
 
 
 def _country_names() -> dict[str, str]:
@@ -260,7 +273,7 @@ def _country_table(ds: Dataset) -> Table:
     df.insert(0, "country", df["iso3"].map(names))
     df = df[df["country"].notna()]
     keys = [_detail(k, KEY_LABELS[k], None, "key", None, True, True) for k in ("country", "iso3", "year")]
-    return _finish(ds, df, _climate_detail(ds, inds, set(cols), keys))
+    return _finish(ds, df, _climate_detail(ds, inds, set(cols), keys), _climate_default_order(ds, inds))
 
 
 def _monthly_table(ds: Dataset) -> Table:
@@ -274,36 +287,42 @@ def _monthly_table(ds: Dataset) -> Table:
     return _finish(ds, df, detail)
 
 
-def _stamp(names: tuple[str, ...]) -> tuple:
-    d = cl.climate_dir()
-    return tuple((os.path.getmtime(p) if os.path.exists(p) else 0.0) for p in (os.path.join(d, n) for n in names))
-
-
-_CLIMATE_FILES = {
-    GLOBAL_YEAR: ("indicator_catalog.json", "harmonized_global_annual.csv"),
-    COUNTRY_YEAR: ("indicator_catalog.json", "harmonized_country_annual.csv", "country_crosswalk.csv"),
-    GLOBAL_MONTH: ("co2_concentration_monthly_mlo.csv",),
-}
-
-
-@lru_cache(maxsize=16)
-def _climate_table(dataset_id: str, _directory: str, _stamp_key: tuple) -> Table:
-    # Keyed on the directory and the source files' modification times: a refresh that rewrites them is picked up, a stale pivot is never served.
-    ds = _BY_ID[dataset_id]
+def _sources(ds: Dataset) -> tuple:
+    """The objects `climate_loaders` has cached for this data set's inputs. A table is built from exactly these, so the key below changes exactly when those caches do."""
+    if ds.grain == GLOBAL_MONTH:
+        return (cl.load_csv("co2_concentration_monthly_mlo.csv"),)
     if ds.grain == COUNTRY_YEAR:
-        return _country_table(ds)
-    return _monthly_table(ds) if ds.grain == GLOBAL_MONTH else _global_table(ds)
+        return (cl.load_catalog(), cl.load_csv("harmonized_country_annual.csv"), cl.load_csv("country_crosswalk.csv"))
+    return (cl.load_catalog(), cl.load_csv("harmonized_global_annual.csv"))
+
+
+# (data set, climate directory, identity of each source) -> (table, the sources). The sources are kept alongside the table so their ids cannot be recycled for a different
+# object while the entry lives. This follows the one invalidation model the whole API has: what `climate_loaders` has cached stays until it is cleared (a refresh restarts the API).
+_TABLES: dict[tuple, tuple[Table, tuple]] = {}
+
+
+def _climate_table(ds: Dataset) -> Table:
+    sources = _sources(ds)
+    key = (ds.id, cl.climate_dir(), tuple(id(x) for x in sources))
+    hit = _TABLES.get(key)
+    if hit is not None:
+        return hit[0]
+    table = _country_table(ds) if ds.grain == COUNTRY_YEAR else _monthly_table(ds) if ds.grain == GLOBAL_MONTH else _global_table(ds)
+    for stale in [k for k in _TABLES if k[:2] == key[:2]]:
+        del _TABLES[stale]  # an earlier build of this data set, from sources that have since been reloaded
+    _TABLES[key] = (table, sources)
+    return table
 
 
 def load_table(ds: Dataset) -> Table:
     """The data set's table. Raises DataNotFoundError (a 503 with the reason) when its source is missing or unusable; never takes another data set down."""
     if ds.id == "owid_country":
         return _owid_table(ds)
-    return _climate_table(ds.id, cl.climate_dir(), _stamp(_CLIMATE_FILES[ds.grain]))
+    return _climate_table(ds)
 
 
 def clear_caches() -> None:
-    _climate_table.cache_clear()
+    _TABLES.clear()
 
 
 # --- provenance ---
@@ -406,6 +425,8 @@ def attribution_text(ds: Dataset, table: Table, countries: list[str] | None, yea
         lines += [f"Source:    {source.get('name') or ds.source_label}", f"Release:   {_release_text(source)}",
                   f"Cite as:   {source.get('required_citation_format') or source.get('short_citation') or 'see the source'}",
                   f"Licence:   {source.get('license') or source.get('short_license') or 'see the source'}", f"Links:     {', '.join(dict.fromkeys(links)) or 'none recorded'}"]
+        if source["citations"]:
+            lines += ["", "Citations:"] + [f"- {c}" for c in source["citations"]]
     else:
         lines += [f"Source:    {ds.source_label}", "Provenance was not available for this download: see the source's own page for its licence and citation."]
     by_id = {d["id"]: d for d in table.detail}
