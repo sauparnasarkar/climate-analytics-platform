@@ -478,6 +478,7 @@ Sections to include:
 | v76 | Nov 2026 | §5.34 (**Docs-first**): one colour per scenario pathway and per greenhouse gas within each chart. Every chart series is pinned to a design-system categorical slot (Observed 1, BAU 2, Moderate 3, Aggressive 4, the 5-year mean 5; CO₂/CH₄/N₂O/F-gas 1–4 by gas id), and the swatches, Ask KPI accents and share bar read the colour of that slot from the design system instead of their own hex lists. The 5-year mean's slot 5 is validated as a plain solid line by a new design-system generator check (fallback: markers and a direct label). §5.30 needed no correction: Overview's "Where today's patterns lead" is the one line §5.30 describes, with no pathway colours |
 | v77 | Nov 2026 | §5.34 marked Shipped. §5.35 (**Docs-first**): the Paris temperature goals and the IPCC AR6 TCRE range move into one registry of external references (`pipeline/references.json`) with edition, `review_by` date and successor; the scenario stage compares each pathway's implied level with 1.5 °C and 2 °C (`vs_paris`), served through the API and the MCP summary for the agent to quote; the front end reads the AR6 range from the API instead of its own copy; a separate monthly cloud routine searches for new IPCC/UNFCCC material, opens a GitHub issue (never editing a value) and leaves a heartbeat comment each run; the monthly refresh flags a missed heartbeat (over 45 days) or a reference past its long backstop review date |
 | v78 | Nov 2026 | §5.36 (**Docs-first**): the share bars keep `SHARE_PALETTE` (label contrast 5.1:1 or better; reopened only for a theme-aware or colour-matched share view), no cross-chart colour matching, the flow bar keeps the stock bar's order; a read-out under each `ShareBar` names the hovered or tapped segment (full name, share, what it is of), with ‹ › stepping for slivers on touch, tracking the live value during a replay |
+| v79 | Nov 2026 | §5.37 (**Docs-first**): the Data Explorer browses seven data sets one at a time (OWID country and World, PRIMAP-hist country and global, CO₂ annual and monthly, Berkeley Earth temperature) through a "Data set" switcher; `/api/explorer/datasets` and a `dataset` parameter on the explorer endpoints; per-column summary; downloads are a zip with an attribution file; OWID column units from OWID's codebook, downloaded by the refresh job |
 
 ---
 
@@ -507,7 +508,7 @@ depends on the other.
 | Structure | One router per dashboard page concept (`overview`, `historical`, `country_profile`, `forecasts`, `scenarios`), plus `main.py` (app instance, CORS, deploy-path middleware), `data_loaders.py` (`@lru_cache` CSV loaders), `schemas.py` (Pydantic models), `constants.py` (hand-mirrors `notebook/constants.py`) |
 | Data source | Reads the same `data/*.csv` files Weeks 1–5 produce — no new data pipeline of its own |
 | Missing-data behavior | A required CSV not yet generated → `HTTPException(503)` with a message naming which week produces it (mirrors `app.py`'s in-page warning) |
-| Endpoints | `GET /api/health`; `/api/overview`; `/api/historical/timeseries`, `/decade-composition`; `/api/countries/{country}/profile`; `/api/forecasts/summary`, `/model-comparison`, `/ets-parameters`, `/feature-importance`, `/{country}`; `/api/scenarios/timeseries`, `/cumulative`; `/api/explorer/meta`, `/data`, `/summary`, `/download` (see §5.5) |
+| Endpoints | `GET /api/health`; `/api/overview`; `/api/historical/timeseries`, `/decade-composition`; `/api/countries/{country}/profile`; `/api/forecasts/summary`, `/model-comparison`, `/ets-parameters`, `/feature-importance`, `/{country}`; `/api/scenarios/timeseries`, `/cumulative`; `/api/explorer/datasets`, `/meta`, `/data`, `/summary`, `/download` (see §5.5, §5.37) |
 | Deployment | Served behind a Cloudflare Tunnel at `labs.syena.io/app-prefix/api/...`; `main.py`'s `StripDeployPrefixMiddleware` strips that deploy prefix so the same app also works unprefixed for local/Tailscale access |
 
 ### 5.3 React Front-End (`climate-dashboard-react/`)
@@ -538,7 +539,7 @@ A further addition (`app.py`, `api/`, and `climate-dashboard-react/` alike) beyo
 §6.2's required Streamlit sections and beyond every other page in this addendum: it browses
 the **full Week 1 output** (`data/ghg_filtered.csv` — all ~220 sovereign countries, year
 ≥ 1990, `NON_SOVEREIGN` aggregates already excluded), not the 10-focus-country dataset every
-other page uses.
+other page uses. §5.37 extends the page from this one table to seven data sets, one at a time.
 
 | Aspect | Detail |
 |---|---|
@@ -2380,6 +2381,39 @@ AUS and BRA unlabelled; Japan/Australia and UK/Russia are close in hue and unche
 - On the preview, in `night` and `tidewater`, at desktop and phone widths: hover and tap the smallest flow segment (GBR, about 0.8%) and
   the gas split's F-gas segment, and check that the read-out names each correctly; on the phone, tap a wide segment and step to them with ‹ ›; start a replay with
   a read-out open and check that it tracks. Screenshots on the PR.
+
+### 5.37 Data Explorer: one data set at a time (Docs-first)
+
+The Data Explorer browses each published source series as its own table, chosen with a **Data set** switcher, instead of only the OWID country table (§5.5). Seven data sets, one per public `provenance.json` series, listed in chain order: Country emissions (OWID, default), Country emissions by gas (PRIMAP-hist), World CO₂ (OWID), Global emissions by gas (PRIMAP-hist), Atmospheric CO₂ annual (NOAA + Law Dome), Atmospheric CO₂ monthly (Mauna Loa), Global temperature (Berkeley Earth). Each keeps its own grain (country × year, world × year, world × month), filters, units, source, licence and download; they are never joined, so a global value is never repeated on country rows and no country series sits beside the temperature line (`pipeline/README.md`, Pairing).
+
+| Aspect | Detail |
+|---|---|
+| API | New `GET /api/explorer/datasets` (registry joined with provenance and availability). `/explorer/{meta,data,summary,download}` take `dataset` (default `owid_country`; unchanged behaviour when omitted; unknown → 422; `countries` on a global data set → 422). Climate data sets read the harmonized layer through `climate_loaders`, with columns = catalog indicators whose `source_series` is the data set's provenance series; never recomputed. A missing climate store makes only those data sets unavailable |
+| Data set card | Every figure is read from the API at request time (coverage, latest year, counts, release or retrieval date, licence, citation, `excluded_incomplete_years`); only titles, descriptions, the row label and licence-class wording are fixed copy. Licence class is derived in one place from the provenance licence string: `open`, `non_commercial`, `non_commercial_share_alike` |
+| Summary | One row per selected non-key numeric column (count, missing, min, quartiles, mean, max), replacing `describe(include="all")`; key and text columns are not summarised |
+| Download | A `.zip` of the CSV plus `ATTRIBUTION.txt` built from provenance (source, release, citation, full licence, changes made, caveats); PRIMAP-hist downloads carry the CC BY-NC-SA notice |
+| Front end | `Select` "Data set" kept in `?dataset=` (`useUrlChoice`); a data set card (row meaning, coverage, source, licence `Tag`: positive for open, caution for NC / NC-SA; cite and "charted on" links); an `InlineAlert` (`default` variant) for NC-SA; country picker only for country grains, a one-line note otherwise; units in table headers; `MethodNote` text from the API. No design-system change |
+| Units | From the indicator catalog for the climate data sets; for OWID, from OWID's codebook (`owid-co2-codebook.csv`), downloaded by the refresh job beside the data file and registered in provenance, shown as OWID writes them. The monthly CO₂ file is not in the catalog, so its two columns carry units in the registry. A missing codebook leaves OWID headers without units; it is a pipeline deviation, never a failed refresh or a 503 |
+| Defaults | PRIMAP-hist data sets open at 1970 (the Methods & data baseline); others at full coverage; the slider still reaches the first year |
+| Scope | Observed data only: forecasts and scenarios are not in the Explorer. No charts (§5.30). `app.py`, the MCP server and the agent are unchanged |
+
+#### Decisions
+
+1. **Download is a zip**, so the licence and citation always travel with the data (NC-SA requires it for published derived data). Rejected: `#` comment lines in the CSV (some readers and Excel show them as rows); attribution on the page only.
+2. **Summary is per column, numeric only, for every data set including OWID.** Rejected: keeping `describe(include="all")` for OWID (two code paths, empty rows, a meaningless mean of Year).
+3. **OWID units come from OWID's codebook**, not a hand-written map of 79 columns, which would drift.
+4. **Forecasts and scenarios are not data sets here.** Different grain (country × year × model or scenario, with intervals) and model outputs, not observations; a separate change if wanted.
+5. **`primap_country` uses the same sovereign rule as OWID**: crosswalk `entity_type == "country"`, then `NON_SOVEREIGN` matched on `owid_name`, falling back to `primap_name` where it is blank. (Today every crosswalk row is `country`, so the second step does the work.)
+6. **Chain order only in the switcher**, no group headings (grouping `Select` options would need a design-system change).
+7. The PRIMAP-hist authors were notified on 2026-10-02 (§5.26, Licensing); no further notice.
+
+#### Verification before building
+
+Checked against the Mac Studio's `data/climate/` on 2026-11-24: derived catalog entries carry `source_series`; the catalog has 6 `primap_country_annual` indicators (no derived ones) and 5 for temperature; `co2_concentration_monthly_mlo.csv` is `year, month, co2_ppm, co2_deseasonalized_ppm` and is not in the catalog; all 207 areas in `harmonized_country_annual.csv` are `country` in the crosswalk (2 of its 220 rows have no `owid_name`); `owid_country_co2` is in provenance; only `DataExplorerPage` calls the summary and download routes; OWID's codebook has `column`, `description` and `unit`; the design system at the pinned commit has `Option.disabled`, `Tag` `positive`/`caution`, `DataTableColumn.unit` and a pinned first column.
+
+#### Delivery
+
+Five PRs: this spec; the codebook download and its provenance entry (`pipeline/`); the API; the page; then marking this section Shipped and updating `ARCHITECTURE.md` (the explorer router reads the climate store, a new data flow).
 
 ---
 
