@@ -111,24 +111,34 @@ def register_codebook(codebook_path: str, data_modified: datetime, report: RunRe
     if not os.path.exists(codebook_path):
         report.deviate(f"OWID codebook {CODEBOOK_NAME} is missing: the Data Explorer shows OWID columns without units (the data and every series are unaffected)")
         return None
-    raw = open(codebook_path, "rb").read()
     try:
+        # Every filesystem touch is inside the handler: a directory at the path, a permissions error or a vanished file is a deviation, not a failed OWID step.
+        raw = open(codebook_path, "rb").read()
         book = pd.read_csv(codebook_path, usecols=lambda c: c in CODEBOOK_COLUMNS)
-    except (ValueError, pd.errors.ParserError, UnicodeDecodeError) as e:
+        modified = datetime.fromtimestamp(os.stat(codebook_path).st_mtime, tz=timezone.utc).replace(microsecond=0)
+    except (OSError, ValueError, pd.errors.ParserError, UnicodeDecodeError) as e:
         report.deviate(f"OWID codebook {CODEBOOK_NAME} could not be read ({e.__class__.__name__}): the Data Explorer shows OWID columns without units")
         return None
     absent = [c for c in CODEBOOK_COLUMNS if c not in book.columns]
     if absent:
         report.deviate(f"OWID codebook {CODEBOOK_NAME} has no {', '.join(absent)} column: the Data Explorer shows OWID columns without units")
         return None
-    modified = datetime.fromtimestamp(os.stat(codebook_path).st_mtime, tz=timezone.utc).replace(microsecond=0)
+    if book["unit"].notna().sum() == 0:
+        report.deviate(f"OWID codebook {CODEBOOK_NAME} lists no units ({len(book)} row(s)): the Data Explorer shows OWID columns without units")
+        return None
+    try:
+        source_urls = [owid_codebook_url()]
+    except ValueError as e:
+        # The refresh job treats a missing URL as a warning and keeps the previous codebook, so registration must not turn that into a failed step.
+        report.deviate(f"{e}: the codebook is registered without its source URL")
+        source_urls = []
     lag_days = (data_modified - modified).days
     if lag_days > CODEBOOK_MAX_LAG_DAYS:
         report.deviate(f"OWID codebook is {lag_days} days older than the data file (limit {CODEBOOK_MAX_LAG_DAYS}): the refresh job has not been replacing it, so units may be stale")
     report.note(f"OWID codebook registered: {len(book)} column(s), {int(book['unit'].notna().sum())} with a unit")
     return {
         "path": f"data/{CODEBOOK_NAME}",
-        "source_urls": [owid_codebook_url()],
+        "source_urls": source_urls,
         "retrieved_at": modified.isoformat(),
         "retrieved_at_basis": "file modification time on disk (downloaded by the refresh job; this step does not download)",
         "raw_sha256": {CODEBOOK_NAME: sha256_hex(raw)},

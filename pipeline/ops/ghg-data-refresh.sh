@@ -191,8 +191,12 @@ fetch_codebook() {
       ;;
   esac
   rm -f "$tmp"
-  # The header must name the two columns the API reads, so an HTML error page or a renamed codebook is never installed.
-  if curl -fsSL --max-time 60 -o "$tmp" "$OWID_CODEBOOK_URL" && head -n 1 "$tmp" | grep -q '^column,.*unit'; then
+  # Installed only if the header has the two columns the API reads, as whole fields (not `unitless`), and there is at least one data row,
+  # so an HTML error page, a renamed codebook or a header-only file never replaces the last usable one.
+  if curl -fsSL --max-time 60 -o "$tmp" "$OWID_CODEBOOK_URL" \
+      && head -n 1 "$tmp" | tr -d '"\r' | tr ',' '\n' | grep -qx 'column' \
+      && head -n 1 "$tmp" | tr -d '"\r' | tr ',' '\n' | grep -qx 'unit' \
+      && [ "$(wc -l < "$tmp")" -ge 2 ]; then
     mv -f "$tmp" "$CODEBOOK_FILE"
     log "Downloaded OWID codebook OK"
   else

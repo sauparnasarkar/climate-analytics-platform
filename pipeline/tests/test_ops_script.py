@@ -517,3 +517,18 @@ def test_codebook_that_is_not_a_codebook_is_never_installed(tmp_path):
 def test_missing_codebook_url_in_constants_is_a_warning_not_a_failure(tmp_path):
     out, log, _, _ = run_codebook(tmp_path, "exit 0\n", url_line="OWID_URL = 'x'")
     assert "RC=0" in out and "could not read OWID_CODEBOOK_URL" in log
+
+
+@pytest.mark.parametrize("body", [
+    "column,description,unitless\nco2,x,y\n",  # `unit` only as a substring of another field
+    "column,description,unit\n",  # header only: nothing to read a unit from
+    "description,unit\nx,y\n",  # no `column` field
+])
+def test_codebook_with_the_wrong_shape_never_replaces_the_previous_one(tmp_path, body):
+    out, log, book, _ = run_codebook(tmp_path, curl_writing(body), previous="column,description,unit\nold,x,y\n")
+    assert "RC=0" in out and "looked wrong" in log and "old" in book.read_text()
+
+
+def test_codebook_with_quoted_header_and_crlf_is_installed(tmp_path):
+    out, log, book, _ = run_codebook(tmp_path, curl_writing('"column","description","unit"\r\nco2,x,million tonnes\r\n'))
+    assert "RC=0" in out and "Downloaded OWID codebook OK" in log and "million tonnes" in book.read_text()

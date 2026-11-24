@@ -271,3 +271,30 @@ def test_land_use_observations_before_the_start_year_are_ignored_not_accumulated
     assert any("10 observation(s) before 2000 (1990-1999); ignored" in n for n in rep.notes)
     assert not any("land-use" in d.lower() for d in rep.deviations)  # trimmed, so no late-start or gap deviation either
     assert s["co2_mt"].notna().all()  # the fossil series is untouched
+
+
+def test_unreadable_codebook_is_a_deviation_not_a_failed_step(tmp_path):
+    (tmp_path / owid.CODEBOOK_NAME).mkdir()  # a directory where the file should be: exists() is true, open() raises
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert any("could not be read" in d and "without units" in d for d in rep.deviations)
+    assert (tmp_path / "out" / "owid_world_co2_annual.csv").exists()
+    assert "codebook" not in json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+
+
+def test_header_only_or_unitless_codebook_is_a_deviation(tmp_path):
+    for text in ("column,description,unit\n", "column,description,unit\nco2,x,\ngdp,y,\n"):
+        write_codebook(tmp_path, text)
+        rep = run(tmp_path, write(tmp_path, make_df()))
+        assert any("lists no units" in d for d in rep.deviations), text
+        assert "codebook" not in json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+
+
+def test_missing_codebook_url_in_constants_does_not_fail_registration(tmp_path, monkeypatch):
+    def no_url(root=None):
+        raise ValueError("notebook/constants.py: OWID_CODEBOOK_URL not found")
+
+    monkeypatch.setattr(owid, "owid_codebook_url", no_url)
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert any("OWID_CODEBOOK_URL not found" in d and "without its source URL" in d for d in rep.deviations)
+    c = json.loads((tmp_path / "p.json").read_text())["owid_country_co2"]
+    assert c["codebook"]["source_urls"] == [] and c["codebook"]["rows"] == 3  # still registered: the units are usable
