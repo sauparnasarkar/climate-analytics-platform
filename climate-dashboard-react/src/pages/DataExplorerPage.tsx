@@ -10,7 +10,7 @@ import { useUrlChoice } from '../hooks/useUrlChoice';
 import type { ExplorerDataset, ExplorerMetaResponse } from '../api/types';
 import { humanize } from '../lib/humanize';
 import { plainYear } from '../lib/keyStatistics';
-import { formatNatural, formatStat, monthName } from '../lib/explorerFigures';
+import { formatAt, formatNatural, formatStat, monthName } from '../lib/explorerFigures';
 import { PageChrome, PageFilters } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 import { DatasetCard, LicenceNotice } from '../components/explorer/DatasetCard';
@@ -93,7 +93,8 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
           unit: d?.unit ?? undefined,
           // A row key (country, year, month) is a label to read down, not a quantity: left-aligned, never rounded or separated.
           ...(d?.is_key ? { numeric: false } : {}),
-          format: c === 'year' ? plainYear : c === 'month' ? monthName : formatNatural,
+          // A column the catalog publishes at a stated number of decimals is written at it; OWID's columns (no stated decimals) as they are.
+          format: c === 'year' ? plainYear : c === 'month' ? monthName : d?.decimals != null ? (v: unknown) => formatAt(v, d.decimals as number) : formatNatural,
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -174,8 +175,7 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
             <a
               href={downloadUrl}
               download
-              className="app-cta app-cta--secondary app-cta--s"
-              style={{ marginLeft: 'auto' }}
+              className="app-cta app-cta--secondary app-cta--s explorer-download"
             >
               Download data and attribution (.zip)
             </a>

@@ -148,7 +148,7 @@ const TEMPERATURE_META: ExplorerMetaResponse = {
 };
 const PRIMAP_META: ExplorerMetaResponse = {
   countries: [], columns: ['year', 'co2'], year_min: 1750, year_max: 2024, dataset: 'primap_global', grain: 'global_year', keys: ['year'],
-  columns_detail: [detail('year', 'Year', { kind: 'key', is_key: true }), detail('co2', 'CO2 (PRIMAP-hist national)', { unit: 'Mt CO2' })],
+  columns_detail: [detail('year', 'Year', { kind: 'key', is_key: true }), detail('co2', 'CO2 (PRIMAP-hist national)', { unit: 'Mt CO2', decimals: 0 })],
 };
 const MONTHLY_META: ExplorerMetaResponse = {
   countries: [], columns: ['year', 'month', 'co2_ppm'], year_min: 1958, year_max: 2026, dataset: 'co2_monthly', grain: 'global_month', keys: ['year', 'month'],
@@ -350,6 +350,14 @@ describe('DataExplorerPage', () => {
     const row = within(preview).getAllByRole('row')[1];
     expect([...row.children].map((c) => c.textContent)).toEqual(['2026', 'March', '430.15']);
     expect([...row.children].map((c) => c.getAttribute('data-numeric'))).toEqual(['false', 'false', 'true']);
+  });
+
+  it('writes a column at the decimals the catalog publishes it at, and one with no stated decimals as it is', async () => {
+    setUp({ data: { ...DATA, columns: ['year', 'co2'], rows: [{ year: 1970, co2: 15435.661154 }, { year: 1971, co2: 15943.529923 }] } });
+    renderPage('/data-explorer?dataset=primap_global');
+    const preview = await screen.findByRole('table', { name: 'Global emissions by gas, 1970–2024' });
+    const rows = within(preview).getAllByRole('row').slice(1).map((r) => [...r.children].map((c) => c.textContent));
+    expect(rows).toEqual([['1970', '15,436'], ['1971', '15,944']]); // 0 decimals: not 15,435.661154
   });
 
   it('writes the Year column as a plain year (1990, not 1,990)', async () => {

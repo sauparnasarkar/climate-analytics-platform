@@ -11,6 +11,10 @@ const write = (value: number, decimals: number) => {
 /** A number as it is, with thousands separators and a true minus: the decimals it has, up to a few, and never padded. */
 export const formatNatural = (value: unknown): string => (typeof value === 'number' ? write(value, MAX_DECIMALS) : String(value ?? ''));
 
+/** A number to the decimals its column is published at (the indicator catalog's `decimals`): 22,646.308827 at 0 decimals is 22,646. Never padded, so 0.5 at 2 decimals is 0.5.
+ * The download keeps every digit. Text is left as it is and a missing value empty. */
+export const formatAt = (value: unknown, decimals: number): string => (typeof value === 'number' ? write(value, decimals) : String(value ?? ''));
+
 /** A summary statistic written like the preview's: a whole number as it is, a fraction to four significant figures at most three decimals, without trailing zeros.
  * Missing is left empty (a column with no values has no minimum). */
 export function formatStat(value: unknown): string {

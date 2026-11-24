@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatNatural, formatStat, monthName } from './explorerFigures';
+import { formatAt, formatNatural, formatStat, monthName } from './explorerFigures';
 
 describe('formatNatural', () => {
   it('writes a number with separators and a true minus, with the decimals it has and never padded', () => {
@@ -43,5 +43,19 @@ describe('monthName', () => {
     expect(monthName(12)).toBe('December');
     expect(monthName(13)).toBe('13');
     expect(monthName(null)).toBe('');
+  });
+});
+
+describe('formatAt', () => {
+  it('writes a number to the decimals its column is published at, never padded', () => {
+    expect(formatAt(22646.308827, 0)).toBe('22,646');
+    expect(formatAt(5476.435128, 1)).toBe('5,476.4');
+    expect(formatAt(1.3099, 2)).toBe('1.31');
+    expect(formatAt(0.5, 2)).toBe('0.5');
+    expect(formatAt(-0.0004, 2)).toBe('0');
+  });
+  it('leaves text as it is and a missing value empty', () => {
+    expect(formatAt('Afghanistan', 2)).toBe('Afghanistan');
+    expect(formatAt(null, 2)).toBe('');
   });
 });
