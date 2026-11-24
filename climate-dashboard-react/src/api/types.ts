@@ -217,11 +217,74 @@ export interface ScenarioCompareResponse {
   scenarios: Record<string, ScenarioSeries[]>;
 }
 
+/** Which grain a Data Explorer data set has: a country in a year, the world in a year, or the world in a month. */
+export type ExplorerGrain = 'country_year' | 'global_year' | 'global_month';
+export type LicenceClass = 'open' | 'non_commercial' | 'non_commercial_share_alike';
+
+export interface ExplorerColumnDetail {
+  id: string;
+  label: string;
+  /** As the indicator catalog (climate data sets) or OWID's codebook (OWID) writes it; null when there is none. */
+  unit: string | null;
+  /** The catalog's indicator kind (level, cumulative, derived, ...); "key" for a row key. */
+  kind: string | null;
+  decimals: number | null;
+  is_key: boolean;
+  default: boolean;
+}
+
 export interface ExplorerMetaResponse {
+  /** [] for a global data set. */
   countries: string[];
   columns: string[];
   year_min: number;
   year_max: number;
+  dataset: string;
+  grain: ExplorerGrain;
+  keys: string[];
+  columns_detail: ExplorerColumnDetail[];
+}
+
+export interface ExplorerDatasetSource {
+  provenance_id: string;
+  name: string | null;
+  short_citation: string | null;
+  short_license: string | null;
+  license: string | null;
+  required_citation_format: string | null;
+  landing_links: Array<{ label?: string; url?: string }>;
+  source_urls: string[];
+  source_release: Record<string, unknown> | string | null;
+  retrieved_at: string | null;
+  caveats: string[];
+  citations: string[];
+}
+
+/** One Data Explorer data set (GET /explorer/datasets). Every figure is read from the API; nothing here is hard-coded. */
+export interface ExplorerDataset {
+  id: string;
+  title: string;
+  source_label: string;
+  description: string;
+  row_label: string;
+  grain: ExplorerGrain;
+  keys: string[];
+  chain_step: 'emissions' | 'concentration' | 'temperature';
+  available: boolean;
+  unavailable_reason: string | null;
+  /** "YYYY", or "YYYY-MM" for a monthly data set; `countries` is null for a global one. */
+  coverage: { first: string; last: string; countries: number | null } | null;
+  default_year_range: [number, number] | null;
+  licence_class: LicenceClass | null;
+  source: ExplorerDatasetSource | null;
+  excluded_incomplete_years: number[];
+  charted_on: Array<{ label: string; path: string }>;
+  method_note: string;
+  methods_anchor: string;
+}
+
+export interface ExplorerDatasetsResponse {
+  datasets: ExplorerDataset[];
 }
 
 export interface ExplorerDataResponse {

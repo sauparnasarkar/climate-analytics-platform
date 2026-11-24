@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
 import { MethodNote } from '../components/MethodNote';
-import { METHODS_ANCHORS } from '../lib/methodology';
-import { Button, MultiSelect, RangeSlider, DataTable, InlineAlert, Spinner, useReducedMotion, type DataTableColumn } from '@syena/ds';
+import { METHODS_ANCHORS, type MethodsAnchor } from '../lib/methodology';
+import { Button, MultiSelect, RangeSlider, DataTable, InlineAlert, Select, Spinner, Text, useReducedMotion, type DataTableColumn } from '@syena/ds';
 import type { JumpLinkItem } from '@syena/ds';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
-import type { ExplorerMetaResponse } from '../api/types';
+import { useUrlChoice } from '../hooks/useUrlChoice';
+import type { ExplorerDataset, ExplorerMetaResponse } from '../api/types';
 import { humanize } from '../lib/humanize';
 import { plainYear } from '../lib/keyStatistics';
-import { formatNatural, formatSummaryValue, isNumberColumn } from '../lib/explorerFigures';
+import { formatNatural, formatStat, monthName } from '../lib/explorerFigures';
 import { PageChrome, PageFilters } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
+import { DatasetCard, LicenceNotice } from '../components/explorer/DatasetCard';
 
-const DEFAULT_COLUMNS = ['country', 'year', 'co2', 'co2_per_capita', 'population', 'gdp', 'total_ghg'];
+const DEFAULT_DATASET = 'owid_country';
 const PAGE_SIZE = 50;
 
 // Stable labels (SPEC.md §5.19) -- this page uses no ChartCard at all, so both anchor ids land
@@ -23,26 +25,57 @@ const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'summary-stats', label: 'Summary Statistics' },
 ];
 
+type Row = Record<string, unknown>;
+
+// One row per column of the data set, over the filtered rows (SPEC.md §5.37): the API sends typed numbers, so no parsing here.
+const SUMMARY_COLUMNS: DataTableColumn<Row>[] = [
+  { key: 'label', header: 'Column', numeric: false },
+  { key: 'unit', header: 'Unit', numeric: false, format: (v) => String(v ?? '') },
+  { key: 'count', header: 'Rows with data', numeric: true, format: formatNatural },
+  { key: 'missing', header: 'Missing', numeric: true, format: formatNatural },
+  { key: 'min', header: 'Min', numeric: true, format: formatStat },
+  { key: 'p25', header: '25th percentile', numeric: true, format: formatStat },
+  { key: 'median', header: 'Median', numeric: true, format: formatStat },
+  { key: 'mean', header: 'Mean', numeric: true, format: formatStat },
+  { key: 'p75', header: '75th percentile', numeric: true, format: formatStat },
+  { key: 'max', header: 'Max', numeric: true, format: formatStat },
+];
+
+const COUNTRY_FILTER_NOTE: Record<ExplorerDataset['grain'], string> = {
+  country_year: '',
+  global_year: 'A global series: no country filter',
+  global_month: 'One station: no country filter',
+};
+
+const methodsAnchor = (name: string): MethodsAnchor => Object.values(METHODS_ANCHORS).find((a) => a === name) ?? METHODS_ANCHORS.sources;
+
+const writeYears = (years: number[]) => (years.length === 1 ? `${years[0]} is` : `${years.slice(0, -1).join(', ')} and ${years[years.length - 1]} are`);
+
 // Split out so the data/summary fetches only ever start once `meta` (and the default
-// column selection / year range derived from it) are already known — avoiding a wasted
-// initial fetch of all 79 columns before the intended default subset is set.
-function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
+// column selection / year range derived from it) are already known -- avoiding a wasted
+// initial fetch of every column before the intended default subset is set. It is mounted with
+// `key={dataset.id}`, so switching data set resets countries, years, columns and page to the
+// new data set's defaults with no reset code.
+function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta: ExplorerMetaResponse }) {
+  const defaultColumns = meta.columns_detail.filter((c) => c.default).map((c) => c.id);
+  const initialRange = dataset.default_year_range ?? [meta.year_min, meta.year_max];
   const [countries, setCountries] = useState<string[]>([]);
-  const [yearMin, setYearMin] = useState(meta.year_min);
-  const [yearMax, setYearMax] = useState(meta.year_max);
-  const [columns, setColumns] = useState<string[]>(DEFAULT_COLUMNS.filter((c) => meta.columns.includes(c)));
+  const [yearMin, setYearMin] = useState(Math.max(meta.year_min, initialRange[0]));
+  const [yearMax, setYearMax] = useState(Math.min(meta.year_max, initialRange[1]));
+  const [columns, setColumns] = useState<string[]>(defaultColumns.length ? defaultColumns : meta.columns.slice(0, 7));
   const [page, setPage] = useState(1);
 
   const data = useAsync(
-    () => api.explorerData(countries, yearMin, yearMax, columns, page, PAGE_SIZE),
+    () => api.explorerData(dataset.id, countries, yearMin, yearMax, columns, page, PAGE_SIZE),
     [countries, yearMin, yearMax, columns, page],
   );
   const summary = useAsync(
-    () => api.explorerSummary(countries, yearMin, yearMax, columns),
+    () => api.explorerSummary(dataset.id, countries, yearMin, yearMax, columns),
     [countries, yearMin, yearMax, columns],
   );
 
   const totalPages = data.data ? Math.max(1, Math.ceil(data.data.total_rows / PAGE_SIZE)) : 1;
+  const detail = useMemo(() => new Map(meta.columns_detail.map((c) => [c.id, c])), [meta]);
 
   // AG Grid treats a new `columnDefs` array reference as a real column-model change and
   // fully rebuilds the grid's column/header state — since this page's data (and its own
@@ -50,41 +83,46 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
   // a full column rebuild on every keystroke/drag update instead of only when the actual
   // set of column names changes.
   const dataColumnsKey = (data.data?.columns ?? []).join(',');
-  const dataColumns: DataTableColumn<Record<string, unknown>>[] = useMemo(
-    () => (data.data?.columns ?? []).map((c) => ({ key: c, header: humanize(c), format: c === 'year' ? plainYear : formatNatural })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dataColumnsKey],
-  );
-  // A summary column is numeric (right-aligned, in the figure face) when every value in it is a number, as the table does for its own.
-  const summaryNumeric = (summary.data?.columns ?? []).map((c) => isNumberColumn((summary.data?.rows ?? []).map((r) => r[c])));
-  const summaryColumnsKey = `${(summary.data?.columns ?? []).join(',')}|${summaryNumeric.join(',')}`;
-  const summaryColumns: DataTableColumn<Record<string, unknown>>[] = useMemo(
+  const dataColumns: DataTableColumn<Row>[] = useMemo(
     () =>
-      (summary.data?.columns ?? []).map((c, i) => ({
-        key: c,
-        header: c === 'statistic' ? 'Statistic' : humanize(c),
-        // This table is transposed (one row per statistic: `top`, `unique` and `freq` are text, `mean` and `std`
-        // are numbers, in the same column), and its values arrive as text, so each is parsed and written here.
-        numeric: summaryNumeric[i],
-        format: (value: unknown, row: Record<string, unknown>) => formatSummaryValue(c, value, row.statistic),
-      })),
+      (data.data?.columns ?? []).map((c) => {
+        const d = detail.get(c);
+        return {
+          key: c,
+          header: d?.label ?? humanize(c),
+          unit: d?.unit ?? undefined,
+          // A row key (country, year, month) is a label to read down, not a quantity: left-aligned, never rounded or separated.
+          ...(d?.is_key ? { numeric: false } : {}),
+          format: c === 'year' ? plainYear : c === 'month' ? monthName : formatNatural,
+        };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [summaryColumnsKey],
+    [dataColumnsKey, detail],
   );
-  const downloadUrl = api.explorerDownloadUrl(countries, yearMin, yearMax, columns);
+  const downloadUrl = api.explorerDownloadUrl(dataset.id, countries, yearMin, yearMax, columns);
+  const keyNames = meta.columns_detail.filter((c) => c.is_key).map((c) => c.label.toLowerCase());
+  const excluded = dataset.excluded_incomplete_years;
 
   return (
     <div>
       <PageFilters>
-        <MultiSelect
-          label="Countries (leave empty to show all)"
-          options={meta.countries.map((c) => ({ value: c, label: c }))}
-          value={countries}
-          onChange={(next) => {
-            setCountries(next);
-            setPage(1);
-          }}
-        />
+        {meta.grain === 'country_year' ? (
+          <MultiSelect
+            label="Countries (leave empty to show all)"
+            options={meta.countries.map((c) => ({ value: c, label: c }))}
+            value={countries}
+            onChange={(next) => {
+              setCountries(next);
+              setPage(1);
+            }}
+          />
+        ) : (
+          // Kept, not hidden, so the filter row keeps its shape across data sets.
+          <div>
+            <Text as="span" type="caption" tone="muted">Countries</Text>
+            <p className="explorer-no-countries syn-caption">{COUNTRY_FILTER_NOTE[meta.grain]}</p>
+          </div>
+        )}
         <RangeSlider
           label="Year range"
           min={meta.year_min}
@@ -99,7 +137,7 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
         />
         <MultiSelect
           label="Columns"
-          options={meta.columns.map((c) => ({ value: c, label: humanize(c) }))}
+          options={meta.columns_detail.map((c) => ({ value: c.id, label: c.label }))}
           value={columns}
           onChange={(next) => {
             setColumns(next);
@@ -120,8 +158,8 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
           <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '4px 0 8px' }}>
             {data.data.total_rows.toLocaleString()} rows · page {page} of {totalPages}
           </p>
-          <DataTable density="compact" maxVisibleRows={14} caption="Dataset preview" columns={dataColumns} rows={data.data.rows} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <DataTable density="compact" maxVisibleRows={14} caption={`${dataset.title}, ${yearMin}–${yearMax}`} columns={dataColumns} rows={data.data.rows} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 }}>
             <Button variant="secondary" size="small" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
               Previous
             </Button>
@@ -139,48 +177,85 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
               className="app-cta app-cta--secondary app-cta--s"
               style={{ marginLeft: 'auto' }}
             >
-              Download filtered data as CSV
+              Download data and attribution (.zip)
             </a>
           </div>
+          {excluded.length > 0 ? (
+            <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '8px 0 0' }}>
+              {writeYears(excluded)} left out: {dataset.source_label}&apos;s latest {excluded.length === 1 ? 'year fails' : 'years fail'} the completeness check.
+            </p>
+          ) : null}
         </>
       ) : null}
 
       <h2 id="summary-stats" className="syn-title-sm" style={{ marginTop: 24 }}>Summary Statistics</h2>
+      <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '4px 0 8px' }}>
+        One row per selected column, over the filtered rows.{keyNames.length ? ` The row keys (${keyNames.join(', ')}) are not summarised.` : ''}
+      </p>
       {summary.loading ? (
         <Spinner label="Loading…" />
       ) : summary.error ? (
         <InlineAlert variant="error">{summary.error}</InlineAlert>
       ) : summary.data ? (
-        <DataTable density="compact" maxVisibleRows={14} caption="Summary statistics" columns={summaryColumns} rows={summary.data.rows} />
+        <DataTable density="compact" maxVisibleRows={14} caption="Summary statistics" columns={SUMMARY_COLUMNS} rows={summary.data.rows} />
       ) : null}
+      <MethodNote anchor={methodsAnchor(dataset.methods_anchor)}>{dataset.method_note}</MethodNote>
     </div>
   );
 }
 
-export default function DataExplorerPage() {
-  const meta = useAsync(() => api.explorerMeta(), []);
-  const reduceMotion = useReducedMotion();
-  // Unlike the other five pages, this page's <h1> is in the outer component while
-  // DataExplorerContent (and its two jump targets) mounts separately below, once meta.data
-  // resolves -- ready reflects that, not just this outer component's own mount.
+// The switcher and the card, then the chosen data set's content. Mounted only once the list is loaded, so a `?dataset=` in the URL is never judged
+// against an empty list (which would drop it for the default).
+function DataExplorerBody({ datasets, rowReady, reduceMotion }: { datasets: ExplorerDataset[]; rowReady: boolean; reduceMotion: boolean }) {
+  const ids = useMemo(() => datasets.map((d) => d.id), [datasets]);
+  const [datasetId, setDatasetId] = useUrlChoice('dataset', ids, DEFAULT_DATASET);
+  const dataset = datasets.find((d) => d.id === datasetId) ?? datasets[0];
+  const options = useMemo(
+    () => datasets.map((d) => ({ value: d.id, label: `${d.title} · ${d.source_label}`, disabled: !d.available })),
+    [datasets],
+  );
+  const meta = useAsync(() => (dataset.available ? api.explorerMeta(dataset.id) : Promise.resolve(null)), [dataset.id, dataset.available]);
   // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
-  const { rowReady, onRowReady } = useStickyRowReady();
   useJumpToHashOnLoad(rowReady && Boolean(meta.data), reduceMotion);
+
+  return (
+    <>
+      <div className="explorer-dataset-row">
+        <div className="explorer-dataset-select">
+          <Select label="Data set" options={options} value={dataset.id} onChange={setDatasetId} suppressSearch />
+        </div>
+        {dataset.available ? <DatasetCard dataset={dataset} /> : null}
+      </div>
+      <LicenceNotice dataset={dataset} />
+      {!dataset.available ? (
+        <InlineAlert variant="warning">{dataset.title} is not available right now: {dataset.unavailable_reason ?? 'its source data has not been generated.'}</InlineAlert>
+      ) : meta.loading ? (
+        <Spinner label="Loading…" />
+      ) : meta.error ? (
+        <InlineAlert variant="error">{meta.error}</InlineAlert>
+      ) : meta.data ? (
+        <DataExplorerContent key={dataset.id} dataset={dataset} meta={meta.data} />
+      ) : null}
+    </>
+  );
+}
+
+export default function DataExplorerPage() {
+  const datasets = useAsync(() => api.explorerDatasets(), []);
+  const reduceMotion = useReducedMotion();
+  const { rowReady, onRowReady } = useStickyRowReady();
 
   return (
     <div>
       <PageChrome
         title="Data Explorer"
-        purpose={'Browse the full dataset behind this dashboard: every sovereign country (regional and income-group aggregates like "World" or "European Union" excluded) from 1990 onward, with the raw and derived columns.'}
+        purpose="Browse the data behind this dashboard, one data set at a time. Each keeps its own rows, filters, source and licence."
       />
       <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
 
-      {meta.loading ? <Spinner label="Loading…" /> : meta.error ? <InlineAlert variant="error">{meta.error}</InlineAlert> : meta.data ? (
-        <DataExplorerContent meta={meta.data} />
+      {datasets.loading ? <Spinner label="Loading…" /> : datasets.error ? <InlineAlert variant="error">{datasets.error}</InlineAlert> : datasets.data ? (
+        <DataExplorerBody datasets={datasets.data.datasets} rowReady={rowReady} reduceMotion={reduceMotion} />
       ) : null}
-      <MethodNote anchor={METHODS_ANCHORS.sources}>
-        Every column is from the Our World in Data CO₂ dataset (Global Carbon Project) or derived from it, for sovereign countries from 1990. Coverage, vintage and licence are on Methods &amp; data.
-      </MethodNote>
     </div>
   );
 }
