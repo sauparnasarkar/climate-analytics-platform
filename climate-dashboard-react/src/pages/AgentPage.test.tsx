@@ -421,7 +421,7 @@ describe('AgentPage description under its heading on a phone', () => {
   const shell = (compact: boolean) => (
     <MemoryRouter>
       <AskThreadProvider>
-        <PageChromeContext.Provider value={{ set: () => {}, setHasFilters: () => {}, slot: null }}><AppShell compact={compact} rail={null} topBar={null} analysisBar={null} strip={null} footer={null}><AgentPage /></AppShell></PageChromeContext.Provider>
+        <PageChromeContext.Provider value={{ set: () => {}, registerFilters: () => () => {}, slot: null }}><AppShell compact={compact} rail={null} topBar={null} analysisBar={null} strip={null} footer={null}><AgentPage /></AppShell></PageChromeContext.Provider>
       </AskThreadProvider>
     </MemoryRouter>
   );

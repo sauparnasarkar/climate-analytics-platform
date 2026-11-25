@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { PageChrome } from './PageChrome';
+import { PageChrome, PageFilters } from './PageChrome';
 import { afterEach, describe, expect, it } from 'vitest';
 import { recordResponse, resetSavedData } from '../lib/savedCopy';
 import { AppProviders } from '../test/AppProviders';
@@ -124,5 +125,106 @@ describe('DashboardLayout source strip', () => {
     mount();
     fireEvent.click(within(screen.getByRole('complementary', { name: 'Sources and methodology' })).getByRole('link', { name: 'Methods & data' }), { ctrlKey: true });
     expect(screen.getByTestId('where')).toHaveTextContent(/^\/overview$/);
+  });
+});
+
+
+describe('DashboardLayout page filters: more than one PageFilters on a page', () => {
+  const realMatchMedia = window.matchMedia;
+  afterEach(() => { window.matchMedia = realMatchMedia; });
+  const phone = (compact: boolean) => { window.matchMedia = ((q: string) => ({ matches: compact && /max-width/.test(q), media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+
+  /** A page with two sets of filters that can be mounted and unmounted on their own, as the Data Explorer's stable select and its keyed filters are. */
+  function Page({ firstOpen = true, secondOpen = true }: { firstOpen?: boolean; secondOpen?: boolean }) {
+    const [first, setFirst] = useState(firstOpen);
+    const [second, setSecond] = useState(secondOpen);
+    return (
+      <>
+        <PageChrome title="Explorer" />
+        {first ? <PageFilters><input aria-label="first filter" /></PageFilters> : null}
+        {second ? <PageFilters><input aria-label="second filter" /></PageFilters> : null}
+        <button onClick={() => setFirst((v) => !v)}>toggle first</button>
+        <button onClick={() => setSecond((v) => !v)}>toggle second</button>
+      </>
+    );
+  }
+  const mountPage = (props = {}) => render(
+    <AppProviders><MemoryRouter initialEntries={['/overview']}>
+      <Routes>
+        <Route element={<DashboardLayout />}>
+          <Route path="/overview" element={<Page {...props} />} />
+        </Route>
+      </Routes>
+    </MemoryRouter></AppProviders>,
+  );
+  const bar = () => screen.getByRole('region', { name: 'Analysis controls' });
+  const slotOf = () => bar().querySelector('div[style*="display: contents"]');
+  const filterNames = () => within(bar()).queryAllByRole('textbox').map((e) => e.getAttribute('aria-label'));
+  const controlsButton = () => screen.queryByRole('button', { name: 'Open analysis controls' });
+
+  it('draws both sets into the one slot, in the order they mounted', () => {
+    phone(false);
+    mountPage();
+    expect(filterNames()).toEqual(['first filter', 'second filter']);
+    expect(bar().querySelectorAll('div[style*="display: contents"]')).toHaveLength(1);
+  });
+
+  it('keeps the slot (the same element) and the other set when one unmounts, and puts a remounted one after it', () => {
+    phone(false);
+    mountPage();
+    const slot = slotOf();
+    expect(slot).not.toBeNull();
+    fireEvent.click(screen.getByText('toggle second'));  // the keyed block unmounts: the boolean version dropped the slot here
+    expect(filterNames()).toEqual(['first filter']);
+    expect(slotOf()).toBe(slot);
+    fireEvent.click(screen.getByText('toggle second'));  // and remounts, as it does when a data set changes
+    expect(filterNames()).toEqual(['first filter', 'second filter']);
+    expect(slotOf()).toBe(slot);
+  });
+
+  it('keeps the first set mounted and focused while the second remounts', () => {
+    phone(false);
+    mountPage();
+    const first = within(bar()).getByLabelText('first filter');
+    first.focus();
+    fireEvent.click(screen.getByText('toggle second'));
+    fireEvent.click(screen.getByText('toggle second'));
+    expect(within(bar()).getByLabelText('first filter')).toBe(first);
+    expect(document.activeElement).toBe(first);
+  });
+
+  it('removes the slot only when the last set unmounts', () => {
+    phone(false);
+    mountPage();
+    fireEvent.click(screen.getByText('toggle first'));
+    expect(filterNames()).toEqual(['second filter']);
+    expect(slotOf()).not.toBeNull();
+    fireEvent.click(screen.getByText('toggle second'));
+    expect(filterNames()).toEqual([]);
+    expect(slotOf()).toBeNull();
+  });
+
+  it('on a phone, keeps the controls button while any set is registered, and hides it when the last goes', () => {
+    phone(true);
+    mountPage();
+    expect(controlsButton()).not.toBeNull();
+    fireEvent.click(screen.getByText('toggle second'));
+    expect(controlsButton()).not.toBeNull();  // the other set is still there to open
+    fireEvent.click(screen.getByText('toggle first'));
+    expect(controlsButton()).toBeNull();
+    fireEvent.click(screen.getByText('toggle second'));
+    expect(controlsButton()).not.toBeNull();
+  });
+
+  it('a page with one set behaves as before: slot while it is mounted, none after, and no controls button on a page with none', () => {
+    phone(false);
+    mountPage({ secondOpen: false });
+    expect(filterNames()).toEqual(['first filter']);
+    fireEvent.click(screen.getByText('toggle first'));
+    expect(slotOf()).toBeNull();
+    cleanup();
+    phone(true);
+    mountPage({ firstOpen: false, secondOpen: false });
+    expect(controlsButton()).toBeNull();
   });
 });
