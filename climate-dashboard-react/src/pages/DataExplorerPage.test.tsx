@@ -1,8 +1,10 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Themed } from '../test/Themed';
+import { AppProviders } from '../test/AppProviders';
+import { DashboardLayout } from '../layouts/DashboardLayout';
 import { api } from '../api/client';
 import type { ExplorerColumnDetail, ExplorerDataResponse, ExplorerDataset, ExplorerMetaResponse, ModelComparisonResponse } from '../api/types';
 import DataExplorerPage from './DataExplorerPage';
@@ -70,6 +72,7 @@ vi.mock('@syena/ds', async (importOriginal) => {
 vi.mock('../api/client', () => ({
   api: {
     explorerDatasets: vi.fn(),
+    listCountries: vi.fn().mockResolvedValue({ featured: [], expanded: [] }), // the shell's settings panel asks for it
     explorerMeta: vi.fn(),
     explorerData: vi.fn(),
     explorerSummary: vi.fn(),
@@ -204,8 +207,8 @@ describe('DataExplorerPage', () => {
     setUp();
     renderPage();
 
-    expect(await screen.findByText('Data Explorer')).toBeInTheDocument();
     expect(await screen.findByText('1 rows · page 1 of 1')).toBeInTheDocument();
+    expect(screen.getByText('Data Explorer')).toBeInTheDocument();
     expect(screen.getByText('Countries (leave empty to show all)')).toBeInTheDocument();
     expect(screen.getByText('Year range')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Summary Statistics' })).toBeInTheDocument();
@@ -279,28 +282,50 @@ describe('DataExplorerPage', () => {
     expect(vi.mocked(api.explorerSummary)).toHaveBeenLastCalledWith('temperature', [], 1850, 2025, ['year', 'anomaly']);
   });
 
-  it('shows the data set card from the API: what a row is, coverage, source, licence and where it is charted', async () => {
+  it('shows the compact card from the API: the description, then the facts in order on one line, with the short source label', async () => {
     setUp();
     renderPage();
-    const card = await screen.findByRole('region', { name: 'About this data set' });
+    const card = await screen.findByRole('group', { name: 'About this data set' });
     expect(within(card).getByText('About Country emissions.')).toBeInTheDocument();
-    expect(within(card).getByText('a country in a year')).toBeInTheDocument();
-    expect(within(card).getByText('1990–2023 · 218 countries')).toBeInTheDocument();
-    expect(within(card).getByText('Our World in Data (Global Carbon Project)')).toBeInTheDocument();
-    expect(within(card).getByText('CC BY 4.0')).toBeInTheDocument();
-    expect(within(card).getByText(/Retrieved 2026-11-10/)).toBeInTheDocument();
+    const facts = card.querySelector('.explorer-facts-line') as HTMLElement;
+    const items = [...facts.children].map((c) => c.textContent);
+    expect(items).toEqual(['CC BY 4.0', 'One row: a country in a year', '1990–2023 · 218 countries', 'Our World in Data', 'Retrieved 2026-11-10', 'How to cite', 'Charted on Historical Trends, Country Profile']);
+    // The short label, not the provenance's full source name (that stays on Methods & data and in ATTRIBUTION.txt).
+    expect(within(card).queryByText('Our World in Data (Global Carbon Project)')).not.toBeInTheDocument();
+    // The dots between facts are the stylesheet's (decorative): none in the markup, so none for assistive technology to read and none to strand at a wrapped row's edge.
+    expect(facts.querySelector('.explorer-facts-sep')).toBeNull();
     expect(within(card).getByRole('link', { name: 'How to cite' })).toHaveAttribute('href', '/about#sources');
     expect(within(card).getByRole('link', { name: 'Historical Trends' })).toHaveAttribute('href', '/historical');
     expect(within(card).getByRole('link', { name: 'Country Profile' })).toHaveAttribute('href', '/country-profile');
   });
 
-  it('writes coverage as read: months named for a monthly data set, and where a data set opens when that is later than its first year', async () => {
+  it('opens the Dataset Preview section with the card, so the jump link lands on the card and the table', async () => {
     setUp();
-    renderPage('/data-explorer?dataset=co2_monthly');
-    expect(await screen.findByText('March 1958 – September 2026')).toBeInTheDocument();
+    renderPage();
+    const card = await screen.findByRole('group', { name: 'About this data set' });
+    const section = document.getElementById('dataset-preview') as HTMLElement;
+    expect(section.tagName).toBe('SECTION');
+    expect(section.firstElementChild).toBe(card);
+    const heading = screen.getByRole('heading', { name: 'Dataset Preview' });
+    expect(section).toContainElement(heading);
+    expect(section).toHaveAttribute('aria-labelledby', heading.id);
+    expect(card.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // the card comes before the heading
+    expect(heading.id).not.toBe('dataset-preview'); // the jump id is the section's
+    await screen.findByText('1 rows · page 1 of 1');
+    expect(section).toContainElement(screen.getByRole('table', { name: 'Country emissions, 1990–2023' }));
+    expect(screen.getByRole('link', { name: 'Dataset Preview' })).toHaveAttribute('href', '#dataset-preview');
   });
 
-  it('colours the licence tag by class and carries the share-alike notice only for PRIMAP-hist', async () => {
+  it('writes coverage as read: months named for a monthly data set, and "shown from" where the table starts later than the data', async () => {
+    setUp();
+    const { unmount } = renderPage('/data-explorer?dataset=co2_monthly');
+    expect(await screen.findByText('March 1958 – September 2026')).toBeInTheDocument();
+    unmount();
+    renderPage('/data-explorer?dataset=primap_global');
+    expect(await screen.findByText('1750–2024 · shown from 1970')).toBeInTheDocument();
+  });
+
+  it('colours the licence tag by class, and puts the share-alike notice inside the card for PRIMAP-hist only', async () => {
     setUp();
     const { unmount } = renderPage();
     const open = (await screen.findByText('CC BY 4.0')).closest('span');
@@ -311,9 +336,11 @@ describe('DataExplorerPage', () => {
     renderPage('/data-explorer?dataset=primap_global');
     const sa = (await screen.findByText('CC BY-NC-SA 4.0 · non-commercial')).closest('span');
     expect(sa?.className).toMatch(/caution/);
-    const notice = screen.getByText(/Non-commercial use only/);
-    expect(notice).toHaveTextContent('credit PRIMAP-hist');
-    expect(screen.getByText('National totals exclude international aviation and shipping.')).toBeInTheDocument();
+    const card = screen.getByRole('group', { name: 'About this data set' });
+    const notice = within(card).getByText(/Non-commercial use only/);
+    // The licence is named without the API's "· non-commercial" suffix, which the sentence already says; the data set's own source label is credited.
+    expect(notice).toHaveTextContent('Non-commercial use only. Anything you publish from this data must carry CC BY-NC-SA 4.0 and credit PRIMAP-hist; the download includes the notice.');
+    expect(screen.getAllByText(/Non-commercial use only/)).toHaveLength(1); // one notice, in the card: no separate alert outside it
   });
 
   it('colours a non-commercial (not share-alike) licence as caution, without the share-alike notice', async () => {
@@ -322,6 +349,24 @@ describe('DataExplorerPage', () => {
     const tag = (await screen.findByText('CC BY-NC 4.0 · non-commercial')).closest('span');
     expect(tag?.className).toMatch(/caution/);
     expect(screen.queryByText(/Non-commercial use only/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the source\'s caveats in a closed "Source notes (n)" disclosure inside the card, and none for a data set without any', async () => {
+    setUp();
+    const { unmount } = renderPage('/data-explorer?dataset=primap_global');
+    const card = await screen.findByRole('group', { name: 'About this data set' });
+    const summary = within(card).getByText('Source notes (1)');
+    const details = summary.closest('details') as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.open).toBe(false);
+    expect(summary.tagName).toBe('SUMMARY');
+    expect(within(details).getByText('National totals exclude international aviation and shipping.')).toBeInTheDocument();
+    unmount();
+
+    renderPage(); // owid_country: no caveats, no disclosure
+    await screen.findByRole('group', { name: 'About this data set' });
+    expect(screen.queryByText(/Source notes/)).not.toBeInTheDocument();
+    expect(document.querySelector('details')).toBeNull();
   });
 
   it('replaces the country picker with a one-line note on a global data set, and names the monthly one a single station', async () => {
@@ -502,3 +547,79 @@ describe('DataExplorerPage', () => {
     expect(document.getElementById('summary-stats')).not.toBeNull();
   });
 });
+
+// The page inside the real dashboard shell: the Data set select is a page-wide filter, drawn in the analysis bar (SPEC.md §5.37.1).
+describe('DataExplorerPage in the dashboard shell', () => {
+  const renderShell = (url = '/data-explorer') => render(
+    <AppProviders><MemoryRouter initialEntries={[url]}>
+      <Routes>
+        <Route element={<DashboardLayout />}>
+          <Route path="/data-explorer" element={<DataExplorerPage />} />
+        </Route>
+      </Routes>
+    </MemoryRouter></AppProviders>,
+  );
+  const bar = () => screen.getByRole('region', { name: 'Analysis controls' });
+  const selectInBar = () => within(bar()).getByRole('combobox', { name: /Data set/ });
+
+  it('draws the Data set select in the analysis bar, first of the page-wide filters, and not in the page body', async () => {
+    setUp();
+    renderShell();
+    await screen.findByText('1 rows · page 1 of 1');
+    const combos = within(bar()).getAllByRole('combobox');
+    expect(combos[0]).toBe(selectInBar());
+    expect(combos).toHaveLength(3); // Data set, Countries, Columns
+    expect(within(document.getElementById('dataset-preview') as HTMLElement).queryByRole('combobox', { name: /Data set/ })).toBeNull();
+  });
+
+  it('keeps focus on the same select after a data set is chosen, once the new data set has loaded', async () => {
+    setUp();
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText('1 rows · page 1 of 1');
+    const select = selectInBar();
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: 'Global temperature · Berkeley Earth' }));
+    expect(await screen.findByText('About Global temperature.')).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(select));
+    expect(selectInBar()).toBe(select); // the same element: it was never remounted
+  });
+
+  it('keeps the select in the bar while the next data set\'s metadata loads, and the other filters return after it', async () => {
+    setUp();
+    let release: () => void = () => {};
+    vi.mocked(api.explorerMeta).mockImplementation((id: string) => (id === 'temperature' ? new Promise<ExplorerMetaResponse>((resolve) => { release = () => resolve(TEMPERATURE_META); }) : Promise.resolve(META_BY_ID[id])));
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText('1 rows · page 1 of 1');
+    const select = selectInBar();
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: 'Global temperature · Berkeley Earth' }));
+    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    expect(selectInBar()).toBe(select); // still there, and the slot with it
+    expect(within(bar()).queryByText('Countries (leave empty to show all)')).toBeNull();
+    release();
+    expect(await screen.findByText('About Global temperature.')).toBeInTheDocument();
+    expect(within(bar()).getByText('Year range')).toBeInTheDocument();
+    expect(within(bar()).getAllByRole('combobox')[0]).toBe(select); // the select is still first
+  });
+
+  it('on a phone, names the data set in the top bar', async () => {
+    setUp();
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: /max-width/.test(q), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    renderShell('/data-explorer?dataset=temperature');
+    await screen.findByText('1 rows · page 1 of 1');
+    expect(within(screen.getByRole('banner')).getByText('Global temperature')).toBeInTheDocument();
+  });
+
+  it('keeps the select in the bar for an unavailable data set, with the warning in the body and no card', async () => {
+    setUp();
+    renderShell('/data-explorer?dataset=primap_country');
+    expect(await screen.findByText(/Country emissions by gas is not available right now/)).toBeInTheDocument();
+    expect(within(bar()).getAllByRole('combobox')).toHaveLength(1);
+    expect(selectInBar()).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'About this data set' })).not.toBeInTheDocument();
+    expect(vi.mocked(api.explorerMeta)).not.toHaveBeenCalled();
+  });
+});
+

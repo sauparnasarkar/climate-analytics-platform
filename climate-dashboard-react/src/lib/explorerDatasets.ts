@@ -14,13 +14,20 @@ const writeCoverageEnd = (value: string) => {
   return m ? `${monthName(Number(m[2]))} ${m[1]}` : value;
 };
 
-/** "1990–2024 · 218 countries", "1750–2024 · opens at 1970", "March 1958 – September 2026": every figure from the API. */
+/** "1990–2024 · 218 countries", "1750–2024 · shown from 1970", "March 1958 – September 2026": every figure from the API. */
 export function coverageText(d: ExplorerDataset): string {
   if (!d.coverage) return '';
   const monthly = d.grain === 'global_month';
   const range = `${writeCoverageEnd(d.coverage.first)}${monthly ? ' – ' : '–'}${writeCoverageEnd(d.coverage.last)}`;
   const parts = [range];
   if (d.coverage.countries !== null) parts.push(`${d.coverage.countries.toLocaleString('en-GB')} countries`);
-  if (d.default_year_range && Number(d.coverage.first.slice(0, 4)) < d.default_year_range[0]) parts.push(`opens at ${d.default_year_range[0]}`);
+  if (d.default_year_range && Number(d.coverage.first.slice(0, 4)) < d.default_year_range[0]) parts.push(`shown from ${d.default_year_range[0]}`);
   return parts.join(' · ');
+}
+
+/** The licence's name for a sentence: the text before the first " · ". The API's `short_license` carries a suffix ("CC BY-NC-SA 4.0 · non-commercial"), which would read
+ * twice in "must carry CC BY-NC-SA 4.0 · non-commercial". A rule over the real strings, pinned by a test; a `licence_name` field on the API is the cleaner follow-up if it proves brittle. */
+export function licenceName(shortLicense: string | null | undefined): string | null {
+  const name = shortLicense?.split(' · ')[0].trim();
+  return name ? name : null;
 }
