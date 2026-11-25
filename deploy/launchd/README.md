@@ -66,3 +66,37 @@ backends directly with `curl` on their spare ports.
 
 Keep the previous plists as `<name>.plist.pre-<date>` before replacing a live one. To go back, `bootout` the label,
 restore the saved file, `bootstrap` it again, in the same dependency order.
+
+## The preview's own API
+
+The preview front end (`deploy/preview/deploy-preview.sh`, its own job `com.ghgemissions.preview` on port 4273) proxies `/api` to production's API
+(port 8081) unless told otherwise, so a preview of a change that adds an API endpoint would call an API that does not have it. To preview such a change
+without touching production, run a second API from the **preview checkout** and point only the preview at it. Neither plist is a template here; they are
+local to the host, like the preview's own:
+
+- a job `com.ghgemissions.previewapi`: the same command as the production API job, from the **preview checkout's own `.venv`** (never production's: keeping the preview current must not
+  mean changing a shared environment), `WorkingDirectory` the preview checkout, a spare loopback port (for example 8084; check with `lsof -iTCP:<port>` first, since other projects on the host use neighbouring ones), and `GHG_DATA_DIR` set to **production's** `data` folder, so it reads
+  the real data (read-only: the API writes nothing there). The climate folder follows it (`<GHG_DATA_DIR>/climate`);
+- in the preview front end's own job environment, `API_PROXY_TARGET=http://127.0.0.1:8084` (loopback only; anything else stops the server).
+
+The `.venv` is created once in the preview checkout (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, adding
+`-c constraints/root.txt` for the tested versions) and is **not updated by the deploy**: `deploy-preview.sh` compares it with `requirements.txt` and prints a warning naming every
+package that differs (exact `==` pins and `>=` minimums alike), so a branch that changes the pins is noticed before the preview is trusted; re-run the `pip install` when it does.
+
+`deploy-preview.sh` restarts the preview API job after the build, when its plist exists and is plainly that job for this checkout (label
+`com.ghgemissions.previewapi`, working directory this checkout, a `--port`, and the definition launchd has **loaded** agrees with the file on the working directory, the command and `GHG_DATA_DIR`: `kickstart` runs the loaded
+definition, not the file, so an edited plist needs `bootout` and `bootstrap` first and is otherwise left alone), so the two stay in step; otherwise it says why it left it alone. It never touches
+the production API job. Changing a plist's environment needs `bootout` and `bootstrap`, as above.
+
+**It serves what it loaded until it restarts.** Like any API process (`SPEC.md` §5.37, decision 8), the preview API caches its data for the life of the process, and the
+monthly refresh restarts only production's API. After a refresh the preview API keeps the old data until it is restarted: run `deploy-preview.sh`, or
+`launchctl kickstart -k gui/$(id -u)/com.ghgemissions.previewapi`. It reads production's data folder directly, so it shares the known first-request limit in
+`STATUS.md` (a first read during a refresh can see a partly written file).
+
+**The front end must point at it.** `API_PROXY_TARGET` is read from the preview front end's own environment. When the script restarts the preview API it warns if the
+front end's plist does not set `API_PROXY_TARGET` to that API (the preview would still call production's), and when it has to start the front end itself (no usable preview
+job) it starts it with that target set.
+
+No Cloudflare change is needed: the preview hostname's `/api` requests reach the preview's Vite server (its responses carry its `x-robots-tag: noindex`) and
+are proxied from there, on the host. The check after setting it up is that `https://degreesofcarbon-preview.syena.io/api/explorer/datasets` answers 200.
+

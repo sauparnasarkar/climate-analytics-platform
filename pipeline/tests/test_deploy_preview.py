@@ -2,6 +2,7 @@
 steps and the guards can be checked without a Mac Mini, a network or a build."""
 import os
 import subprocess
+import sys
 
 SCRIPT = os.path.join(os.path.dirname(__file__), "..", "..", "deploy", "preview", "deploy-preview.sh")
 
@@ -298,3 +299,342 @@ def test_a_job_listening_on_another_address_does_not_count_while_127_0_0_1_answe
     out = job_run(tmp_path, "::1")  # job on ::1, an unrelated server on 127.0.0.1 supplies the 200
     assert out.returncode != 0
     assert "up on" not in out.stdout and "not the one answering" in out.stderr
+
+
+# ---------------------------------------------------------------- the preview's own API job
+
+REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+
+def api_job(tmp_path, label="com.ghgemissions.previewapi", working_directory=REPO_ROOT, port="8082", with_port=True, name="previewapi.plist", exe="/venv/bin/uvicorn", env=None):
+    plist = tmp_path / name
+    args = [exe, "api.main:app", "--host", "127.0.0.1"] + (["--port", port] if with_port else [])
+    d = {"Label": label, "WorkingDirectory": working_directory, "ProgramArguments": args}
+    if env:
+        d["EnvironmentVariables"] = env
+    plist.write_bytes(plistlib.dumps(d))
+    return str(plist)
+
+
+def test_the_preview_api_job_for_this_checkout_is_restarted_after_the_build_and_before_the_front_end(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path), PREVIEW_LAUNCHD_PLIST=preview_job(tmp_path))
+    assert code == 0, err
+    lines = steps(out)
+    api_kick = next(i for i, l in enumerate(lines) if l.startswith("launchctl kickstart -k gui/") and l.endswith("/com.ghgemissions.previewapi"))
+    front_kick = next(i for i, l in enumerate(lines) if l.startswith("launchctl kickstart -k gui/") and l.endswith("/com.ghgemissions.preview"))
+    assert index_of(lines, "npm run build") < api_kick < front_kick
+    assert any("http://127.0.0.1:8082/api/health" in l for l in lines)
+
+
+def test_no_preview_api_job_means_the_script_behaves_as_before(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0 and "warning" not in err
+    assert not any("previewapi" in l for l in steps(out))
+
+
+def test_a_job_that_is_not_the_preview_api_or_not_this_checkout_is_left_alone(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    # One plist file per scenario: they are all built before the loop runs, so a shared file would leave every iteration testing the last one.
+    scenarios = {
+        "the production API job": api_job(tmp_path, label="com.ghgemissions.uvicorn", name="production.plist"),
+        "another checkout": api_job(tmp_path, working_directory=str(other), name="other-checkout.plist"),
+        "no --port": api_job(tmp_path, with_port=False, name="no-port.plist"),
+    }
+    assert len(set(scenarios.values())) == 3
+    for what, plist in scenarios.items():
+        code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=plist)
+        assert code == 0 and "warning" in err and "leaving it alone" in err, (what, err)
+        assert not any("kickstart" in l and "previewapi" in l for l in steps(out)), what
+        assert not any(l.endswith("/com.ghgemissions.uvicorn") for l in steps(out)), what
+    assert "not the preview's API job (label 'com.ghgemissions.uvicorn')" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["the production API job"])[2]
+    assert "does not run this checkout" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["another checkout"])[2]
+    assert "names no --port" in dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=scenarios["no --port"])[2]
+
+
+def loaded_definition(args, working_directory, env):
+    """What `launchctl print` shows for a loaded job: the command, the working directory and the job's own environment, plus the 'inherited' and 'default' environment
+    blocks, which are not the job's and must never be read as its environment."""
+    lines = ["\tstate = running", f"\tprogram = {args[0]}", "\targuments = {"] + [f"\t\t{a}" for a in args] + ["\t}"]
+    if working_directory:
+        lines.append(f"\tworking directory = {working_directory}")
+    lines += ["\tinherited environment = {", "\t\tGHG_DATA_DIR => /decoy/inherited", "\t}", "\tdefault environment = {", "\t}", "\tenvironment = {"]
+    lines += [f"\t\t{k} => {v}" for k, v in (env or {}).items()] + ["\t}", "\tpid = 5151"]
+    return "\n".join(lines) + "\n"
+
+
+def api_run(tmp_path, api_listens_on, loaded_dir=None, loaded_args=None, loaded_env=None, plist_env=None, preview_env=None, front_loaded_env=None):
+    """A real run with both jobs as launchd jobs (stub launchctl: front end pid 4242, API pid 5151) and an lsof stub that answers only for the pid and address it is
+    asked about. `api_listens_on`: where pid 5151 listens ('127.0.0.1', '::1', or None for no listener); the front end always listens on 127.0.0.1:4273. The curl
+    stub answers 200 to everything, as another server squatting on the API's port would. The LOADED API definition `launchctl print` shows defaults to exactly what the
+    plist on disk says (with this checkout as its working directory); `loaded_dir`/`loaded_args`/`loaded_env` change what is loaded ('' dir: none shown), `plist_env`
+    what the file's environment says. Every launchctl call is logged to tmp_path/launchctl.log."""
+    script, bins = make_stub_checkout(tmp_path, "exit 0\n")
+    repo = tmp_path / "repo"
+    plist_env = {"GHG_DATA_DIR": "/prod/data"} if plist_env is None else plist_env
+    api_plist = api_job(tmp_path, working_directory=str(repo), name="previewapi-real.plist", env=plist_env)
+    disk_args = plistlib.load(open(api_plist, "rb"))["ProgramArguments"]
+    shown = loaded_definition(loaded_args or disk_args, str(repo) if loaded_dir is None else loaded_dir, plist_env if loaded_env is None else loaded_env)
+    (tmp_path / "api-print.txt").write_text(shown)
+    log = tmp_path / "launchctl.log"
+    (tmp_path / "front-print.txt").write_text("\tpid = 4242\n" + "\tinherited environment = {\n\t\tAPI_PROXY_TARGET => http://decoy.example:1\n\t}\n\tenvironment = {\n"
+                                              + "".join(f"\t\t{k} => {v}\n" for k, v in (front_loaded_env or {}).items()) + "\t}\n")
+    (bins / "launchctl").write_text(f'#!/bin/bash\necho "$*" >> {log}\n'
+                                    f'if [ "$1" = print ]; then case "$*" in *previewapi*) cat {tmp_path / "api-print.txt"};; *) cat {tmp_path / "front-print.txt"};; esac; fi\nexit 0\n')
+    (bins / "launchctl").chmod(0o755)
+    api_answers = "true" if api_listens_on == "127.0.0.1" else "false"
+    (bins / "lsof").write_text("#!/bin/bash\n"
+                               '[ "$*" = "-nP -a -p 4242 -iTCP@127.0.0.1:4273 -sTCP:LISTEN -t" ] && echo 4242 && exit 0\n'
+                               f'[ "$*" = "-nP -a -p 5151 -iTCP@127.0.0.1:8082 -sTCP:LISTEN -t" ] && {api_answers} && echo 5151\n'
+                               "exit 0\n")
+    (bins / "lsof").chmod(0o755)
+    app = repo / "climate-dashboard-react"
+    front = plistlib.loads(open(preview_job(tmp_path, working_directory=str(app)), "rb").read())
+    if preview_env is not None:
+        front["EnvironmentVariables"] = preview_env
+    front_plist = tmp_path / "preview-front.plist"
+    front_plist.write_bytes(plistlib.dumps(front))
+    env = {"PATH": f"{bins}:{os.environ['PATH']}", "HOME": str(tmp_path), "NO_PULL": "1", "PREVIEW_STATE_DIR": str(tmp_path / "state"),
+           "PREVIEW_LAUNCHD_PLIST": str(front_plist), "PREVIEW_API_LAUNCHD_PLIST": api_plist}
+    return subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env, timeout=120)
+
+
+def test_the_api_restart_counts_only_when_the_job_itself_listens_on_the_probed_address(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1")
+    assert out.returncode == 0, out.stderr
+    assert "preview API restarted via com.ghgemissions.previewapi (pid 5151)" in out.stdout and "preview restarted via" in out.stdout
+
+
+def test_another_server_answering_health_on_the_api_port_does_not_make_the_deploy_succeed(tmp_path):
+    out = api_run(tmp_path, None)  # the job holds no listener; the curl stub answers 200 as a squatter on the port would
+    assert out.returncode != 0
+    assert "preview API restarted" not in out.stdout and "is not the one answering on port 8082" in out.stderr
+
+
+def test_an_api_job_listening_on_another_address_does_not_count(tmp_path):
+    out = api_run(tmp_path, "::1")
+    assert out.returncode != 0 and "preview API restarted" not in out.stdout and "is not the one answering" in out.stderr
+
+
+def no_api_kickstart(tmp_path):
+    log = (tmp_path / "launchctl.log").read_text()
+    return "kickstart" in log and not any("kickstart" in l and "previewapi" in l for l in log.splitlines())  # the front end's job yes, the API's never
+
+
+def test_a_loaded_definition_that_matches_the_plist_on_disk_is_restarted(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1")
+    assert out.returncode == 0, out.stderr
+    assert "LOADED definition" not in out.stderr and "preview API restarted" in out.stdout
+
+
+def test_a_loaded_definition_for_another_checkout_is_left_alone_even_when_the_plist_on_disk_is_right(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    out = api_run(tmp_path, "127.0.0.1", loaded_dir=str(other))  # bootstrapped from another checkout; the plist was edited since, without a reload
+    assert out.returncode == 0, out.stderr  # the front end is still restarted
+    assert "LOADED definition of com.ghgemissions.previewapi" in out.stderr and f"it runs from '{other}', not this checkout" in out.stderr and "needs the job reloaded" in out.stderr or "need the job reloaded" in out.stderr
+    assert "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
+
+
+def test_a_loaded_definition_that_cannot_be_verified_is_not_restarted_either(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1", loaded_dir="")  # launchctl print shows no working directory
+    assert out.returncode == 0 and "an unknown directory" in out.stderr and "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
+
+
+def test_a_loaded_command_that_differs_from_the_plist_is_not_restarted(tmp_path):
+    """The interpreter whose packages the drift check inspects comes from the plist; if launchd has another command loaded, the API that would restart is not the one
+    that was checked."""
+    out = api_run(tmp_path, "127.0.0.1", loaded_args=["/old/venv/bin/uvicorn", "api.main:app", "--host", "127.0.0.1", "--port", "8082"])
+    assert out.returncode == 0 and "its loaded command differs from the plist on disk" in out.stderr
+    assert "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
+
+
+def test_a_loaded_data_directory_that_differs_from_the_plist_is_not_restarted(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1", loaded_env={"GHG_DATA_DIR": "/some/other/data"})
+    assert out.returncode == 0 and "its loaded GHG_DATA_DIR differs from the plist on disk" in out.stderr
+    assert "preview API restarted" not in out.stdout and no_api_kickstart(tmp_path)
+
+
+def test_only_the_jobs_own_environment_block_counts_not_the_inherited_one(tmp_path):
+    # The stub prints GHG_DATA_DIR => /decoy/inherited in the *inherited* block. A plist without the variable and a job environment without it must agree; the decoy must not make them differ.
+    out = api_run(tmp_path, "127.0.0.1", plist_env={"OTHER": "1"}, loaded_env={"OTHER": "1"})
+    assert out.returncode == 0 and "GHG_DATA_DIR differs" not in out.stderr and "preview API restarted" in out.stdout
+
+
+# --- the preview API's own Python environment: checked against requirements.txt, never modified ---
+
+def venv_with_python(tmp_path, prints):
+    """A fake environment folder whose `python` prints what the drift check would print."""
+    bin_dir = tmp_path / "preview-venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "uvicorn").write_text("#!/bin/bash\nexit 0\n")
+    (bin_dir / "python").write_text(f"#!/bin/bash\necho '{prints}'\n")
+    for f in bin_dir.iterdir():
+        f.chmod(0o755)
+    return str(bin_dir / "uvicorn")
+
+
+def test_a_preview_api_environment_behind_requirements_is_said_out_loud_but_does_not_stop_the_deploy(tmp_path):
+    exe = venv_with_python(tmp_path, "pandas 3.0.3 (requirements.txt wants 2.3.0); numpy missing (requirements.txt wants 2.3.5)")
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, exe=exe))
+    assert code == 0, err
+    assert "differs from requirements.txt: pandas 3.0.3 (requirements.txt wants 2.3.0); numpy missing" in err
+    assert "Install requirements.txt into that environment" in err
+    assert any(l.startswith("launchctl kickstart -k gui/") and l.endswith("/com.ghgemissions.previewapi") for l in steps(out))
+
+
+def test_an_environment_that_matches_requirements_or_cannot_be_inspected_says_nothing(tmp_path):
+    exe = venv_with_python(tmp_path, "")
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, exe=exe))
+    assert code == 0 and "differs from requirements.txt" not in err
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, exe="/nonexistent/venv/bin/uvicorn", name="gone.plist"))
+    assert code == 0 and "differs from requirements.txt" not in err
+
+
+def drift(tmp_path, requirements):
+    """The embedded check, run for real with this interpreter against a requirements file."""
+    text = open(SCRIPT).read()
+    snippet = text.split("<<'PY' 2>/dev/null || true\nimport re, sys")[1].split("\nPY\n)")[0]
+    req = tmp_path / "requirements.txt"
+    req.write_text(requirements)
+    done = subprocess.run([sys.executable, "-c", "import re, sys" + snippet, str(req)], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    return done.stdout.strip()
+
+
+def test_the_drift_check_reads_requirements_with_the_real_interpreter_and_never_installs(tmp_path):
+    """Against this repository's own requirements.txt: every pin parses, and nothing is installed."""
+    out = subprocess.run([sys.executable, "-c", "pass"], capture_output=True)  # the interpreter works
+    assert out.returncode == 0
+    result = drift(tmp_path, open(os.path.join(REPO_ROOT, "requirements.txt")).read())
+    assert all(part.count("requirements.txt wants") == 1 for part in result.split("; ") if part)
+    text = open(SCRIPT).read()
+    assert "pip install" not in text and "pip3 install" not in text
+
+
+def test_the_drift_check_understands_minimum_versions_as_well_as_exact_pins(tmp_path):
+    assert drift(tmp_path, "pytest>=1.0\n") == ""  # installed and at least that
+    assert drift(tmp_path, "pytest>=9999.0\n").startswith("pytest ") and "requirements.txt wants at least 9999.0" in drift(tmp_path, "pytest>=9999.0\n")
+    assert drift(tmp_path, "definitely-not-installed-xyz>=1.0\n") == "definitely-not-installed-xyz missing (requirements.txt wants at least 1.0)"
+    assert drift(tmp_path, "definitely-not-installed-xyz==1.0\n") == "definitely-not-installed-xyz missing (requirements.txt wants 1.0)"
+    assert drift(tmp_path, "pytest==0.0.1\n").endswith("(requirements.txt wants 0.0.1)")
+    assert drift(tmp_path, "# a comment\n\npytest>=1.0\n") == ""
+    both = drift(tmp_path, "definitely-not-installed-a>=2\ndefinitely-not-installed-b==3\n")
+    assert "definitely-not-installed-a" in both and "definitely-not-installed-b" in both
+
+
+# --- the proxy target travels with the preview API ---
+
+def test_the_fallback_front_end_is_started_with_the_preview_apis_proxy_target(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0, err
+    assert any("PREVIEW_NOINDEX=1 API_PROXY_TARGET=http://127.0.0.1:8082 nohup" in l and "vite preview" in l for l in steps(out))
+
+
+def test_without_a_preview_api_job_the_fallback_front_end_has_no_proxy_target(tmp_path):
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=str(tmp_path / "missing.plist"), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0 and not any("API_PROXY_TARGET" in l for l in steps(out))
+    assert any("PREVIEW_NOINDEX=1 nohup" in l for l in steps(out))
+
+
+def test_the_front_end_job_is_warned_about_when_its_plist_does_not_point_at_the_preview_api(tmp_path):
+    api = api_job(tmp_path)
+    pointing = tmp_path / "front-ok.plist"
+    pointing.write_bytes(plistlib.dumps({"Label": "com.ghgemissions.preview", "WorkingDirectory": REPO_APP, "EnvironmentVariables": {"API_PROXY_TARGET": "http://127.0.0.1:8082"},
+                                         "ProgramArguments": ["/node", "vite.js", "preview", "--port", "4273", "--strictPort", "--host", "127.0.0.1"]}))
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api, PREVIEW_LAUNCHD_PLIST=str(pointing))
+    assert code == 0 and "API_PROXY_TARGET" not in err
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api, PREVIEW_LAUNCHD_PLIST=preview_job(tmp_path))  # no API_PROXY_TARGET in it
+    assert code == 0 and "will still call production's API" in err and "API_PROXY_TARGET=http://127.0.0.1:8082" in err
+
+
+# --- Copilot review of #134, round 4 ---
+
+TARGET = "http://127.0.0.1:8082"
+
+
+def test_the_front_ends_loaded_environment_is_checked_not_only_its_plist(tmp_path):
+    ok = api_run(tmp_path, "127.0.0.1", preview_env={"API_PROXY_TARGET": TARGET}, front_loaded_env={"API_PROXY_TARGET": TARGET})
+    assert ok.returncode == 0 and "will still call production's API" not in ok.stderr
+    # Added to the plist but never loaded: `kickstart` runs the loaded environment, so the front end still calls production. (The inherited-environment decoy must not count.)
+    second = tmp_path / "second"
+    second.mkdir()
+    out = api_run(second, "127.0.0.1", preview_env={"API_PROXY_TARGET": TARGET}, front_loaded_env={})
+    assert out.returncode == 0 and "will still call production's API" in out.stderr and "loaded: 'unset'" in out.stderr and f"plist: '{TARGET}'" in out.stderr
+
+
+def test_a_front_end_with_no_target_at_all_is_warned_about(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1")
+    assert out.returncode == 0 and "will still call production's API" in out.stderr and "plist: 'unset'; loaded: 'unset'" in out.stderr
+
+
+def test_an_unverified_preview_api_does_not_silently_switch_the_fallback_front_end_to_production(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, working_directory=str(other)), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0
+    assert "front end started here will call PRODUCTION's API" in err
+    assert not any("API_PROXY_TARGET" in l for l in steps(out))  # and it really is started without a target
+
+
+def test_no_preview_api_configured_means_no_such_warning(tmp_path):
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=str(tmp_path / "missing.plist"), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0 and "PRODUCTION's API" not in err
+
+
+def patched_drift(tmp_path, requirements, installed, no_packaging=False):
+    """The embedded check, run for real with the installed versions faked, so a prerelease installed version can be tested. `no_packaging` forces its own fallback comparison."""
+    text = open(SCRIPT).read()
+    snippet = "import re, sys" + text.split("<<'PY' 2>/dev/null || true\nimport re, sys")[1].split("\nPY\n)")[0]
+    req = tmp_path / "requirements.txt"
+    req.write_text(requirements)
+    prelude = ("import sys\n" + ("sys.modules['packaging'] = None\nsys.modules['packaging.version'] = None\n" if no_packaging else "")
+               + f"import importlib.metadata as _m\n_fake = {installed!r}\n"
+               + "def _v(name):\n    if name not in _fake:\n        raise _m.PackageNotFoundError(name)\n    return _fake[name]\n_m.version = _v\n")
+    done = subprocess.run([sys.executable, "-c", prelude + snippet, str(req)], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    return done.stdout.strip()
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("no_packaging", [False, True], ids=["packaging", "fallback"])
+def test_minimums_follow_pep_440_prereleases_below_the_floor_are_below(tmp_path, no_packaging):
+    def behind(floor, have):
+        return patched_drift(tmp_path, f"pkg>={floor}\n", {"pkg": have}, no_packaging) != ""
+
+    assert behind("4.5.11", "4.5.11rc1")  # the reviewer's example: a prerelease is below its release
+    assert behind("4.5.11", "4.5.11a1") and behind("4.5.11", "4.5.11.dev3") and behind("4.5.11", "4.5.10")
+    assert not behind("4.5.11", "4.5.11") and not behind("4.5.11", "4.5.12") and not behind("4.5.11", "4.6")
+    assert not behind("4.14.2", "4.14.2.post1")  # a post-release is not below
+    assert not behind("4.5.0", "4.5") and not behind("4.5", "4.5.0")  # trailing zeros do not matter
+    assert not behind("1.0rc1", "1.0")  # a release is above its own prerelease floor
+    # Two prereleases of the same release are ordered (the reviewer's second example), on this path and the packaging one alike.
+    assert behind("4.5.11rc2", "4.5.11rc1") and not behind("4.5.11rc1", "4.5.11rc2") and not behind("4.5.11rc1", "4.5.11rc1")
+    assert behind("4.5.11b1", "4.5.11a2") and not behind("4.5.11a1", "4.5.11b1") and behind("4.5.11rc1", "4.5.11b9") and not behind("4.5.11b9", "4.5.11rc1")
+    assert behind("4.5.11a1", "4.5.11.dev9") and not behind("4.5.11.dev1", "4.5.11a1")  # a bare .dev build precedes the alphas
+    assert behind("4.5.11rc1", "4.5.11rc1.dev1") and not behind("4.5.11rc1.dev1", "4.5.11rc1")  # a .dev build is below the version it precedes
+    assert behind("4.5.11.post2", "4.5.11.post1") and not behind("4.5.11.post1", "4.5.11.post2") and not behind("4.5.11", "4.5.11.post1")
+    assert behind("4.5.11.post1", "4.5.11")  # a final release is below its own post-release floor
+    # A local label does not change the comparison, and its letters are not release markers (the reviewer's third example, and real builds such as 2.1.0+cu118).
+    assert behind("4.5.11", "4.5.11.dev1+r123") and behind("4.5.11", "4.5.11rc1+local")
+    assert not behind("4.5.11", "4.5.11+cu118") and not behind("4.5.11", "4.5.11+r123") and not behind("2.1.0", "2.1.0+cu118")
+    assert not behind("4.5.11rc1", "4.5.11rc1+local") and behind("4.5.11rc2", "4.5.11rc1+local")
+
+
+@pytest.mark.parametrize("no_packaging", [False, True], ids=["packaging", "fallback"])
+def test_exact_pins_and_missing_packages_are_unaffected_by_the_comparison(tmp_path, no_packaging):
+    assert patched_drift(tmp_path, "pkg==1.2.3\n", {"pkg": "1.2.3"}, no_packaging) == ""
+    assert patched_drift(tmp_path, "pkg==1.2.3\n", {"pkg": "1.2.4"}, no_packaging) == "pkg 1.2.4 (requirements.txt wants 1.2.3)"
+    assert patched_drift(tmp_path, "pkg>=1\n", {}, no_packaging) == "pkg missing (requirements.txt wants at least 1)"
+
+
+@pytest.mark.parametrize("shell", ["/bin/bash", "bash"])
+def test_the_script_parses_with_the_system_bash_not_only_the_one_on_the_path(shell):
+    """macOS ships bash 3.2, which mis-parses a lone apostrophe inside a heredoc nested in $( ): a comment saying "the fallback's order" inside one of the embedded Python
+    snippets breaks the whole script there, while the snippet tests (which read the text) and a newer bash pass. Syntax-check the script itself with both."""
+    if shell.startswith("/") and not os.path.exists(shell):
+        pytest.skip("no /bin/bash")
+    done = subprocess.run([shell, "-n", SCRIPT], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
