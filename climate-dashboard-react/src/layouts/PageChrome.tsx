@@ -12,22 +12,22 @@ export interface PageChromeState {
 
 export interface PageChromeContextValue {
   set: (state: PageChromeState | null) => void;
-  /** Tells the shell whether the page has page-wide filters, so a phone shows the controls button only when there is something to open. */
-  setHasFilters: (has: boolean) => void;
+  /** Registers one set of page-wide filters and returns the function that withdraws it. The shell counts registrations, so a page may hold several (a stable block of filters
+   * and a keyed block that remounts on a selection change): the slot and the phone's controls button stay for as long as any is registered, and only go when the last withdraws.
+   * It must be stable across renders, so the effect that registers does not run again each time. */
+  registerFilters: () => () => void;
   /** Where the page-wide filters are drawn: the analysis bar, or the controls sheet on a phone. */
   slot: HTMLElement | null;
 }
 
 export const PageChromeContext = createContext<PageChromeContextValue | null>(null);
 
-/** The page-wide filters. Inside the dashboard shell they are drawn in the analysis bar (the controls sheet on a phone) while their state stays in the page; outside a shell, in place. */
+/** The page-wide filters. Inside the dashboard shell they are drawn in the analysis bar (the controls sheet on a phone) while their state stays in the page; outside a shell, in place.
+ * A page may render more than one: each draws into the same slot, in the order they mounted. */
 export function PageFilters({ children }: { children: ReactNode }) {
   const chrome = useContext(PageChromeContext);
-  const setHasFilters = chrome?.setHasFilters;
-  useLayoutEffect(() => {
-    setHasFilters?.(true);
-    return () => setHasFilters?.(false);
-  }, [setHasFilters]);
+  const registerFilters = chrome?.registerFilters;
+  useLayoutEffect(() => registerFilters?.(), [registerFilters]);
   if (!chrome) return <>{children}</>;
   return chrome.slot ? createPortal(children, chrome.slot) : null;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnalysisBar, AppShell, BackToTop, Button, Footer, Rail, SourceStrip, Text, TopBar, useIsMobile, useShell, type NavGroup, type NavItem } from '@syena/ds';
 
@@ -56,9 +56,16 @@ export function DashboardLayout() {
   useKeepPlaceOnResize(location.pathname);
 
   const [chrome, setChrome] = useState<PageChromeState | null>(null);
-  const [hasFilters, setHasFilters] = useState(false);
+  // How many sets of page-wide filters are registered. A count, not a flag: a page with two (one that stays mounted and one that remounts when its selection changes) would
+  // otherwise lose the slot, and with it the first set's portal and the phone's controls button, each time the second unmounts.
+  const [filterCount, setFilterCount] = useState(0);
+  const hasFilters = filterCount > 0;
+  const registerFilters = useCallback(() => {
+    setFilterCount((count) => count + 1);
+    return () => setFilterCount((count) => count - 1);
+  }, []);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
-  const context = useMemo(() => ({ set: setChrome, setHasFilters, slot }), [slot]);
+  const context = useMemo(() => ({ set: setChrome, registerFilters, slot }), [registerFilters, slot]);
 
   const current = ALL_ITEMS.find((item) => item.path === location.pathname)?.id;
   // A plain click moves within the app; a modified click (new tab, new window) keeps the link's own behaviour.
