@@ -610,6 +610,13 @@ def test_minimums_follow_pep_440_prereleases_below_the_floor_are_below(tmp_path,
     assert not behind("4.14.2", "4.14.2.post1")  # a post-release is not below
     assert not behind("4.5.0", "4.5") and not behind("4.5", "4.5.0")  # trailing zeros do not matter
     assert not behind("1.0rc1", "1.0")  # a release is above its own prerelease floor
+    # Two prereleases of the same release are ordered (the reviewer's second example), on this path and the packaging one alike.
+    assert behind("4.5.11rc2", "4.5.11rc1") and not behind("4.5.11rc1", "4.5.11rc2") and not behind("4.5.11rc1", "4.5.11rc1")
+    assert behind("4.5.11b1", "4.5.11a2") and not behind("4.5.11a1", "4.5.11b1") and behind("4.5.11rc1", "4.5.11b9") and not behind("4.5.11b9", "4.5.11rc1")
+    assert behind("4.5.11a1", "4.5.11.dev9") and not behind("4.5.11.dev1", "4.5.11a1")  # a bare .dev build precedes the alphas
+    assert behind("4.5.11rc1", "4.5.11rc1.dev1") and not behind("4.5.11rc1.dev1", "4.5.11rc1")  # a .dev build is below the version it precedes
+    assert behind("4.5.11.post2", "4.5.11.post1") and not behind("4.5.11.post1", "4.5.11.post2") and not behind("4.5.11", "4.5.11.post1")
+    assert behind("4.5.11.post1", "4.5.11")  # a final release is below its own post-release floor
 
 
 @pytest.mark.parametrize("no_packaging", [False, True], ids=["packaging", "fallback"])
@@ -617,3 +624,13 @@ def test_exact_pins_and_missing_packages_are_unaffected_by_the_comparison(tmp_pa
     assert patched_drift(tmp_path, "pkg==1.2.3\n", {"pkg": "1.2.3"}, no_packaging) == ""
     assert patched_drift(tmp_path, "pkg==1.2.3\n", {"pkg": "1.2.4"}, no_packaging) == "pkg 1.2.4 (requirements.txt wants 1.2.3)"
     assert patched_drift(tmp_path, "pkg>=1\n", {}, no_packaging) == "pkg missing (requirements.txt wants at least 1)"
+
+
+@pytest.mark.parametrize("shell", ["/bin/bash", "bash"])
+def test_the_script_parses_with_the_system_bash_not_only_the_one_on_the_path(shell):
+    """macOS ships bash 3.2, which mis-parses a lone apostrophe inside a heredoc nested in $( ): a comment saying "the fallback's order" inside one of the embedded Python
+    snippets breaks the whole script there, while the snippet tests (which read the text) and a newer bash pass. Syntax-check the script itself with both."""
+    if shell.startswith("/") and not os.path.exists(shell):
+        pytest.skip("no /bin/bash")
+    done = subprocess.run([shell, "-n", SCRIPT], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr

@@ -149,12 +149,24 @@ def below(have, floor):
         pass
 
     def key(v):
+        # The fallback PEP 440 order, used only when `packaging` cannot be imported: release numbers (trailing zeros dropped), then dev < alpha < beta < rc < final
+        # with their numbers, then post-releases above the final, then a .dev build below the version it precedes.
         m = re.match(r"(\d+(?:\.\d+)*)(.*)", v)
         nums = [int(x) for x in m.group(1).split(".")] if m else [0]
         while len(nums) > 1 and nums[-1] == 0:
             nums.pop()
-        pre = 0 if re.search(r"(a|b|c|rc|dev|alpha|beta|pre|preview)[.\-_]?\d*", m.group(2) if m else "") else 1
-        return nums, pre
+        rest = (m.group(2) if m else "").lower()
+        number = lambda g: int(g) if g else 0
+        pm = re.search(r"(alpha|beta|preview|pre|rc|a|b|c)[.\-_]?(\d*)", rest)
+        if pm:
+            rest = rest[:pm.start()] + rest[pm.end():]  # so the "r" of "rc" is not mistaken for a post-release marker
+        post = re.search(r"(?:post|rev|r)[.\-_]?(\d*)", rest)
+        dev = re.search(r"dev[.\-_]?(\d*)", rest)
+        rank = {"a": 0, "alpha": 0, "b": 1, "beta": 1, "c": 2, "rc": 2, "pre": 2, "preview": 2}
+        pre_key = (rank[pm.group(1)], number(pm.group(2))) if pm else ((-1, 0) if dev and not post else (3, 0))
+        post_key = (1, number(post.group(1))) if post else (0, 0)
+        dev_key = (0, number(dev.group(1))) if dev else (1, 0)
+        return nums, pre_key, post_key, dev_key
 
     return key(have) < key(floor)
 
