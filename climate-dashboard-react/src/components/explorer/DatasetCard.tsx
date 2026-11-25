@@ -9,8 +9,8 @@ const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 
 /** What a data set is, in two lines (SPEC.md §5.37.1): the description; then licence tag · one row · coverage · short source label · vintage · How to cite · Charted on.
  * A CC BY-NC-SA data set adds a one-line notice below a hairline; the source's caveats sit in a closed disclosure. Everything is read from the API. It is not pinned: it opens
- * the Dataset Preview section, so the jump link lands on it and the table. */
-export function DatasetCard({ dataset: d }: { dataset: ExplorerDataset }) {
+ * the Dataset Preview section, so the jump link lands on it and the table. `shownFrom` is the table's current first year (the Year range slider's), for the coverage note. */
+export function DatasetCard({ dataset: d, shownFrom }: { dataset: ExplorerDataset; shownFrom?: number }) {
   const source = d.source;
   const vintage = source ? vintageOf({ source_release: source.source_release, retrieved_at: source.retrieved_at }) : null;
   const preliminary = typeof source?.source_release === 'object' && source.source_release !== null && source.source_release.preliminary === true;
@@ -23,7 +23,7 @@ export function DatasetCard({ dataset: d }: { dataset: ExplorerDataset }) {
       ? <Tag key="licence" color={LICENCE_TAG_COLOR[d.licence_class]}>{source.short_license}</Tag>
       : <span key="licence">Licence not recorded</span>,
     <span key="row">One row: {d.row_label}</span>,
-    <span key="coverage">{coverageText(d)}</span>,
+    <span key="coverage">{coverageText(d, shownFrom)}</span>,
     <span key="source">{d.source_label}</span>,
     ...(vintageText ? [<span key="vintage">{vintageText}</span>] : []),
     <Link key="cite" className="area2-link" to={methodsHref(METHODS_ANCHORS.sources)}>How to cite</Link>,

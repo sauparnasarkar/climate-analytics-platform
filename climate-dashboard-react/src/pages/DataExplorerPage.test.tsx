@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -323,6 +323,20 @@ describe('DataExplorerPage', () => {
     unmount();
     renderPage('/data-explorer?dataset=primap_global');
     expect(await screen.findByText('1750–2024 · shown from 1970')).toBeInTheDocument();
+  });
+
+  it('keeps the "shown from" note in step with the Year range slider, not with the data set\'s default', async () => {
+    setUp();
+    renderPage('/data-explorer?dataset=primap_global');
+    const card = await screen.findByRole('group', { name: 'About this data set' });
+    expect(within(card).getByText('1750–2024 · shown from 1970')).toBeInTheDocument(); // the table opens at 1970
+    const from = screen.getByRole('slider', { name: 'From year' });
+    fireEvent.change(from, { target: { value: '1750' } }); // back to the data's first year: the table starts there, so there is nothing to say
+    expect(await within(card).findByText('1750–2024')).toBeInTheDocument();
+    expect(within(card).queryByText(/shown from/)).not.toBeInTheDocument();
+    fireEvent.change(from, { target: { value: '2000' } }); // later than the default: the note names where the table starts now, not 1970
+    expect(await within(card).findByText('1750–2024 · shown from 2000')).toBeInTheDocument();
+    expect(within(card).queryByText(/shown from 1970/)).not.toBeInTheDocument();
   });
 
   it('colours the licence tag by class, and puts the share-alike notice inside the card for PRIMAP-hist only', async () => {

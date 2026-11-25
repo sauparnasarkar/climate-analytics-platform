@@ -153,7 +153,7 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
 
       {/* The jump target: the card, then the table, so the Dataset Preview link lands on both (SPEC.md §5.37.1). */}
       <section id="dataset-preview" aria-labelledby="dataset-preview-heading">
-      <DatasetCard dataset={dataset} />
+      <DatasetCard dataset={dataset} shownFrom={yearMin} />
       <h2 id="dataset-preview-heading" className="syn-title-sm">Dataset Preview</h2>
       {columns.length === 0 ? (
         <InlineAlert variant="default">Select at least one column to preview the data.</InlineAlert>

@@ -15,8 +15,13 @@ describe('coverageText', () => {
     expect(coverageText(d({}))).toBe('1850–2025');
     expect(coverageText(d({ grain: 'country_year', coverage: { first: '1990', last: '2024', countries: 218 }, default_year_range: [1990, 2024] }))).toBe('1990–2024 · 218 countries');
   });
-  it('says where the table is shown from when that is later than the first year', () => {
-    expect(coverageText(d({ coverage: { first: '1750', last: '2024', countries: null }, default_year_range: [1970, 2024] }))).toBe('1750–2024 · shown from 1970');
+  it('says where the table is shown from only when the range it is showing starts later than the data, and follows that range', () => {
+    const primap = d({ coverage: { first: '1750', last: '2024', countries: null }, default_year_range: [1970, 2024] });
+    expect(coverageText(primap, 1970)).toBe('1750–2024 · shown from 1970');
+    expect(coverageText(primap, 2000)).toBe('1750–2024 · shown from 2000'); // the slider moved: the note moved with it
+    expect(coverageText(primap, 1750)).toBe('1750–2024'); // back at the first year: nothing to say
+    expect(coverageText(primap)).toBe('1750–2024'); // no range given: never the default's
+    expect(coverageText(d({ grain: 'global_month', coverage: { first: '1958-03', last: '2026-09', countries: null } }), 2000)).toBe('March 1958 – September 2026 · shown from 2000');
   });
   it('names the months of a monthly data set', () => {
     expect(coverageText(d({ grain: 'global_month', coverage: { first: '1958-03', last: '2026-09', countries: null }, default_year_range: [1958, 2026] }))).toBe('March 1958 – September 2026');
