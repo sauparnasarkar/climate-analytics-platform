@@ -363,7 +363,7 @@ def loaded_definition(args, working_directory, env):
     return "\n".join(lines) + "\n"
 
 
-def api_run(tmp_path, api_listens_on, loaded_dir=None, loaded_args=None, loaded_env=None, plist_env=None, preview_env=None):
+def api_run(tmp_path, api_listens_on, loaded_dir=None, loaded_args=None, loaded_env=None, plist_env=None, preview_env=None, front_loaded_env=None):
     """A real run with both jobs as launchd jobs (stub launchctl: front end pid 4242, API pid 5151) and an lsof stub that answers only for the pid and address it is
     asked about. `api_listens_on`: where pid 5151 listens ('127.0.0.1', '::1', or None for no listener); the front end always listens on 127.0.0.1:4273. The curl
     stub answers 200 to everything, as another server squatting on the API's port would. The LOADED API definition `launchctl print` shows defaults to exactly what the
@@ -377,8 +377,10 @@ def api_run(tmp_path, api_listens_on, loaded_dir=None, loaded_args=None, loaded_
     shown = loaded_definition(loaded_args or disk_args, str(repo) if loaded_dir is None else loaded_dir, plist_env if loaded_env is None else loaded_env)
     (tmp_path / "api-print.txt").write_text(shown)
     log = tmp_path / "launchctl.log"
+    (tmp_path / "front-print.txt").write_text("\tpid = 4242\n" + "\tinherited environment = {\n\t\tAPI_PROXY_TARGET => http://decoy.example:1\n\t}\n\tenvironment = {\n"
+                                              + "".join(f"\t\t{k} => {v}\n" for k, v in (front_loaded_env or {}).items()) + "\t}\n")
     (bins / "launchctl").write_text(f'#!/bin/bash\necho "$*" >> {log}\n'
-                                    f'if [ "$1" = print ]; then case "$*" in *previewapi*) cat {tmp_path / "api-print.txt"};; *) printf \'\\tpid = 4242\\n\';; esac; fi\nexit 0\n')
+                                    f'if [ "$1" = print ]; then case "$*" in *previewapi*) cat {tmp_path / "api-print.txt"};; *) cat {tmp_path / "front-print.txt"};; esac; fi\nexit 0\n')
     (bins / "launchctl").chmod(0o755)
     api_answers = "true" if api_listens_on == "127.0.0.1" else "false"
     (bins / "lsof").write_text("#!/bin/bash\n"
@@ -544,3 +546,74 @@ def test_the_front_end_job_is_warned_about_when_its_plist_does_not_point_at_the_
     assert code == 0 and "API_PROXY_TARGET" not in err
     code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api, PREVIEW_LAUNCHD_PLIST=preview_job(tmp_path))  # no API_PROXY_TARGET in it
     assert code == 0 and "will still call production's API" in err and "API_PROXY_TARGET=http://127.0.0.1:8082" in err
+
+
+# --- Copilot review of #134, round 4 ---
+
+TARGET = "http://127.0.0.1:8082"
+
+
+def test_the_front_ends_loaded_environment_is_checked_not_only_its_plist(tmp_path):
+    ok = api_run(tmp_path, "127.0.0.1", preview_env={"API_PROXY_TARGET": TARGET}, front_loaded_env={"API_PROXY_TARGET": TARGET})
+    assert ok.returncode == 0 and "will still call production's API" not in ok.stderr
+    # Added to the plist but never loaded: `kickstart` runs the loaded environment, so the front end still calls production. (The inherited-environment decoy must not count.)
+    second = tmp_path / "second"
+    second.mkdir()
+    out = api_run(second, "127.0.0.1", preview_env={"API_PROXY_TARGET": TARGET}, front_loaded_env={})
+    assert out.returncode == 0 and "will still call production's API" in out.stderr and "loaded: 'unset'" in out.stderr and f"plist: '{TARGET}'" in out.stderr
+
+
+def test_a_front_end_with_no_target_at_all_is_warned_about(tmp_path):
+    out = api_run(tmp_path, "127.0.0.1")
+    assert out.returncode == 0 and "will still call production's API" in out.stderr and "plist: 'unset'; loaded: 'unset'" in out.stderr
+
+
+def test_an_unverified_preview_api_does_not_silently_switch_the_fallback_front_end_to_production(tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    code, out, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=api_job(tmp_path, working_directory=str(other)), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0
+    assert "front end started here will call PRODUCTION's API" in err
+    assert not any("API_PROXY_TARGET" in l for l in steps(out))  # and it really is started without a target
+
+
+def test_no_preview_api_configured_means_no_such_warning(tmp_path):
+    code, _, err = dry_run(tmp_path, PREVIEW_API_LAUNCHD_PLIST=str(tmp_path / "missing.plist"), PREVIEW_LAUNCHD_PLIST=str(tmp_path / "missing.plist"))
+    assert code == 0 and "PRODUCTION's API" not in err
+
+
+def patched_drift(tmp_path, requirements, installed, no_packaging=False):
+    """The embedded check, run for real with the installed versions faked, so a prerelease installed version can be tested. `no_packaging` forces its own fallback comparison."""
+    text = open(SCRIPT).read()
+    snippet = "import re, sys" + text.split("<<'PY' 2>/dev/null || true\nimport re, sys")[1].split("\nPY\n)")[0]
+    req = tmp_path / "requirements.txt"
+    req.write_text(requirements)
+    prelude = ("import sys\n" + ("sys.modules['packaging'] = None\nsys.modules['packaging.version'] = None\n" if no_packaging else "")
+               + f"import importlib.metadata as _m\n_fake = {installed!r}\n"
+               + "def _v(name):\n    if name not in _fake:\n        raise _m.PackageNotFoundError(name)\n    return _fake[name]\n_m.version = _v\n")
+    done = subprocess.run([sys.executable, "-c", prelude + snippet, str(req)], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    return done.stdout.strip()
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("no_packaging", [False, True], ids=["packaging", "fallback"])
+def test_minimums_follow_pep_440_prereleases_below_the_floor_are_below(tmp_path, no_packaging):
+    def behind(floor, have):
+        return patched_drift(tmp_path, f"pkg>={floor}\n", {"pkg": have}, no_packaging) != ""
+
+    assert behind("4.5.11", "4.5.11rc1")  # the reviewer's example: a prerelease is below its release
+    assert behind("4.5.11", "4.5.11a1") and behind("4.5.11", "4.5.11.dev3") and behind("4.5.11", "4.5.10")
+    assert not behind("4.5.11", "4.5.11") and not behind("4.5.11", "4.5.12") and not behind("4.5.11", "4.6")
+    assert not behind("4.14.2", "4.14.2.post1")  # a post-release is not below
+    assert not behind("4.5.0", "4.5") and not behind("4.5", "4.5.0")  # trailing zeros do not matter
+    assert not behind("1.0rc1", "1.0")  # a release is above its own prerelease floor
+
+
+@pytest.mark.parametrize("no_packaging", [False, True], ids=["packaging", "fallback"])
+def test_exact_pins_and_missing_packages_are_unaffected_by_the_comparison(tmp_path, no_packaging):
+    assert patched_drift(tmp_path, "pkg==1.2.3\n", {"pkg": "1.2.3"}, no_packaging) == ""
+    assert patched_drift(tmp_path, "pkg==1.2.3\n", {"pkg": "1.2.4"}, no_packaging) == "pkg 1.2.4 (requirements.txt wants 1.2.3)"
+    assert patched_drift(tmp_path, "pkg>=1\n", {}, no_packaging) == "pkg missing (requirements.txt wants at least 1)"

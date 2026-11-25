@@ -138,6 +138,27 @@ PY
       drift="$("$api_py" - "$repo/requirements.txt" <<'PY' 2>/dev/null || true
 import re, sys
 from importlib import metadata
+
+
+def below(have, floor):
+    """Whether `have` is below `floor`, PEP 440 aware: 4.5.11rc1 is below 4.5.11, 4.14.2.post1 is not below 4.14.2, 4.5 equals 4.5.0."""
+    try:
+        from packaging.version import Version
+        return Version(have) < Version(floor)
+    except Exception:
+        pass
+
+    def key(v):
+        m = re.match(r"(\d+(?:\.\d+)*)(.*)", v)
+        nums = [int(x) for x in m.group(1).split(".")] if m else [0]
+        while len(nums) > 1 and nums[-1] == 0:
+            nums.pop()
+        pre = 0 if re.search(r"(a|b|c|rc|dev|alpha|beta|pre|preview)[.\-_]?\d*", m.group(2) if m else "") else 1
+        return nums, pre
+
+    return key(have) < key(floor)
+
+
 out = []
 for line in open(sys.argv[1]):
     m = re.match(r"^\s*([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?\s*(==|>=)\s*([^\s;#]+)", line)
@@ -148,8 +169,7 @@ for line in open(sys.argv[1]):
         have = metadata.version(name)
     except metadata.PackageNotFoundError:
         have = None
-    num = lambda v: tuple(int(x) for x in re.findall(r"\d+", v))
-    behind = have is None or (have != want if op == "==" else num(have) < num(want))
+    behind = have is None or (have != want if op == "==" else below(have, want))
     if behind:
         out.append(f"{name} {have or 'missing'} (requirements.txt wants {'at least ' if op == '>=' else ''}{want})")
 print("; ".join(out))
@@ -215,7 +235,18 @@ fi
 if [[ -n "$job_label" ]]; then
   if [[ -n "$api_proxy_target" ]]; then
     front_target="$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb")).get("EnvironmentVariables", {}).get("API_PROXY_TARGET", ""))' "$job_plist" 2>/dev/null || true)"
-    [[ "$front_target" == "$api_proxy_target" ]] || echo "warning: $job_label's plist does not set API_PROXY_TARGET=$api_proxy_target, so the preview front end will still call production's API; add it and reload the job (deploy/launchd/README.md)" >&2
+    # The job's LOADED environment matters as much as the file: `kickstart` runs what is loaded, so a target added to the plist but never loaded still reaches production.
+    loaded_front_target=""
+    if [[ "$dry" != 1 ]]; then
+      loaded_front_target="$(launchctl print "gui/$(id -u)/$job_label" 2>/dev/null | python3 -c 'import re, sys
+t = sys.stdin.read()
+m = re.search(r"^\s*environment = \{\n(.*?)^\s*\}", t, re.M | re.S)
+lines = m.group(1).splitlines() if m else []
+print(next((l.split(" => ", 1)[1].strip() for l in lines if l.strip().startswith("API_PROXY_TARGET =>")), ""))' 2>/dev/null || true)"
+    fi
+    if [[ "$front_target" != "$api_proxy_target" || ( "$dry" != 1 && "$loaded_front_target" != "$api_proxy_target" ) ]]; then
+      echo "warning: $job_label does not have API_PROXY_TARGET=$api_proxy_target (plist: '${front_target:-unset}'; loaded: '${loaded_front_target:-unset}'), so the preview front end will still call production's API; set it and reload the job (deploy/launchd/README.md)" >&2
+    fi
   fi
   run launchctl kickstart -k "gui/$(id -u)/$job_label"
   if [[ "$dry" == 1 ]]; then
@@ -237,6 +268,12 @@ if [[ -n "$job_label" ]]; then
     exit 1
   fi
   exit 0
+fi
+
+# A preview API job is configured but was not restarted and verified above (not this checkout's, not loaded as its plist says, not loaded at all): a front end started
+# here has no target to give, so it would call PRODUCTION's API, even if the preview this replaces was using the preview API. Say so rather than switch silently.
+if [[ -f "$api_plist" && -z "$api_proxy_target" ]]; then
+  echo "warning: a preview API job is configured ($api_plist) but was not restarted and verified above, so the front end started here will call PRODUCTION's API" >&2
 fi
 
 # Stop the preview this script started earlier, and only that: the pid must still belong to a vite server on this port.
