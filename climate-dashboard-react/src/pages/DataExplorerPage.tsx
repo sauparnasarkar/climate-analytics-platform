@@ -13,9 +13,11 @@ import { plainYear } from '../lib/keyStatistics';
 import { formatAt, formatNatural, formatStat, monthName } from '../lib/explorerFigures';
 import { PageChrome, PageFilters } from '../layouts/PageChrome';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
-import { DatasetCard, LicenceNotice } from '../components/explorer/DatasetCard';
+import { DatasetCard } from '../components/explorer/DatasetCard';
 
 const DEFAULT_DATASET = 'owid_country';
+const PAGE_TITLE = 'Data Explorer';
+const PAGE_PURPOSE = 'Browse the data behind this dashboard, one data set at a time. Each keeps its own rows, filters, source and licence.';
 const PAGE_SIZE = 50;
 
 // Stable labels (SPEC.md §5.19) -- this page uses no ChartCard at all, so both anchor ids land
@@ -149,7 +151,10 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
         />
       </PageFilters>
 
-      <h2 id="dataset-preview" className="syn-title-sm">Dataset Preview</h2>
+      {/* The jump target: the card, then the table, so the Dataset Preview link lands on both (SPEC.md §5.37.1). */}
+      <section id="dataset-preview" aria-labelledby="dataset-preview-heading">
+      <DatasetCard dataset={dataset} shownFrom={yearMin} />
+      <h2 id="dataset-preview-heading" className="syn-title-sm">Dataset Preview</h2>
       {columns.length === 0 ? (
         <InlineAlert variant="default">Select at least one column to preview the data.</InlineAlert>
       ) : data.loading ? (
@@ -190,6 +195,8 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
         </>
       ) : null}
 
+      </section>
+
       <h2 id="summary-stats" className="syn-title-sm" style={{ marginTop: 24 }}>Summary Statistics</h2>
       <p className="syn-caption" style={{ color: 'var(--syn-color-text-muted)', margin: '4px 0 8px' }}>
         One row per selected column, over the filtered rows.{keyNames.length ? ` The row keys (${keyNames.join(', ')}) are not summarised.` : ''}
@@ -208,8 +215,9 @@ function DataExplorerContent({ dataset, meta }: { dataset: ExplorerDataset; meta
   );
 }
 
-// The switcher and the card, then the chosen data set's content. Mounted only once the list is loaded, so a `?dataset=` in the URL is never judged
-// against an empty list (which would drop it for the default).
+// The pinned Data set select, then the chosen data set's content. Mounted only once the list is loaded, so a `?dataset=` in the URL is never judged against an empty list
+// (which would drop it for the default). The select is in the page-wide filters (the analysis bar; the controls sheet on a phone), first of them, and sits here and not in
+// the keyed content below, so it stays mounted and keeps its focus when the data set changes.
 function DataExplorerBody({ datasets, rowReady, reduceMotion }: { datasets: ExplorerDataset[]; rowReady: boolean; reduceMotion: boolean }) {
   const ids = useMemo(() => datasets.map((d) => d.id), [datasets]);
   const [datasetId, setDatasetId] = useUrlChoice('dataset', ids, DEFAULT_DATASET);
@@ -224,13 +232,13 @@ function DataExplorerBody({ datasets, rowReady, reduceMotion }: { datasets: Expl
 
   return (
     <>
-      <div className="explorer-dataset-row">
+      {/* The phone's top bar names the data set (the title alone: the summary truncates to what fits beside the heading). */}
+      <PageChrome title={PAGE_TITLE} purpose={PAGE_PURPOSE} summary={dataset.title} />
+      <PageFilters>
         <div className="explorer-dataset-select">
           <Select label="Data set" options={options} value={dataset.id} onChange={setDatasetId} suppressSearch />
         </div>
-        {dataset.available ? <DatasetCard dataset={dataset} /> : null}
-      </div>
-      <LicenceNotice dataset={dataset} />
+      </PageFilters>
       {!dataset.available ? (
         <InlineAlert variant="warning">{dataset.title} is not available right now: {dataset.unavailable_reason ?? 'its source data has not been generated.'}</InlineAlert>
       ) : meta.loading ? (
@@ -251,15 +259,17 @@ export default function DataExplorerPage() {
 
   return (
     <div>
-      <PageChrome
-        title="Data Explorer"
-        purpose="Browse the data behind this dashboard, one data set at a time. Each keeps its own rows, filters, source and licence."
-      />
       <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
 
-      {datasets.loading ? <Spinner label="Loading…" /> : datasets.error ? <InlineAlert variant="error">{datasets.error}</InlineAlert> : datasets.data ? (
+      {datasets.data ? (
         <DataExplorerBody datasets={datasets.data.datasets} rowReady={rowReady} reduceMotion={reduceMotion} />
-      ) : null}
+      ) : (
+        <>
+          {/* Until the list is here the body (which names the data set) is not mounted: this one chrome stands in, and is gone before the body's takes over. */}
+          <PageChrome title={PAGE_TITLE} purpose={PAGE_PURPOSE} />
+          {datasets.loading ? <Spinner label="Loading…" /> : datasets.error ? <InlineAlert variant="error">{datasets.error}</InlineAlert> : null}
+        </>
+      )}
     </div>
   );
 }

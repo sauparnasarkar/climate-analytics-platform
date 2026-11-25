@@ -63,17 +63,36 @@ div.settings-field-fit > * { min-width: 0; }
 .settings-chip button:hover { background: var(--syn-color-surface-raised); }
 .settings-chip button:focus-visible { outline: var(--syn-layout-focus-ring-width) solid var(--syn-color-focus-ring); outline-offset: 1px; }
 
-/* Data Explorer (SPEC.md §5.37): the data set switcher beside its card, and the card's four facts. */
-.explorer-dataset-row { display: flex; flex-wrap: wrap; gap: var(--syn-space-5); align-items: flex-start; margin-bottom: var(--syn-space-4); }
-.explorer-dataset-select { flex: 0 1 380px; min-width: 260px; }
-.explorer-card { flex: 1 1 560px; min-width: 0; }
-.explorer-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--syn-space-3) var(--syn-space-5); margin: 0; }
-.explorer-facts dt, .explorer-facts dd { margin: 0; }
+/* Data Explorer (SPEC.md §5.37, §5.37.1): the pinned Data set select, the compact card, and the page's own rows. */
+
+/* The select is a control in the analysis bar. 350px basis because the longest label ("Atmospheric CO₂, annual · NOAA and Law Dome") is ~345px as a box; four controls then fit one
+ * row down to a ~1225px window, and wrap to a second row below that. In the controls sheet (compact shell: the bar's controls are a column, and the shell's own
+ * `> * { width: 100% }` governs the width) a flex basis would be a HEIGHT, so it is switched off there, keyed on the shell's own marker rather than a pixel width. */
+.explorer-dataset-select { flex: 0 1 350px; min-width: 260px; }
+[data-syn-menu="inline"] .explorer-dataset-select { flex: none; min-width: 0; }
+
+/* The card: two lines, so it spends little of the window below the pinned bar. */
+.explorer-card { margin-bottom: var(--syn-space-4); }
+.explorer-facts-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--syn-space-1) var(--syn-space-4); margin: -2px; padding: 2px; overflow: hidden; color: var(--syn-color-text-muted);
+  font: var(--syn-type-caption-weight) var(--syn-type-caption-size) / var(--syn-type-caption-line) var(--syn-type-caption-family); }
+/* A middot in the gap before every fact but the first. `overflow: hidden` clips the one that falls outside the left edge, so the first fact of each wrapped row has none:
+ * a dot is never left at the end of a row or the start of the next. Decorative: the empty alternative text keeps it out of the accessibility tree (browsers that ignore it
+ * still read a punctuation mark between facts, which is harmless). The 2px padding and negative margin leave room for a link's focus ring inside the clip. */
+.explorer-facts-line > * { position: relative; }
+.explorer-facts-line > * + *::before { content: '·'; content: '·' / ''; position: absolute; left: calc(-0.5 * var(--syn-space-4) - 0.25em); color: var(--syn-color-border-default); }
+.explorer-notice { display: flex; align-items: flex-start; gap: var(--syn-space-2); margin: var(--syn-space-2) 0 0; padding-top: var(--syn-space-2);
+  border-top: var(--syn-layout-border-hairline) solid var(--syn-color-border-subtle); color: var(--syn-color-text-secondary);
+  font: var(--syn-type-text-sm-weight) var(--syn-type-text-sm-size) / var(--syn-type-text-sm-line) var(--syn-type-text-sm-family); }
+.explorer-notice svg { flex: none; margin-top: 2px; }
+.explorer-notes { margin: var(--syn-space-2) 0 0; color: var(--syn-color-text-muted);
+  font: var(--syn-type-caption-weight) var(--syn-type-caption-size) / var(--syn-type-caption-line) var(--syn-type-caption-family); }
+.explorer-notes summary { cursor: pointer; width: fit-content; }
+.explorer-notes summary:focus-visible { outline: var(--syn-layout-focus-ring-width) solid var(--syn-color-focus-ring); outline-offset: 2px; }
+.explorer-notes ul { margin: var(--syn-space-1) 0 0; padding-left: var(--syn-space-5); list-style: disc; }
+
 .explorer-no-countries { margin: 0; min-height: var(--syn-layout-control-height); display: flex; align-items: center; color: var(--syn-color-text-muted); }
 /* Download sits at the end of the pager row; on a phone it takes the row, at a 44px target. */
 .explorer-download { margin-left: auto; }
 @media (max-width: 640px) {
-  .explorer-dataset-select { flex-basis: 100%; }
   .explorer-download { flex: 1 1 100%; margin-left: 0; min-height: 44px; }
 }
-.explorer-caveats { margin: var(--syn-space-2) 0 var(--syn-space-4); padding-left: var(--syn-space-5); list-style: disc; color: var(--syn-color-text-muted); }
