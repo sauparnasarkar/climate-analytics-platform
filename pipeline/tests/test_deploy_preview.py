@@ -617,6 +617,10 @@ def test_minimums_follow_pep_440_prereleases_below_the_floor_are_below(tmp_path,
     assert behind("4.5.11rc1", "4.5.11rc1.dev1") and not behind("4.5.11rc1.dev1", "4.5.11rc1")  # a .dev build is below the version it precedes
     assert behind("4.5.11.post2", "4.5.11.post1") and not behind("4.5.11.post1", "4.5.11.post2") and not behind("4.5.11", "4.5.11.post1")
     assert behind("4.5.11.post1", "4.5.11")  # a final release is below its own post-release floor
+    # A local label does not change the comparison, and its letters are not release markers (the reviewer's third example, and real builds such as 2.1.0+cu118).
+    assert behind("4.5.11", "4.5.11.dev1+r123") and behind("4.5.11", "4.5.11rc1+local")
+    assert not behind("4.5.11", "4.5.11+cu118") and not behind("4.5.11", "4.5.11+r123") and not behind("2.1.0", "2.1.0+cu118")
+    assert not behind("4.5.11rc1", "4.5.11rc1+local") and behind("4.5.11rc2", "4.5.11rc1+local")
 
 
 @pytest.mark.parametrize("no_packaging", [False, True], ids=["packaging", "fallback"])

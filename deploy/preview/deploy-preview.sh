@@ -151,6 +151,7 @@ def below(have, floor):
     def key(v):
         # The fallback PEP 440 order, used only when `packaging` cannot be imported: release numbers (trailing zeros dropped), then dev < alpha < beta < rc < final
         # with their numbers, then post-releases above the final, then a .dev build below the version it precedes.
+        v = v.split("+", 1)[0]  # a local label (+cu118, +r123) never decides whether a floor is met, and its letters are not release markers
         m = re.match(r"(\d+(?:\.\d+)*)(.*)", v)
         nums = [int(x) for x in m.group(1).split(".")] if m else [0]
         while len(nums) > 1 and nums[-1] == 0:
