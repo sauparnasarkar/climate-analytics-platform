@@ -15,6 +15,9 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+/** The landing's desktop layout: two-column banners, the chapter bar with its Play/Pause button, and the hero capped to the screen. */
+export const LANDING_WIDE_QUERY = '(min-width: 1101px)';
+
 /** A phone turned sideways: wider than 768 px but at most ~430 px tall (tablets and desktop windows are taller). */
 export const PHONE_LANDSCAPE_QUERY = '(orientation: landscape) and (max-height: 500px)';
 

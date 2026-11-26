@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react';
 import { Icon, useReducedMotion } from '@syena/ds';
 import { useCarousel } from '../../hooks/useCarousel';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { LANDING_WIDE_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
 import { useSwipe } from '../../hooks/useSwipe';
 
 // The landing's top-of-fold carousel (Area 2, requirements §2.1): two banners,
@@ -46,7 +46,7 @@ export const CAROUSEL_STYLES = `
 .hero-carousel__anchors a { color: inherit; font-weight: 500; text-decoration: none; }
 .hero-carousel__anchors a:hover { text-decoration: underline; }
 .hero-carousel__count { display: none; }
-/* A laptop, desktop or tablet turned sideways (any pointer): the hero is at least --hero-h tall (set by the landing: the viewport less the header, the row and a peek of the next section, within a band) and grows only if the taller banner needs more, so the next section shows above the fold -- and both banners fill it, so the row does not move between banners. */
+/* A laptop, desktop or tablet turned sideways (any pointer): the hero is at least --hero-h tall (set by the landing: the viewport less the header, the row and a peek of the next section, between the smallest globe's height and the design's) and grows only if the taller banner needs more, so the next section shows above the fold -- and both banners fill it, so the row does not move between banners. */
 @media (min-width: 1101px) {
   .hero-carousel__slides { min-height: var(--hero-h); }
   .hero-carousel__slide { align-self: stretch; }
@@ -81,9 +81,6 @@ export const CAROUSEL_STYLES = `
 }
 `;
 
-/** The layout with the chapter bar and its Play/Pause button (the stacked tabs are below this width). */
-const WIDE_QUERY = '(min-width: 1101px)';
-
 export interface PageAnchor {
   href: string;
   label: string;
@@ -91,7 +88,7 @@ export interface PageAnchor {
 
 export function HeroCarousel({ slides, ariaLabel = 'Featured', anchors = [] }: { slides: CarouselSlide[]; ariaLabel?: string; anchors?: PageAnchor[] }) {
   // The banners rotate on their own only in the wide layout, where the Play/Pause button is: chosen by width, not by touch, so an iPad turned sideways rotates and one upright (the stacked tabs, as on a phone) does not.
-  const wide = useMediaQuery(WIDE_QUERY);
+  const wide = useMediaQuery(LANDING_WIDE_QUERY);
   const [holding, setHolding] = useState(false);
   const c = useCarousel({ count: slides.length, enabled: wide, hold: holding });
   const reducedMotion = useReducedMotion();
