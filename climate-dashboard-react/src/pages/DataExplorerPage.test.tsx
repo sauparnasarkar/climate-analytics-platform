@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Themed } from '../test/Themed';
 import { AppProviders } from '../test/AppProviders';
@@ -624,6 +624,27 @@ describe('DataExplorerPage in the dashboard shell', () => {
     renderShell('/data-explorer?dataset=temperature');
     await screen.findByText('1 rows · page 1 of 1');
     expect(within(screen.getByRole('banner')).getByText('Global temperature')).toBeInTheDocument();
+  });
+
+  it('on a phone, keeps focus on the Data set select in the filters sheet after a data set is chosen', async () => {
+    // The page re-renders the shell (the top-bar summary becomes the new data set's title) while the sheet is open. The design system's focus trap used to treat that as
+    // a new activation and move focus to the sheet's first control, the close button; only opening the sheet should take focus.
+    setUp();
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: /max-width/.test(q), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    Element.prototype.scrollIntoView = vi.fn(); // jsdom has none; the sheet's inline menu scrolls its option into view
+    onTestFinished(() => { Reflect.deleteProperty(Element.prototype, 'scrollIntoView'); });
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText('1 rows · page 1 of 1');
+    await user.click(screen.getByRole('button', { name: 'Open analysis controls' }));
+    const sheet = await screen.findByRole('dialog');
+    const select = within(sheet).getByRole('combobox', { name: /Data set/ });
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: 'Global temperature · Berkeley Earth' }));
+    expect(await screen.findByText('About Global temperature.')).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('banner')).getByText('Global temperature')).toBeInTheDocument());
+    expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('combobox', { name: /Data set/ }));
+    expect(document.activeElement).not.toBe(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close analysis controls' }));
   });
 
   it('keeps the select in the bar for an unavailable data set, with the warning in the body and no card', async () => {
