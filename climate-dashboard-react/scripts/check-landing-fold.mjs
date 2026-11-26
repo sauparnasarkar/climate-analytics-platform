@@ -2,7 +2,8 @@
 // place on both banners, both banners must fit the same hero box so the row does not jump, the globe keeps its smallest size, and the next section shows:
 // wider than 1400 px, its heading in full from 700 px of page height and the top of its four steps from 745 px; 1250-1400 px wide, from 720 and 760 px. Narrower than
 // 1250 px a banner's content sets the hero's height and these two are not checked (SPEC §5.25.1). At 1101-1400 px both headlines hold two lines. Both themes.
-// Sizes are page areas (the window less the browser's bars).
+// Sizes are page areas (the window less the browser's bars). Known failure, not in the default sizes: 1401 to about 1415 px wide at about 789-820 px tall (for
+// example 1401x800), where a third headline line leaves less of the steps showing than the check asks (SPEC §5.25.1).
 // Usage: node scripts/check-landing-fold.mjs <base url> [WxH ...]   (default 1425x700, 1440x789, 1536x864, 1920x1080, 2048x1152, 1366x768, 1280x800 and 1280x720)
 import { createRequire } from 'node:module';
 import path from 'node:path';
