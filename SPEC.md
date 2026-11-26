@@ -481,7 +481,7 @@ Sections to include:
 | v79 | Nov 2026 | §5.37 (**Shipped** 2026-11-24; docs-first, then the pipeline, API and page): the Data Explorer browses seven data sets one at a time (OWID country and World, PRIMAP-hist country and global, CO₂ annual and monthly, Berkeley Earth temperature) through a "Data set" switcher; `/api/explorer/datasets` and a `dataset` parameter on the explorer endpoints; per-column summary; downloads are a zip with an attribution file; OWID column units from OWID's codebook, downloaded by the refresh job |
 | v80 | Nov 2026 | §5.37.1 (**Docs-first**): the Data Explorer's Data set select moves into the pinned analysis bar (the shell counts `PageFilters` registrations instead of toggling a boolean); the data set card becomes two lines and opens the Dataset Preview section; the share-alike notice and the source caveats move inside it; the phone top bar names the data set |
 | v81 | Nov 2026 | §5.37.1 follow-up (**Docs-first**), from the owner's review of the preview: a focus bug in the phone's filters sheet (fixed in the design system's `useFocusTrap`, then the pin), and the data set card's height (the small `Tag`, tighter spacing); two further points left open for a decision |
-| v82 | Nov 2026 | §5.25.1: on the Home page the next section shows under the hero on laptop screens (hero floor 498 px from a 360 px globe, 120 px peek, 24 px above the chain section, its year line below the steps) |
+| v82 | Nov 2026 | §5.25.1: on the Home page the next section shows under the hero on laptop screens (hero floor 498 px from a 360 px globe, 120 px peek, 24 px above the chain section, its year line below the steps, headlines in the `display` role at 1101–1400 px; limit recorded for 1101–1249 px) |
 
 ---
 
@@ -1882,9 +1882,10 @@ On a laptop with about 700 px of page height the hero sat at its 504 px floor an
 | Hero height | At least the viewport less the header (68 px), the chapter bar (59 px) and a 120 px peek, between 498 px and 560 px (`--hero-h`, and the same figures size the globe). A banner whose text is taller sets the height; both banners always share it |
 | Globe | At least 360 px; 498 px is that plus the rest of its panel and the banner's padding |
 | Chain section | 24 px top padding when it follows the hero. "All four steps for {year}…" moves below the four steps (moved in the markup, so reading order matches) |
-| Result | Windows 1400 px wide and up: the section's heading shows in full from 700 px of page height, the top of its steps from 745 px |
-| Limits | Below about 1400 px wide the climate banner's headline can wrap to a third line and its text sets the height, so less of the next section shows. A window under about 700 px tall cannot show the heading with a 360 px globe |
-| Check | `climate-dashboard-react/scripts/check-landing-fold.mjs <base url>`: both banners, both themes, and a resize |
+| Headline | 1101–1400 px wide, both banners' headlines take the design system's `display` type role whole (40 px on a 52 px line, weight 600; no size of the app's own), so they hold two lines. "Forecasts to 2043 →" stays |
+| Result | Wider than 1400 px: the section's heading shows in full from 700 px of page height, the top of its steps from 745 px. 1250–1400 px wide: the heading from about 720 px, the steps' top edge from 745 px and their first label from about 760 px |
+| Limits | **1101–1249 px wide:** the hero is taller than the cap (the climate banner's text, and a globe legend that wraps so its panel needs 40 px more than the sizing allows), so at 745 px of page height the steps start below the fold: 789 px at 1101 (where the chapter bar also wraps), 764 px at 1180, 749 px at 1240. They show from about 810 px tall at 1180–1220 px wide and about 850 px at 1101. A window under about 700 px tall cannot show the heading with a 360 px globe |
+| Check | `climate-dashboard-react/scripts/check-landing-fold.mjs <base url>`: both banners, both themes, a resize, and two-line headlines at 1101–1400 px |
 
 ---
 

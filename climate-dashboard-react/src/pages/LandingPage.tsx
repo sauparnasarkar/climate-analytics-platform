@@ -72,6 +72,11 @@ const STYLES = `
 .landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-h: clamp(${HERO_MIN_PX}px, calc(100svh - ${HEADER_PX + CAROUSEL_ROW_PX + PEEK_PX}px), ${HERO_MAX_PX}px); --hero-h-phone: ${HERO_PHONE_PX}px; --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
 .landing [id$="-heading"] { scroll-margin-top: 84px; }
 .landing-slide h1 { text-wrap: balance; }
+.landing-headline { font-size: clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem); line-height: 1.05; font-weight: 700; }
+/* A narrow laptop: both banners' headlines step down to the design system's display role, so they hold two lines and the next section still shows (SPEC §5.25.1). */
+@media ${LANDING_WIDE_QUERY} and (max-width: 1400px) {
+  .landing-headline { font: var(--syn-type-display-weight) var(--syn-type-display-size) / var(--syn-type-display-line) var(--syn-type-display-family); letter-spacing: var(--syn-type-display-tracking); }
+}
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
 /* Both banners of the carousel share one layout, so nothing moves when the slide changes: a text column and a picture column in the same proportion,
    both starting at the same top edge. The lines are the one visible colour of the KPI strip (the divider tokens are lighter than the tinted light-theme background). */
@@ -266,7 +271,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
         <div className="syn-caption" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--syn-color-accent-text, inherit)' }}>
           Our World in Data CO₂ · {minYear}–{maxYear}<span className="landing-hero__eyebrow-count"> · {all.countries_count} countries</span>
         </div>
-        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id="landing-title" className="landing-headline" style={{ margin: 0 }}>
           Where the world’s CO₂ comes from
         </h1>
         <p className="syn-text-lg" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--syn-color-text-muted)' }}>
