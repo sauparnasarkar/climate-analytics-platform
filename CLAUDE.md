@@ -52,6 +52,12 @@ in `services/agent` — see its own [`SPEC.md`](services/agent/SPEC.md).
 
 ---
 
+## Conventions
+
+- PR descriptions and PR comments end with no tool attribution and no session links.
+
+---
+
 ## When Helping With This Project
 
 - Reference the design decisions above before suggesting model or methodology changes.
