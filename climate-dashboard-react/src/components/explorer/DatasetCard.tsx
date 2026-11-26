@@ -20,7 +20,7 @@ export function DatasetCard({ dataset: d, shownFrom }: { dataset: ExplorerDatase
   const name = licenceName(source?.short_license);
   const facts: ReactNode[] = [
     source?.short_license && d.licence_class
-      ? <Tag key="licence" color={LICENCE_TAG_COLOR[d.licence_class]}>{source.short_license}</Tag>
+      ? <Tag key="licence" size="small" color={LICENCE_TAG_COLOR[d.licence_class]}>{source.short_license}</Tag>
       : <span key="licence">Licence not recorded</span>,
     <span key="row">One row: {d.row_label}</span>,
     <span key="coverage">{coverageText(d, shownFrom)}</span>,
