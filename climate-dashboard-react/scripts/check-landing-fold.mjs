@@ -1,10 +1,9 @@
 // The landing's first screen on a laptop or desktop (SPEC §5.25.1): with the carousel paused, the control row must sit wholly inside the viewport, at the same
 // place on both banners, both banners must fit the same hero box so the row does not jump, the globe keeps its smallest size, and the next section shows:
 // wider than 1400 px, its heading in full from 700 px of page height and the top of its four steps from 745 px; 1250-1400 px wide, from 720 and 760 px. Narrower than
-// 1250 px a banner's content sets the hero's height and these two are not checked (SPEC §5.25.1). At 1101-1400 px both headlines hold two lines. Both themes.
-// Sizes are page areas (the window less the browser's bars). Known failure, not in the default sizes: 1401 to about 1415 px wide at about 789-820 px tall (for
-// example 1401x800), where a third headline line leaves less of the steps showing than the check asks (SPEC §5.25.1).
-// Usage: node scripts/check-landing-fold.mjs <base url> [WxH ...]   (default 1425x700, 1440x789, 1536x864, 1920x1080, 2048x1152, 1366x768, 1280x800 and 1280x720)
+// 1250 px a banner's content sets the hero's height and these two are not checked (SPEC §5.25.1). Both headlines hold two lines at 1101-1440 px (the display role)
+// and, wider, on pages up to 800 px tall. Both themes. Sizes are page areas (the window less the browser's bars).
+// Usage: node scripts/check-landing-fold.mjs <base url> [WxH ...]   (default 1425x700, 1440x789, 1536x864, 1920x1080, 2048x1152, 1366x768, 1280x800, 1280x720, and 1399, 1400, 1401, 1439, 1440 and 1441 x800)
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,14 +15,17 @@ const [base = 'http://127.0.0.1:4273', ...sizes] = process.argv.slice(2);
 const GLOBE_MIN = 360;
 // The narrowest window the next-section checks apply to; narrower sizes keep every other check.
 const NEXT_SECTION_MIN_WIDTH = 1250;
-// The widths where the headlines step down to the display role.
-const ROLE_WIDTHS = [1101, 1400];
+// The widths where the headlines step down to the display role, the height up to which the wider headline is held to two lines too,
+// and the widest window that gets the later next-section heights (720 and 760 px).
+const ROLE_WIDTHS = [1101, 1440];
+const TWO_LINES_MAX_HEIGHT = 800;
+const LATER_SECTION_MAX_WIDTH = 1400;
 // How much of the steps' box must show to count as visible: their top border, padding and label line.
 const STEPS_PEEK = 30;
 
 const browser = await chromium.launch({ args: ['--disable-features=OverlayScrollbar'], ignoreDefaultArgs: ['--hide-scrollbars'] });
 let failures = 0;
-for (const [size, theme] of (sizes.length ? sizes : ['1425x700', '1440x789', '1536x864', '1920x1080', '2048x1152', '1366x768', '1280x800', '1280x720']).flatMap((s) => [[s, 'night'], [s, 'tidewater']])) {
+for (const [size, theme] of (sizes.length ? sizes : ['1425x700', '1440x789', '1536x864', '1920x1080', '2048x1152', '1366x768', '1280x800', '1280x720', '1399x800', '1400x800', '1401x800', '1439x800', '1440x800', '1441x800']).flatMap((s) => [[s, 'night'], [s, 'tidewater']])) {
   const [w, h] = size.split('x').map(Number);
   const context = await browser.newContext({ viewport: { width: w, height: h }, serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript((t) => localStorage.setItem('degrees-of-carbon-theme', t), theme);
@@ -57,8 +59,8 @@ for (const [size, theme] of (sizes.length ? sizes : ['1425x700', '1440x789', '15
   check(`the hero has one height on both banners (${a.slides.bottom - a.slides.top} / ${b.slides.bottom - b.slides.top}) and after a resize (${after})`, a.slides.bottom - a.slides.top === b.slides.bottom - b.slides.top && after === b.slides.bottom - b.slides.top);
   check(`the globe is at least ${GLOBE_MIN} px (${b.globe})`, b.globe >= GLOBE_MIN);
   if (w < NEXT_SECTION_MIN_WIDTH) console.log(`  --   next section not checked below ${NEXT_SECTION_MIN_WIDTH} px wide (heading ends ${b.heading.bottom}, steps from ${b.steps.top})`);
-  const [headingFrom, stepsFrom] = w > ROLE_WIDTHS[1] ? [700, 745] : [720, 760];
-  if (w >= ROLE_WIDTHS[0] && w <= ROLE_WIDTHS[1]) check(`both headlines hold two lines (${a.lines} / ${b.lines})`, a.lines <= 2 && b.lines <= 2);
+  const [headingFrom, stepsFrom] = w > LATER_SECTION_MAX_WIDTH ? [700, 745] : [720, 760];
+  if (w >= ROLE_WIDTHS[0] && (w <= ROLE_WIDTHS[1] || h <= TWO_LINES_MAX_HEIGHT)) check(`both headlines hold two lines (${a.lines} / ${b.lines})`, a.lines <= 2 && b.lines <= 2);
   if (w >= NEXT_SECTION_MIN_WIDTH && h >= headingFrom) check(`the next section's heading is fully visible on both banners (${a.heading.bottom} / ${b.heading.bottom})`, a.heading.bottom <= h && b.heading.bottom <= h);
   if (w >= NEXT_SECTION_MIN_WIDTH && h >= stepsFrom) check(`the top of its steps is visible on both banners (from ${a.steps.top} / ${b.steps.top})`, a.steps.top + STEPS_PEEK <= h && b.steps.top + STEPS_PEEK <= h);
   check(`row bottom ${b.row.bottom} is inside the viewport (${h})`, b.row.bottom <= h);

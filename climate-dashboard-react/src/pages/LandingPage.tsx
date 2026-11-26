@@ -29,6 +29,10 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // own responses (/overview, /overview/world-map-series) -- nothing is typed in -- so a weekly data
 // refresh that moves the latest year or country counts updates the page with no code change.
 
+// Up to this width both headlines take the display role: the narrowest width at which the wide, fluid headline holds two lines on an 800 px tall page
+// (measured: 1432 px with scrollbars taking room), plus 8 px (SPEC §5.25.1).
+const ROLE_HEADLINE_MAX_PX = 1440;
+
 // The landing globe is ambient (requirements §2.6): it turns once, continuously, while the year
 // advances one at a time from GLOBE_START_YEAR to the latest, blending colours between years so the change reads as smooth
 // rather than stepped. ~350 ms a year, ~19 s for the whole pass (it was 700 ms / ~38 s). (the earlier decade-by-decade steps are replaced.)
@@ -74,7 +78,7 @@ const STYLES = `
 .landing-slide h1 { text-wrap: balance; }
 .landing-headline { font-size: clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem); line-height: 1.05; font-weight: 700; }
 /* A narrow laptop: both banners' headlines step down to the design system's display role, so they hold two lines and the next section still shows (SPEC §5.25.1). */
-@media ${LANDING_WIDE_QUERY} and (max-width: 1400px) {
+@media ${LANDING_WIDE_QUERY} and (max-width: ${ROLE_HEADLINE_MAX_PX}px) {
   .landing-headline { font: var(--syn-type-display-weight) var(--syn-type-display-size) / var(--syn-type-display-line) var(--syn-type-display-family); letter-spacing: var(--syn-type-display-tracking); }
 }
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
