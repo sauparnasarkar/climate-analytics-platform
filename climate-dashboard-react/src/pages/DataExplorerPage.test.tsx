@@ -630,6 +630,11 @@ describe('DataExplorerPage in the dashboard shell', () => {
     // The page re-renders the shell (the top-bar summary becomes the new data set's title) while the sheet is open. The design system's focus trap used to treat that as
     // a new activation and move focus to the sheet's first control, the close button; only opening the sheet should take focus.
     setUp();
+    // The new data set's table and summary arrive after its card: hold them, so focus is checked both while they are pending and once they have rendered.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    vi.mocked(api.explorerData).mockImplementation(async (id: string) => { if (id === 'temperature') await held; return DATA; });
+    vi.mocked(api.explorerSummary).mockImplementation(async (id: string) => { if (id === 'temperature') await held; return SUMMARY; });
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: /max-width/.test(q), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     Element.prototype.scrollIntoView = vi.fn(); // jsdom has none; the sheet's inline menu scrolls its option into view
     onTestFinished(() => { Reflect.deleteProperty(Element.prototype, 'scrollIntoView'); });
@@ -643,8 +648,14 @@ describe('DataExplorerPage in the dashboard shell', () => {
     await user.click(screen.getByRole('option', { name: 'Global temperature · Berkeley Earth' }));
     expect(await screen.findByText('About Global temperature.')).toBeInTheDocument();
     await waitFor(() => expect(within(screen.getByRole('banner')).getByText('Global temperature')).toBeInTheDocument());
-    expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('combobox', { name: /Data set/ }));
+    const focusIsOnTheSelect = () => expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('combobox', { name: /Data set/ }));
+    focusIsOnTheSelect(); // the card and title have changed, the table and summary are still pending
     expect(document.activeElement).not.toBe(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close analysis controls' }));
+    release();
+    expect(await screen.findByRole('table', { name: 'Summary statistics' })).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(api.explorerData)).toHaveBeenCalledWith('temperature', [], 1850, 2025, ['year', 'anomaly'], 1, 50));
+    expect(await screen.findByText('1 rows · page 1 of 1')).toBeInTheDocument();
+    focusIsOnTheSelect(); // and again once they have rendered
   });
 
   it('keeps the select in the bar for an unavailable data set, with the warning in the body and no card', async () => {
