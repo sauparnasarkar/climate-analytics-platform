@@ -6,6 +6,7 @@
 
 import json
 import os
+import zlib
 
 OWID_URL = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"
 # OWID's codebook (one row per column: description and unit), the source of the Data Explorer's OWID column units (SPEC.md §5.37).
@@ -38,6 +39,16 @@ def get_expanded_countries():
 
 TRAIN_CUTOFF = 2018   # train: 1990–2018  |  test: 2019–2023
 FORECAST_END = 2043   # 20 years beyond 2023
+
+# Forecast intervals (week4 §4.3) come from simulation. Each country's draw is seeded from this base and the
+# country's name, so a refresh on unchanged data reproduces the same interval bounds, and adding or removing a
+# country leaves every other country's bounds unchanged. The mean forecast does not use the seed.
+FORECAST_SIMULATION_SEED = 4318
+
+
+def forecast_seed(country: str) -> int:
+    """Stable per-country seed for the interval simulation (an unsigned 32-bit integer)."""
+    return (FORECAST_SIMULATION_SEED + zlib.crc32(country.encode("utf-8"))) % 2**32
 
 # Week 3 regression only (see SPEC.md §6.1). Deliberately a separate constant from TARGET,
 # not a replacement -- week4_ets_forecasting.ipynb still needs TARGET='co2' for same-year
