@@ -118,16 +118,31 @@ describe('ChainBand under the hero', () => {
   }));
   const yearLineFollowsSteps = () => Boolean(screen.getByRole('list').compareDocumentPosition(screen.getByText(/All four steps for/)) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-  it('puts the year line below the steps in the wide layout, so the steps start higher', () => {
+  const yearLine = () => screen.getByText(/All four steps for/);
+  const totalsNote = () => screen.getByText(/Global totals built up over time/);
+
+  it('puts the year line below the steps in the wide layout, in one footnote block with the note on totals, both as captions', () => {
     wideScreen(true);
     renderBand();
     expect(yearLineFollowsSteps()).toBe(true);
+    const block = yearLine().parentElement!;
+    expect(block).toHaveClass('chain-band__notes');
+    expect([...block.children]).toEqual([yearLine(), totalsNote()]);
+    expect(block.previousElementSibling).toBe(screen.getByRole('list'));
+    for (const line of [yearLine(), totalsNote()]) expect(line).toHaveClass('syn-caption');
+  });
+
+  it('spaces the footnote block 12 px under the steps and a spacing step between its lines', () => {
+    // The band's gap is 16 px, so -4 px leaves 12.
+    expect(CHAIN_BAND_STYLES).toMatch(/\.chain-band__notes \{[^}]*gap: var\(--syn-space-1\); margin-top: -4px; \}/);
   });
 
   it('keeps the year line above the steps on a phone or an upright tablet', () => {
     wideScreen(false);
     renderBand();
     expect(yearLineFollowsSteps()).toBe(false);
+    expect(document.querySelector('.chain-band__notes')).toBeNull();
+    expect(yearLine()).toHaveClass('syn-text-md');
   });
 
   it('takes less top padding only in the wide layout, and only straight after the hero', () => {

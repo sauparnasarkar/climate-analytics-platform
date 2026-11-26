@@ -13,6 +13,8 @@ const { chromium } = createRequire(path.resolve(here, '../../../syena-design-sys
 const [base = 'http://127.0.0.1:4273', ...sizes] = process.argv.slice(2);
 
 const GLOBE_MIN = 360;
+// The widest space the text column's own spacing allows between two of its parts.
+const TEXT_GAP_MAX = 25;
 // The narrowest window the next-section checks apply to; narrower sizes keep every other check.
 const NEXT_SECTION_MIN_WIDTH = 1250;
 // The widths where the headlines step down to the display role, the height up to which the wider headline is held to two lines too,
@@ -42,7 +44,12 @@ for (const [size, theme] of (sizes.length ? sizes : ['1425x700', '1440x789', '15
       const slides = document.querySelector('.hero-carousel__slides');
       const slide = document.querySelector('.hero-carousel__slide[data-active="true"]');
       const h1 = slide.querySelector('h1');
-      return { lines: Math.round(h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight)), theme: document.documentElement.getAttribute('data-syn-theme'), globe: Math.round(document.querySelector('.landing-hero__globe canvas').getBoundingClientRect().width), heading: box(document.querySelector('#chain-heading')), steps: box(document.querySelector('.chain-band__steps')), row: box(document.querySelector('.hero-carousel__controls')), slides: box(slides), content: box(slide.firstElementChild), panel: box(slide.querySelector('figure')), overflow: slide.firstElementChild.getBoundingClientRect().bottom - slides.getBoundingClientRect().bottom, scrollbar: innerWidth - document.documentElement.clientWidth };
+      // The text column's parts sit together at the top: the widest space between two of them, and the footnote block's place under the steps.
+      const parts = [...slide.querySelector('.climate-banner__text, .landing-hero__text').children].map((e) => e.getBoundingClientRect()).filter((r) => r.height > 0);
+      const widestGap = Math.round(Math.max(...parts.slice(1).map((r, n) => r.top - parts[n].bottom)));
+      const [first, second] = document.querySelector('.chain-band__notes')?.children ?? [];
+      const notes = first && second ? [Math.round(first.getBoundingClientRect().top - document.querySelector('.chain-band__steps').getBoundingClientRect().bottom), Math.round(second.getBoundingClientRect().top - first.getBoundingClientRect().bottom)] : null;
+      return { widestGap, notes, lines: Math.round(h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight)), theme: document.documentElement.getAttribute('data-syn-theme'), globe: Math.round(document.querySelector('.landing-hero__globe canvas').getBoundingClientRect().width), heading: box(document.querySelector('#chain-heading')), steps: box(document.querySelector('.chain-band__steps')), row: box(document.querySelector('.hero-carousel__controls')), slides: box(slides), content: box(slide.firstElementChild), panel: box(slide.querySelector('figure')), overflow: slide.firstElementChild.getBoundingClientRect().bottom - slides.getBoundingClientRect().bottom, scrollbar: innerWidth - document.documentElement.clientWidth };
     }));
   }
   const [a, b] = seen;
@@ -63,6 +70,8 @@ for (const [size, theme] of (sizes.length ? sizes : ['1425x700', '1440x789', '15
   if (w >= ROLE_WIDTHS[0] && (w <= ROLE_WIDTHS[1] || h <= TWO_LINES_MAX_HEIGHT)) check(`both headlines hold two lines (${a.lines} / ${b.lines})`, a.lines <= 2 && b.lines <= 2);
   if (w >= NEXT_SECTION_MIN_WIDTH && h >= headingFrom) check(`the next section's heading is fully visible on both banners (${a.heading.bottom} / ${b.heading.bottom})`, a.heading.bottom <= h && b.heading.bottom <= h);
   if (w >= NEXT_SECTION_MIN_WIDTH && h >= stepsFrom) check(`the top of its steps is visible on both banners (from ${a.steps.top} / ${b.steps.top})`, a.steps.top + STEPS_PEEK <= h && b.steps.top + STEPS_PEEK <= h);
+  check(`each banner's text stays together at the top (widest gap ${a.widestGap} / ${b.widestGap} px)`, a.widestGap <= TEXT_GAP_MAX && b.widestGap <= TEXT_GAP_MAX);
+  check(`the footnotes are one block, 12 px under the steps and 4-6 px apart (${b.notes})`, Boolean(b.notes) && b.notes[0] === 12 && b.notes[1] >= 4 && b.notes[1] <= 6);
   check(`row bottom ${b.row.bottom} is inside the viewport (${h})`, b.row.bottom <= h);
   check(`row is at the same place on both banners (${a.row.top} / ${b.row.top})`, a.row.top === b.row.top);
   check(`both banners fit the hero (content bottoms ${a.content.bottom} / ${b.content.bottom}, hero bottom ${b.slides.bottom})`, a.overflow <= 0.5 && b.overflow <= 0.5);
