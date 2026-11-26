@@ -261,7 +261,9 @@ describe('CountryProfilePage', () => {
     it('adds a Cumulative jump link to the new section', async () => {
       arrange();
       render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
-      const nav = await screen.findByRole('navigation', { name: 'On this page' });
+      // The jump links are there while the profile is still loading; the sections they point at come with the data. Wait for the section, not for the links.
+      await screen.findByRole('heading', { name: 'Cumulative contribution' });
+      const nav = screen.getByRole('navigation', { name: 'On this page' });
       expect(within(nav).getByRole('link', { name: 'Cumulative' })).toHaveAttribute('href', '#cumulative');
       expect(document.getElementById('cumulative')).not.toBeNull();
     });
