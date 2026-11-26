@@ -380,6 +380,19 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(document.querySelectorAll('.climate-banner__forecasts, .landing-hero__forecasts')).toHaveLength(2);
   });
 
+  it('keeps each banner\'s text together at the top and its button row at the foot of the column, in the wide layout only', async () => {
+    mountWithClimate();
+    await screen.findByRole('link', { name: 'See the climate signal' });
+    const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
+    const wide = css.slice(css.indexOf('@media (min-width: 1101px) {\n  .landing-slide {'));
+    const block = wide.slice(0, wide.indexOf('\n}'));
+    expect(block).toContain('.climate-banner__text, .landing-hero__text { align-self: stretch; justify-content: flex-start; }');
+    expect(block).toContain('.climate-banner__ctas, .landing-hero__ctas { margin-top: auto; }');
+    expect(css.match(/margin-top: auto/g)).toHaveLength(1);
+    // The row is the column's last part on both banners, so the auto margin puts all the spare height above it.
+    for (const column of document.querySelectorAll('.climate-banner__text, .landing-hero__text')) expect(column.lastElementChild!.className).toMatch(/__ctas$/);
+  });
+
   it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
     mountWithClimate();
     const band = await screen.findByRole('region', { name: 'How emissions add up to warming' });
@@ -391,7 +404,7 @@ describe('LandingPage — climate-signal carousel', () => {
     mountWithClimate();
     const primary = await screen.findByRole('link', { name: 'See the climate signal' });
     expect(primary).toHaveAttribute('href', '/overview#climate-signal');
-    expect(screen.getByRole('link', { name: 'Explore climate correlation' })).toHaveAttribute('href', '/climate-correlation');
+    expect(screen.getByRole('link', { name: 'Climate correlation' })).toHaveAttribute('href', '/climate-correlation');
     expect(screen.queryAllByRole('link', { name: 'Explore the data' }).filter((l) => l.getAttribute('href')?.startsWith('/overview'))).toHaveLength(0); // the two buttons no longer both go to the Overview
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
   });
