@@ -83,7 +83,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         <div className="syn-caption" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--syn-color-accent-text, inherit)' }}>
           Climate signal · Global · {fit.start}–{fit.end}
         </div>
-        <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id={headingId} className="landing-headline" style={{ margin: 0 }}>
           Warming tracks the CO₂ we’ve accumulated
         </h1>
         <p className="syn-text-lg" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--syn-color-text-muted)' }}>

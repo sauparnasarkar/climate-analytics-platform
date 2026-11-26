@@ -363,6 +363,23 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.queryByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).not.toBeInTheDocument();
   });
 
+  it('steps both headlines down to the display type role between 1101 and 1440 px, and keeps the Forecasts link', async () => {
+    mountWithClimate();
+    await screen.findByRole('link', { name: 'See the climate signal' });
+    const headlines = [...document.querySelectorAll<HTMLElement>('.landing-slide h1')];
+    expect(headlines).toHaveLength(2);
+    for (const h1 of headlines) {
+      expect(h1).toHaveClass('landing-headline');
+      expect(h1.style.fontSize).toBe(''); // an inline size would beat the stylesheet's step
+    }
+    const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
+    const narrow = css.match(/@media \(min-width: 1101px\) and \(max-width: 1440px\) \{\s*\.landing-headline \{([^}]*)\}/)![1];
+    expect(narrow).toContain('var(--syn-type-display-size) / var(--syn-type-display-line)');
+    expect(narrow).toContain('letter-spacing: var(--syn-type-display-tracking)');
+    expect(narrow).not.toMatch(/clamp|\dpx|\drem|\dv[wh]/); // the role as it is: no size of our own
+    expect(document.querySelectorAll('.climate-banner__forecasts, .landing-hero__forecasts')).toHaveLength(2);
+  });
+
   it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
     mountWithClimate();
     const band = await screen.findByRole('region', { name: 'How emissions add up to warming' });

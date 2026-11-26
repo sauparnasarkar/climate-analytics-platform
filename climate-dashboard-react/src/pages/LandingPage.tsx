@@ -10,7 +10,7 @@ import { StockStories } from '../components/landing/StockStories';
 import { RankRace } from '../components/landing/RankRace';
 import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
 import { CAROUSEL_STYLES, HeroCarousel, type PageAnchor } from '../components/landing/HeroCarousel';
-import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
+import { LANDING_WIDE_QUERY, PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { ctaClass } from '../components/landing/cta';
 import { buildClimateSignal } from '../lib/climateSignal';
 import { sliceMapSeries, worldTotals } from '../lib/mapSeries';
@@ -28,6 +28,10 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // Landing page (SPEC.md §5.25). Every number and year on it is computed from the API's
 // own responses (/overview, /overview/world-map-series) -- nothing is typed in -- so a weekly data
 // refresh that moves the latest year or country counts updates the page with no code change.
+
+// Up to this width both headlines take the display role: the narrowest width at which the wide, fluid headline holds two lines on an 800 px tall page
+// (measured: 1432 px with scrollbars taking room), plus 8 px (SPEC §5.25.1).
+const ROLE_HEADLINE_MAX_PX = 1440;
 
 // The landing globe is ambient (requirements §2.6): it turns once, continuously, while the year
 // advances one at a time from GLOBE_START_YEAR to the latest, blending colours between years so the change reads as smooth
@@ -51,15 +55,18 @@ const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other count
 // The hero above the fold on a laptop: the landing header, the carousel's control row and the least height the hero is given.
 const HEADER_PX = 68;
 const CAROUSEL_ROW_PX = 59;
-// The hero follows the screen but stays within a band, so a laptop shows the banner, its control row and the top of the next section:
-// the viewport less the header, the control row and a peek of the next section, kept between these two heights.
-const HERO_MIN_PX = 504;
-const HERO_MAX_PX = 560;
-const PEEK_PX = 140;
 // What the globe slide holds besides the picture (the legend, the one row of controls -- zoom, reset, table, Pause and the year slider -- and the panel's padding), measured.
 const GLOBE_SLIDE_EXTRA_PX = 102;
 // The smallest globe on a laptop, where the hero is short.
-const GLOBE_MIN_PX = 220;
+const GLOBE_MIN_PX = 360;
+// A banner's own padding in the wide layout.
+const SLIDE_PAD_TOP_PX = 24;
+const SLIDE_PAD_BOTTOM_PX = 12;
+// The hero follows the screen, so a laptop shows the banner, its control row and the next section's heading: the viewport less the header, the control row
+// and a peek of that section, no taller than the design's height and no shorter than the smallest globe needs. A banner whose text is taller still grows to fit it.
+const HERO_MIN_PX = GLOBE_MIN_PX + GLOBE_SLIDE_EXTRA_PX + SLIDE_PAD_TOP_PX + SLIDE_PAD_BOTTOM_PX;
+const HERO_MAX_PX = 560;
+const PEEK_PX = 120;
 // On a phone both banners are this tall (the picture takes what the text, figures and button leave), so the page does not move when the slide changes.
 const HERO_PHONE_PX = 560;
 // On a tablet the globe stops here, so the next section shows under the hero.
@@ -69,6 +76,11 @@ const STYLES = `
 .landing { --landing-header: ${HEADER_PX}px; --carousel-row: ${CAROUSEL_ROW_PX}px; --hero-h: clamp(${HERO_MIN_PX}px, calc(100svh - ${HEADER_PX + CAROUSEL_ROW_PX + PEEK_PX}px), ${HERO_MAX_PX}px); --hero-h-phone: ${HERO_PHONE_PX}px; --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
 .landing [id$="-heading"] { scroll-margin-top: 84px; }
 .landing-slide h1 { text-wrap: balance; }
+.landing-headline { font-size: clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem); line-height: 1.05; font-weight: 700; }
+/* A narrow laptop: both banners' headlines step down to the design system's display role, so they hold two lines and the next section still shows (SPEC §5.25.1). */
+@media ${LANDING_WIDE_QUERY} and (max-width: ${ROLE_HEADLINE_MAX_PX}px) {
+  .landing-headline { font: var(--syn-type-display-weight) var(--syn-type-display-size) / var(--syn-type-display-line) var(--syn-type-display-family); letter-spacing: var(--syn-type-display-tracking); }
+}
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
 /* Both banners of the carousel share one layout, so nothing moves when the slide changes: a text column and a picture column in the same proportion,
    both starting at the same top edge. The lines are the one visible colour of the KPI strip (the divider tokens are lighter than the tinted light-theme background). */
@@ -84,8 +96,8 @@ const STYLES = `
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
 .landing-race__text { flex: 0 0 min(380px, 34%); }
 .landing-race__chart { flex: 1 1 0; min-width: 0; }
-@media (min-width: 1101px) {
-  .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: minmax(0, 1fr); padding-top: 24px; padding-bottom: 12px; }
+@media ${LANDING_WIDE_QUERY} {
+  .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: minmax(0, 1fr); padding-top: ${SLIDE_PAD_TOP_PX}px; padding-bottom: ${SLIDE_PAD_BOTTOM_PX}px; }
   .climate-banner__chart { align-self: stretch; min-height: 0; }
   /* The text column is as tall as the picture beside it, its parts spread down it, so the buttons end on the picture's bottom edge and no gap opens under the figures. */
   .climate-banner__text, .landing-hero__text { align-self: stretch; justify-content: space-between; }
@@ -175,11 +187,11 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
   const viewportHeight = useViewportHeight();
   // On a phone the globe takes at most ~62% of the screen height so Play and the slider stay with it.
   const isPhone = useMediaQuery(PHONE_QUERY);
-  const roomy = useMediaQuery('(min-width: 1101px)');
+  const roomy = useMediaQuery(LANDING_WIDE_QUERY);
   const tablet = useMediaQuery('(min-width: 641px) and (max-width: 1100px)');
   // On a laptop the picture takes what the hero leaves it, so the carousel's control row stays in view: the hero is the viewport less the header and the row (at least the minimum), less the slide's own padding and the other parts of the panel.
   const heroHeight = Math.min(HERO_MAX_PX, Math.max(HERO_MIN_PX, viewportHeight - HEADER_PX - CAROUSEL_ROW_PX - PEEK_PX));
-  const slidePad = roomy ? 18 : Math.min(48, Math.max(16, viewportHeight * 0.03));
+  const slidePad = roomy ? (SLIDE_PAD_TOP_PX + SLIDE_PAD_BOTTOM_PX) / 2 : Math.min(48, Math.max(16, viewportHeight * 0.03));
   const laptopMax = roomy ? Math.max(GLOBE_MIN_PX, Math.min(600, Math.floor(heroHeight - GLOBE_SLIDE_EXTRA_PX - 2 * slidePad))) : Math.max(300, Math.min(tablet ? TABLET_GLOBE_MAX_PX : 600, viewportHeight - 68 - 64 - 56 - 100 - 52));
   // ...and sized to what fits: from where the globe starts on the page down to the stable (toolbars-shown) viewport's bottom, less room for its
   // caption, the legend and the pill, so those sit clear of the pill at rest instead of under it.
@@ -263,7 +275,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true, onHold }: { 
         <div className="syn-caption" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--syn-color-accent-text, inherit)' }}>
           Our World in Data CO₂ · {minYear}–{maxYear}<span className="landing-hero__eyebrow-count"> · {all.countries_count} countries</span>
         </div>
-        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 6.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id="landing-title" className="landing-headline" style={{ margin: 0 }}>
           Where the world’s CO₂ comes from
         </h1>
         <p className="syn-text-lg" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--syn-color-text-muted)' }}>

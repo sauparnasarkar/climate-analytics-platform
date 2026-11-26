@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClimateSignal } from '../../lib/climateSignal';
 import { buildAlignedChain } from '../../lib/alignedYear';
-import { ChainBand } from './ChainBand';
+import { CHAIN_BAND_STYLES, ChainBand } from './ChainBand';
 
 const SIGNAL: ClimateSignal = {
   points: [], fit: { slope: 0.52, ciLow: 0.48, ciHigh: 0.56, rSquared: 0.9, unit: 'u', start: 1850, end: 2024, nYears: 175 }, line: { x0: 0, y0: 0, x1: 1, y1: 1 },
@@ -107,5 +107,34 @@ describe('ChainBand', () => {
     renderBand({ ...SIGNAL, ppm1850: null });
     const cell = screen.getByText('02 · Concentration').closest('li')!;
     expect(within(cell).getByText('2024')).toBeInTheDocument();
+  });
+});
+
+describe('ChainBand under the hero', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const wideScreen = (wide: boolean) => vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: wide && query === '(min-width: 1101px)', media: query, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  const yearLineFollowsSteps = () => Boolean(screen.getByRole('list').compareDocumentPosition(screen.getByText(/All four steps for/)) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it('puts the year line below the steps in the wide layout, so the steps start higher', () => {
+    wideScreen(true);
+    renderBand();
+    expect(yearLineFollowsSteps()).toBe(true);
+  });
+
+  it('keeps the year line above the steps on a phone or an upright tablet', () => {
+    wideScreen(false);
+    renderBand();
+    expect(yearLineFollowsSteps()).toBe(false);
+  });
+
+  it('takes less top padding only in the wide layout, and only straight after the hero', () => {
+    expect(CHAIN_BAND_STYLES).toMatch(/@media \(min-width: 1101px\) \{\s*\.hero-carousel \+ \.chain-band \{ --chain-pad-top: 24px; \}\s*\}/);
+    renderBand();
+    const section = screen.getByRole('region', { name: 'How emissions add up to warming' });
+    expect(section).toHaveClass('chain-band');
+    expect(section.style.padding).toContain('var(--chain-pad-top, var(--landing-pad-y))');
   });
 });

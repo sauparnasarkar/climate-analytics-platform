@@ -481,6 +481,7 @@ Sections to include:
 | v79 | Nov 2026 | §5.37 (**Shipped** 2026-11-24; docs-first, then the pipeline, API and page): the Data Explorer browses seven data sets one at a time (OWID country and World, PRIMAP-hist country and global, CO₂ annual and monthly, Berkeley Earth temperature) through a "Data set" switcher; `/api/explorer/datasets` and a `dataset` parameter on the explorer endpoints; per-column summary; downloads are a zip with an attribution file; OWID column units from OWID's codebook, downloaded by the refresh job |
 | v80 | Nov 2026 | §5.37.1 (**Docs-first**): the Data Explorer's Data set select moves into the pinned analysis bar (the shell counts `PageFilters` registrations instead of toggling a boolean); the data set card becomes two lines and opens the Dataset Preview section; the share-alike notice and the source caveats move inside it; the phone top bar names the data set |
 | v81 | Nov 2026 | §5.37.1 follow-up (**Docs-first**), from the owner's review of the preview: a focus bug in the phone's filters sheet (fixed in the design system's `useFocusTrap`, then the pin), and the data set card's height (the small `Tag`, tighter spacing); two further points left open for a decision |
+| v82 | Nov 2026 | §5.25.1: on the Home page the next section shows under the hero on laptop screens (hero floor 498 px from a 360 px globe, 120 px peek, 24 px above the chain section, its year line below the steps, headlines in the `display` role at 1101–1440 px; limit recorded for 1101–1249 px) |
 
 ---
 
@@ -1871,6 +1872,20 @@ that actually owns `api/main.py`.
 | Data | No new endpoint planned: the landing page and race derive from `/overview` and `worldMapSeries`. The headline sentence stays `buildHeadlineSentence`'s output, not the mock's copy |
 | Post-ship follow-ups | (1) **Decade steps:** the Landing globe autoplays 1990, 2000, 2010, 2020, then the latest year (`stepYears: 10`); the Overview map keeps 5-year steps; the slider still allows any year. (2) **Disputed zones:** Natural Earth's `XJK`, `XAC`, `XAP` have no OWID rows, so they drew as no-data gaps inside India; they are merged into `IND` in `syena-design-system`'s `world-countries-110m.topo.json` (one shape, no internal borders; 196 features, the design system), which both the globe and `Chart`'s choropleth load. (3) **Default theme:** first-time visitors (or blocked storage) get Dark (`night`); a stored Light/Dark choice still wins |
 | Scope | The notebooks (Weeks 1–5) and §§1–4 are unaffected; React/deploy only, same category as the rest of §5 |
+
+#### 5.25.1 Home: the next section shows under the hero
+
+On a laptop with about 700 px of page height the hero sat at its 504 px floor and the chain section's top padding (about 86 px) filled the strip under the chapter bar, so nothing of the next section showed. Layouts 1101 px wide and up only; phone and upright tablet are unchanged.
+
+| Aspect | Detail |
+|---|---|
+| Hero height | At least the viewport less the header (68 px), the chapter bar (59 px) and a 120 px peek, between 498 px and 560 px (`--hero-h`, and the same figures size the globe). A banner whose text is taller sets the height; both banners always share it |
+| Globe | At least 360 px; 498 px is that plus the rest of its panel and the banner's padding |
+| Chain section | 24 px top padding when it follows the hero. "All four steps for {year}…" moves below the four steps (moved in the markup, so reading order matches) |
+| Headline | 1101–1440 px wide, both banners' headlines take the design system's `display` type role whole (40 px on a 52 px line, weight 600; no size of the app's own), so they hold two lines. "Forecasts to 2043 →" stays. The edge is measured: on an 800 px tall page the wider, fluid headline (weight 700) holds two lines from 1432 px (scrollbars taking room), plus 8 px. Its size also follows page height, so the edge does: 1414 px at 789 px tall, 1555 px from about 880 px tall. Wider than 1440 px and taller than 800 px it can still take a third line, which the 560 px hero has room for |
+| Result | Wider than 1400 px: the section's heading shows in full from 700 px of page height, the top of its steps from 745 px. 1250–1400 px wide: the heading from about 720 px, the steps' top edge from 745 px and their first label from about 760 px |
+| Limits | **1101–1249 px wide:** the hero is taller than the cap (the climate banner's text, and a globe legend that wraps so its panel needs 40 px more than the sizing allows), so at 745 px of page height the steps start below the fold: 789 px at 1101 (where the chapter bar also wraps), 764 px at 1180, 749 px at 1240. They show from about 810 px tall at 1180–1220 px wide and about 850 px at 1101. A window under about 700 px tall cannot show the heading with a 360 px globe. |
+| Check | `climate-dashboard-react/scripts/check-landing-fold.mjs <base url>`: both banners, both themes, a resize, two-line headlines, and both edges (1400 and 1440 px, each ±1 px, at 800 px tall) |
 
 ---
 
