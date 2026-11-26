@@ -99,9 +99,11 @@ const STYLES = `
 @media ${LANDING_WIDE_QUERY} {
   .landing-slide { height: 100%; box-sizing: border-box; grid-template-rows: minmax(0, 1fr); padding-top: ${SLIDE_PAD_TOP_PX}px; padding-bottom: ${SLIDE_PAD_BOTTOM_PX}px; }
   .climate-banner__chart { align-self: stretch; min-height: 0; }
-  /* The text column is as tall as the picture beside it, its parts spread down it, so the buttons end on the picture's bottom edge and no gap opens under the figures. */
-  .climate-banner__text, .landing-hero__text { align-self: stretch; justify-content: space-between; }
-  /* The figures keep their own height (the strip's rules hug them); what is left of the column goes into the gaps between eyebrow, headline, paragraph and figures. */
+  /* The text column is as tall as the picture beside it. Headline, paragraph and figures sit together at the top at their own spacing, and the button row is at its
+     foot, on the picture's bottom edge, at the same height on both banners: any spare height is between the figures and the buttons, never under a short headline. */
+  .climate-banner__text, .landing-hero__text { align-self: stretch; justify-content: flex-start; }
+  .climate-banner__ctas, .landing-hero__ctas { margin-top: auto; }
+  /* The figures keep their own height (the strip's rules hug them). */
   .climate-banner__text .landing-kpi-strip, .landing-hero__text .landing-kpi-strip { flex: 0 0 auto; }
   .climate-banner .climate-scatter { flex: 1 1 0; min-height: 160px; aspect-ratio: auto; max-height: none; }
 }

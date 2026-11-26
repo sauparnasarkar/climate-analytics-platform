@@ -113,21 +113,26 @@ describe('ChainBand', () => {
 describe('ChainBand under the hero', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const wideScreen = (wide: boolean) => vi.stubGlobal('matchMedia', (query: string) => ({
+  const screenWidth = (wide: boolean) => vi.stubGlobal('matchMedia', (query: string) => ({
     matches: wide && query === '(min-width: 1101px)', media: query, addEventListener: () => {}, removeEventListener: () => {},
   }));
-  const yearLineFollowsSteps = () => Boolean(screen.getByRole('list').compareDocumentPosition(screen.getByText(/All four steps for/)) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const yearLine = () => screen.getByText(/All four steps for/);
+  const totalsNote = () => screen.getByText(/Global totals built up over time/);
 
-  it('puts the year line below the steps in the wide layout, so the steps start higher', () => {
-    wideScreen(true);
+  it.each([['a laptop or desktop', true], ['a phone or an upright tablet', false]])('puts both notes in one footnote block under the steps, both as captions, on %s', (_name, wide) => {
+    screenWidth(wide);
     renderBand();
-    expect(yearLineFollowsSteps()).toBe(true);
+    const block = yearLine().parentElement!;
+    expect(block).toHaveClass('chain-band__notes');
+    expect([...block.children]).toEqual([yearLine(), totalsNote()]);
+    expect(block.previousElementSibling).toBe(screen.getByRole('list'));
+    for (const line of [yearLine(), totalsNote()]) expect(line).toHaveClass('syn-caption');
   });
 
-  it('keeps the year line above the steps on a phone or an upright tablet', () => {
-    wideScreen(false);
-    renderBand();
-    expect(yearLineFollowsSteps()).toBe(false);
+  it('spaces the footnote block 12 px under the steps and a spacing step between its lines, at every width', () => {
+    // The band's gap is 16 px, so -4 px leaves 12. The rule sits outside the media queries.
+    expect(CHAIN_BAND_STYLES).toMatch(/\n\.chain-band__notes \{[^}]*gap: var\(--syn-space-1\); margin-top: -4px; \}/);
+    expect(CHAIN_BAND_STYLES.indexOf('.chain-band__notes')).toBeGreaterThan(CHAIN_BAND_STYLES.indexOf('--chain-pad-top: 24px'));
   });
 
   it('takes less top padding only in the wide layout, and only straight after the hero', () => {

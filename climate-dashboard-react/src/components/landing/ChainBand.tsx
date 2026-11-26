@@ -4,7 +4,7 @@ import type { AlignedChain } from '../../lib/alignedYear';
 import { AlignedNote } from '../climate/AlignedNote';
 import { fmtInt } from '../../lib/landingData';
 import { TAGLINE_HEADING } from '../../navigation';
-import { LANDING_WIDE_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
+import { LANDING_WIDE_QUERY } from '../../hooks/useMediaQuery';
 
 // The four-step row (Area 2, requirements §2.1): emissions → concentration → radiative forcing → temperature anomaly, between the
 // hero and the rest of the page. One compact row of the four values with a link to Climate Correlation, which owns the full chain
@@ -17,6 +17,8 @@ export const CHAIN_BAND_STYLES = `
 @media ${LANDING_WIDE_QUERY} {
   .hero-carousel + .chain-band { --chain-pad-top: 24px; }
 }
+/* The foot of the band: its two notes as one block, 12 px under the steps (the band's own 16 px gap, less 4). */
+.chain-band__notes { display: flex; flex-direction: column; gap: var(--syn-space-1); margin-top: -4px; }
 .chain-band__steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; border: 1px solid var(--syn-color-border-subtle); border-radius: 8px; background: var(--syn-color-surface-base); }
 .chain-band__step { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; min-width: 0; }
 .chain-band__step + .chain-band__step { border-left: 1px solid var(--syn-color-border-subtle); }
@@ -46,11 +48,6 @@ export function ChainBand({ signal, chain }: { signal: ClimateSignal; chain: Ali
   const { ppm1850 } = signal;
   const { emissions, concentration, temperature } = chain;
   const upPct = ppm1850 ? Math.round((concentration.value / ppm1850 - 1) * 100) : null;
-  // In the wide layout the year line follows the steps, so they start higher on the screen; elsewhere it introduces them. Moved in the markup, so reading order matches.
-  const wide = useMediaQuery(LANDING_WIDE_QUERY);
-  const yearLine = (
-    <p className="syn-text-md" style={{ ...caption, marginTop: wide ? 0 : -8 }}>All four steps for <strong style={{ color: 'var(--syn-color-text-primary)' }}>{chain.year}</strong>, the latest year every step has data.</p>
-  );
   // No bottom padding: the next section brings its own, so the two never stack into a double gap.
   return (
     <section aria-labelledby="chain-heading" className="chain-band" style={{ padding: 'var(--chain-pad-top, var(--landing-pad-y)) var(--landing-pad-x) 0', background: 'var(--syn-color-surface-raised)', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -59,7 +56,6 @@ export function ChainBand({ signal, chain }: { signal: ClimateSignal; chain: Ali
         <h2 id="chain-heading" className="landing-h2" style={{ margin: 0 }}>{TAGLINE_HEADING}</h2>
         <Link to="/climate-correlation" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>How this works → Climate Correlation</Link>
       </div>
-      {!wide && yearLine}
       <ol className="chain-band__steps">
         <li className="chain-band__step">
           <div style={stepHead}><div className="chain-band__label chain-band__label--emissions">01 · Emissions</div><AlignedNote note={emissions?.note ?? null} label="emissions" /></div>
@@ -82,8 +78,11 @@ export function ChainBand({ signal, chain }: { signal: ClimateSignal; chain: Ali
           <p className="syn-caption" style={caption}>{temperature.year}, above 1850–1900</p>
         </li>
       </ol>
-      {wide && yearLine}
-      <p className="syn-caption" style={caption}>Global totals built up over time. One country’s emissions in one year do not set that year’s temperature.</p>
+      {/* Under the steps at every width, so they start higher on the screen. */}
+      <div className="chain-band__notes">
+        <p className="syn-caption" style={caption}>All four steps for <strong style={{ color: 'var(--syn-color-text-primary)' }}>{chain.year}</strong>, the latest year every step has data.</p>
+        <p className="syn-caption" style={caption}>Global totals built up over time. One country’s emissions in one year do not set that year’s temperature.</p>
+      </div>
     </section>
   );
 }
