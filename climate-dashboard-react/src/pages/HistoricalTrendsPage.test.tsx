@@ -364,7 +364,8 @@ describe('HistoricalTrendsPage', () => {
       await new Promise((resolve) => setTimeout(resolve, 600));
       expect(document.activeElement?.id).not.toBe('ghg-by-decade');
       release(COMPOSITION);
-      await waitFor(() => expect(document.activeElement?.id).toBe('ghg-by-decade'));
+      // The jump waits for 300 ms of unchanged layout, so on a busy machine the default 1000 ms is too tight. Under the 5 s test limit, so a real miss still says what was focused.
+      await waitFor(() => expect(document.activeElement?.id).toBe('ghg-by-decade'), { timeout: 3000 });
     } finally {
       window.history.replaceState(null, '', '/');
     }
