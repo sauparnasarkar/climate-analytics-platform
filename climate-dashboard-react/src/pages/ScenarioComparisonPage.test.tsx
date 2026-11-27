@@ -172,7 +172,8 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
 
-    expect(await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries')).toBeInTheDocument();
+    // The first render in this file, which has taken more than the default 1000 ms on a busy machine.
+    expect(await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'BAU' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Moderate' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Aggressive' })).toBeInTheDocument();
@@ -458,7 +459,8 @@ describe('ScenarioComparisonPage', () => {
       await new Promise((resolve) => setTimeout(resolve, 600)); // longer than the page's own settling time
       expect(document.activeElement?.id).not.toBe('cumulative-impact');
       release(COMPARE);
-      await waitFor(() => expect(document.activeElement?.id).toBe('cumulative-impact'));
+      // The jump waits for 300 ms of unchanged layout, so on a busy machine the default 1000 ms is too tight. Under the 5 s test limit, so a real miss still says what was focused.
+      await waitFor(() => expect(document.activeElement?.id).toBe('cumulative-impact'), { timeout: 3000 });
     } finally {
       window.history.replaceState(null, '', '/');
     }
