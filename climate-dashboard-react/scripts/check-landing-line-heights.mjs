@@ -5,11 +5,6 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// One exception, for one element: the phone globe banner's year (`.landing-globe-year`, 640px and narrower) is set at 1.1. A year is one unbroken number, so
-// it is always one line and has no second line to run into; 1.1 is the compact setting of the readout on the picture's corner (d98dbd0). The exception holds
-// only while it is on one line and at 1.1 or more.
-const PHONE_YEAR = { selector: '.landing-globe-year', maxWidth: 640, ratio: 1.1 };
-
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chromium } = createRequire(path.resolve(here, '../../../syena-design-system/package.json'))('playwright');
 const [base = 'http://127.0.0.1:4273', ...sizes] = process.argv.slice(2);
@@ -35,10 +30,7 @@ for (const size of (sizes.length ? sizes : ['1440x900', '390x844'])) {
   const height = await page.evaluate(() => document.documentElement.scrollHeight);
   for (let y = 0; y < height; y += 500) { await page.evaluate((top) => scrollTo(0, top), y); await page.waitForTimeout(150); }
   found.push(...await scan(page));
-  const excepted = (f) => f.phoneYear && w <= PHONE_YEAR.maxWidth && f.oneLine && f.ratio >= PHONE_YEAR.ratio - 0.001;
-  const short = [...new Map(found.map((f) => [f.text + f.y, f])).values()].filter((f) => f.ratio < (/^H[1-3]$/.test(f.tag) ? 1.05 : 1.15) - 0.001);
-  const bad = short.filter((f) => !excepted(f));
-  for (const ratio of new Set(short.filter(excepted).map((f) => f.ratio))) console.log(`${size}: note the phone globe year is at ${ratio} x on one line (the one exception, see the top of this script)`);
+  const bad = [...new Map(found.map((f) => [f.text + f.y, f])).values()].filter((f) => f.ratio < (/^H[1-3]$/.test(f.tag) ? 1.05 : 1.15) - 0.001);
   console.log(`${size}: ${bad.length === 0 ? 'ok   every large text has a line box that fits it' : 'FAIL ' + bad.length + ' large text(s) with a line box that is too short'}`);
   for (const f of bad) console.log(`  ${f.tag} "${f.text}" ${f.fs}px on ${f.lh} (${f.ratio} x)`);
   failures += bad.length;
@@ -49,7 +41,7 @@ console.log(failures === 0 ? 'PASS' : `FAIL: ${failures}`);
 process.exit(failures === 0 ? 0 : 1);
 
 function scan(page) {
-  return page.evaluate((phoneYear) => {
+  return page.evaluate(() => {
     const out = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const seen = new Set();
@@ -63,11 +55,8 @@ function scan(page) {
       const fs = parseFloat(cs.fontSize);
       const lh = parseFloat(cs.lineHeight);
       if (Number.isNaN(lh) || fs < 18) continue;
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const oneLine = new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size === 1;
-      out.push({ text: t.slice(0, 40), tag: el.tagName, fs, lh: cs.lineHeight, ratio: +(lh / fs).toFixed(3), y: Math.round(el.getBoundingClientRect().top + scrollY), phoneYear: el.matches(phoneYear), oneLine });
+      out.push({ text: t.slice(0, 40), tag: el.tagName, fs, lh: cs.lineHeight, ratio: +(lh / fs).toFixed(3), y: Math.round(el.getBoundingClientRect().top + scrollY) });
     }
     return out;
-  }, PHONE_YEAR.selector);
+  });
 }

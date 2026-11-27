@@ -484,7 +484,7 @@ Sections to include:
 | v82 | Nov 2026 | §5.25.1: on the Home page the next section shows under the hero on laptop screens (hero floor 498 px from a 360 px globe, 120 px peek, 24 px above the chain section, its year line below the steps, headlines in the `display` role at 1101–1440 px; limit recorded for 1101–1249 px) |
 | v83 | Nov 2026 | §5.25.1 follow-up: both banners' text sits together at the top with the button row at the column's foot; Banner 1's second button is "Climate correlation"; the chain section's two notes are one caption footnote block under the steps at every width |
 | v84 | Nov 2026 | §5.25.1: at 1101–1300 px the hero leaves out "Forecasts to 2043 →" on both banners, so button rows are one line and level |
-| v85 | Nov 2026 | §5.25.2: the stock cards' large figure takes the design system's `figure-md` role whole; the phone globe year's 1.1 line is the line-height check's one exception; the figure-strip check states what it compares below 1101 px |
+| v85 | Nov 2026 | §5.25.2: the stock cards' large figure takes the design system's `figure-md` role whole; the phone globe year's line goes from 1.1 to 1.15; the figure-strip check states what it compares below 1101 px |
 
 ---
 
@@ -1896,8 +1896,8 @@ On a laptop with about 700 px of page height the hero sat at its 504 px floor an
 | Aspect | Detail |
 |---|---|
 | Stock cards | The large figure (share or growth) takes the design system's `figure-md` role whole: 28 px on a 38 px line, weight 500, the figure face with tabular lining figures (was 30 px, weight 600, on the caption's 20 px line). Card height changes by −32 to +11 px with the width; the hero is unchanged |
-| Phone globe year | 20 px at line height 1.1 (640 px and narrower), kept: one unbroken number, so always one line with no second line to run into; the compact setting of the readout on the picture's corner |
-| Checks | `check:landing-line-heights` excepts that one element, only at 640 px and narrower, on one line, at 1.1 or more. `check:landing-kpis` compares the pictures' top edges only from 1101 px (stacked below that), and at 640 px and narrower checks each banner's two figures instead of the shared strip |
+| Phone globe year | 20 px at line height 1.15 (640 px and narrower; was 1.1): the total and "all countries" under it move down 1 px, nothing else moves |
+| Checks | `check:landing-line-heights` has no exceptions. `check:landing-kpis` compares the pictures' top edges only from 1101 px (stacked below that), and at 640 px and narrower checks each banner's two figures instead of the shared strip |
 
 ---
 
