@@ -139,6 +139,8 @@ const STYLES = `
   /* Same order as the climate banner: copy, figures, picture, then the buttons (placed after the globe in the markup on a phone, so focus order matches). */
   /* Picture first: the year readout is the globe's caption on one line, then two figure cards, then the buttons. */
   /* The year and total are on the picture's top-left corner, in three short lines (the figures step down with the globe but keep a legible floor). */
+  /* The year's line height is 1.1, under the 1.15 check:landing-line-heights asks of figures: it is one unbroken number, so it is always one line and has no
+     second line to run into. It is the compact setting of the readout on the picture's corner; the check excepts this element only. */
   .landing-globe-year { font-size: 20px !important; line-height: 1.1 !important; }
   .landing-globe-total, .landing-globe-all { font-size: 11px !important; line-height: 1.3 !important; }
   .landing-hero__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

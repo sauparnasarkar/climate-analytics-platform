@@ -1,7 +1,10 @@
 // Opens each banner of the landing carousel (paused) in a browser whose scrollbars take room and checks that the two share one KPI strip and one layout:
 // values with a line box that holds them, spacing on the space scale, the same value and label styles and the same column widths and top edges on both banners.
 // From 1101px the figures sit a column gap under the paragraph and the button row is pinned to the foot of the column (SPEC §5.25.1), so the space between the
-// two differs with the text above it; at 1100px and below the space under the figures is the same on both banners.
+// two differs with the text above it; at 1100px and below the space under the figures is the same on both banners. There the banners stack, text above picture,
+// so the pictures' top edges follow each banner's own text and are not compared. At 640px and narrower neither banner shows the strip's layout: the climate
+// banner boxes two of its figures as tiles with their own padding and drops the third, and the globe banner has two figure cards. There the check is that each
+// banner shows its two figures and that the tiles' values fit their line boxes; the strip's spacing and the comparisons between banners do not apply.
 // Usage: node scripts/check-landing-kpis.mjs <base url> [WxH ...]   (default sizes 1440x900, 1440x757 and 1280x800)
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -28,9 +31,9 @@ async function measure(width, height, index) {
     const box = (e) => { const b = e.getBoundingClientRect(); return { x: Math.round(b.left), y: Math.round(b.top + scrollY), w: Math.round(b.width), h: Math.round(b.height) }; };
     const slide = document.querySelector('.hero-carousel__slide[data-active="true"]');
     const strip = slide.querySelector('.landing-kpi-strip');
-    if (!strip) return { missing: true };
+    if (!strip) return { missing: true, cards: [...slide.querySelectorAll('.landing-hero__cards > div')].filter((card) => card.getClientRects().length > 0).length };
     const cs = (e) => getComputedStyle(e);
-    const cells = [...strip.children].map((cell) => {
+    const cells = [...strip.children].filter((cell) => cell.getClientRects().length > 0).map((cell) => {
       const [v, l] = cell.children;
       const c = cs(cell);
       return { padTop: parseFloat(c.paddingTop), padBottom: parseFloat(c.paddingBottom), padLeft: parseFloat(c.paddingLeft), padRight: parseFloat(c.paddingRight), value: { fs: parseFloat(cs(v).fontSize), lh: parseFloat(cs(v).lineHeight), fw: cs(v).fontWeight, h: v.getBoundingClientRect().height, scrollH: v.scrollHeight, color: cs(v).color }, label: { fs: parseFloat(cs(l).fontSize), lh: parseFloat(cs(l).lineHeight), fw: cs(l).fontWeight, color: cs(l).color }, gap: l.getBoundingClientRect().top - v.getBoundingClientRect().bottom };
@@ -61,9 +64,19 @@ for (const size of (sizes.length ? sizes : ['1440x900', '1440x757', '1280x800'])
   const a = await measure(w, h, 0);
   const b = await measure(w, h, 1);
   console.log(`${size}`);
+  // PHONE_QUERY in src/hooks/useMediaQuery.ts.
+  const phone = w <= 640;
+  const fits = (name, m) => check(`${name}: value line box holds the value (lh ${m.cells[0].value.lh} for ${m.cells[0].value.fs}px, at least 1.15x)`, m.cells.every((c) => c.value.lh >= 1.15 * c.value.fs && c.value.scrollH <= Math.ceil(c.value.h)));
+  if (phone) {
+    check(`climate banner: two figure tiles (${a.missing ? 'no strip' : a.cells.length})`, !a.missing && a.cells.length === 2);
+    if (!a.missing) fits('climate banner', a);
+    check(`globe banner: two figure cards (${b.missing ? b.cards : 'it has the strip'})`, b.missing && b.cards === 2);
+    console.log('  skip the strip spacing and the comparisons between banners: at this width each banner has its own two-figure layout');
+    continue;
+  }
   if (a.missing || b.missing) { check('both banners use the shared KPI strip (.landing-kpi-strip)', false); continue; }
   for (const [name, m] of [['climate banner', a], ['globe banner', b]]) {
-    check(`${name}: value line box holds the value (lh ${m.cells[0].value.lh} for ${m.cells[0].value.fs}px, at least 1.15x)`, m.cells.every((c) => c.value.lh >= 1.15 * c.value.fs && c.value.scrollH <= Math.ceil(c.value.h)));
+    fits(name, m);
     check(`${name}: cell padding is on the space scale (${m.cells[1].padTop}/${m.cells[1].padRight}/${m.cells[1].padBottom}/${m.cells[1].padLeft})`, m.cells.every((c) => [c.padTop, c.padBottom, c.padRight].every((p) => m.space.includes(p)) && (c.padLeft === 0 || m.space.includes(c.padLeft))));
     check(`${name}: clear space of at least ${m.space[3]}px above the value's line and below the label`, m.cells.every((c) => c.padTop >= m.space[3] && c.padBottom >= m.space[3]));
     check(`${name}: the label sits ${m.cells[0].gap}px under the value, on the scale`, m.cells.every((c) => m.space.includes(c.gap)));
@@ -86,7 +99,8 @@ for (const size of (sizes.length ? sizes : ['1440x900', '1440x757', '1280x800'])
   same('panel left edge and width', (m) => [m.panel.x, m.panel.w]);
   same('eyebrow top', (m) => m.eyebrow.y);
   same('headline top', (m) => m.h1.y);
-  same('panel top', (m) => m.panel.y);
+  if (a.column.wide) same('panel top', (m) => m.panel.y);
+  else console.log(`  skip same panel top: stacked here, each picture follows its own banner's text (${a.panel.y} / ${b.panel.y})`);
 }
 await browser.close();
 console.log(failures === 0 ? 'PASS: one KPI strip and one layout on both banners' : `FAIL: ${failures} check(s)`);

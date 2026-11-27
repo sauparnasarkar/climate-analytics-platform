@@ -484,6 +484,7 @@ Sections to include:
 | v82 | Nov 2026 | §5.25.1: on the Home page the next section shows under the hero on laptop screens (hero floor 498 px from a 360 px globe, 120 px peek, 24 px above the chain section, its year line below the steps, headlines in the `display` role at 1101–1440 px; limit recorded for 1101–1249 px) |
 | v83 | Nov 2026 | §5.25.1 follow-up: both banners' text sits together at the top with the button row at the column's foot; Banner 1's second button is "Climate correlation"; the chain section's two notes are one caption footnote block under the steps at every width |
 | v84 | Nov 2026 | §5.25.1: at 1101–1300 px the hero leaves out "Forecasts to 2043 →" on both banners, so button rows are one line and level |
+| v85 | Nov 2026 | §5.25.2: the stock cards' large figure takes the design system's `figure-md` role whole; the phone globe year's 1.1 line is the line-height check's one exception; the figure-strip check states what it compares below 1101 px |
 
 ---
 
@@ -1889,6 +1890,14 @@ On a laptop with about 700 px of page height the hero sat at its 504 px floor an
 | Result | Wider than 1400 px: the section's heading shows in full from 700 px of page height, the top of its steps from 745 px. 1301–1400 px wide: the heading from about 720 px, the steps' top edge from 745 px and their first label from about 760 px. 1250–1300 px wide (no Forecasts link, so a shorter hero): the heading from about 695 px, the steps' edge from 715 px and the label from 745 px |
 | Limits | **1101–1249 px wide:** the hero is taller than the cap (a globe legend that wraps so its panel needs 40 px more than the sizing allows, and the climate banner's text), so at 745 px of page height the steps start below the fold: 772 px at 1101 (where the chapter bar also wraps), 747 px at 1180, 749 px at 1240. They show from about 810 px tall at 1180–1240 px wide and about 835 px at 1101; the heading shows in full from about 735 px at 1180–1240 and 820 px at 1101. A window under about 700 px tall cannot show the heading with a 360 px globe. |
 | Check | `climate-dashboard-react/scripts/check-landing-fold.mjs <base url>`: both banners, both themes, a resize, two-line headlines, one-line button rows at one height, the Forecasts link left out at 1101–1300 px only (and shown on an 820×1180 tablet), and both edges (1400 and 1440 px, each ±1 px, at 800 px tall) |
+
+#### 5.25.2 Home: figure line heights
+
+| Aspect | Detail |
+|---|---|
+| Stock cards | The large figure (share or growth) takes the design system's `figure-md` role whole: 28 px on a 38 px line, weight 500, the figure face with tabular lining figures (was 30 px, weight 600, on the caption's 20 px line). Card height changes by −32 to +11 px with the width; the hero is unchanged |
+| Phone globe year | 20 px at line height 1.1 (640 px and narrower), kept: one unbroken number, so always one line with no second line to run into; the compact setting of the readout on the picture's corner |
+| Checks | `check:landing-line-heights` excepts that one element, only at 640 px and narrower, on one line, at 1.1 or more. `check:landing-kpis` compares the pictures' top edges only from 1101 px (stacked below that), and at 640 px and narrower checks each banner's two figures instead of the shared strip |
 
 ---
 
