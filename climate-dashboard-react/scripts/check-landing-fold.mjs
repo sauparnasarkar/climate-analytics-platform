@@ -17,8 +17,10 @@ const GLOBE_MIN = 360;
 const TEXT_GAP_MAX = 25;
 // The sizes at which the button row sits at one height on both banners, on the picture's bottom edge.
 const BUTTON_SIZES = ['1408x726', '1440x726', '1440x800', '1920x1080'];
-// The wide layout starts here. In it, the "Forecasts to" link is left out on both banners below FORECASTS_LINK_MIN_WIDTH; narrower layouts keep it.
+// The wide layout starts here. In it, the "Forecasts to" link is left out on both banners below FORECASTS_LINK_MIN_WIDTH. Narrower layouts show it, except
+// phones (up to PHONE_MAX_WIDTH), which have one button on each banner.
 const WIDE_MIN_WIDTH = 1101;
+const PHONE_MAX_WIDTH = 640;
 const FORECASTS_LINK_MIN_WIDTH = 1301;
 // The narrowest window the next-section checks apply to; narrower sizes keep every other check.
 const NEXT_SECTION_MIN_WIDTH = 1250;
@@ -50,8 +52,9 @@ for (const [size, theme] of (sizes.length ? sizes : ['1101x800', '1180x800', '13
         const box = link.getBoundingClientRect();
         return { theme: document.documentElement.getAttribute('data-syn-theme'), shown: box.height > 0 && box.width > 0 && getComputedStyle(link).visibility === 'visible', text: link.textContent };
       });
-      const ok = seen.shown && seen.theme === theme;
-      console.log(`${i === 0 ? `${size} ${theme}: narrower layout\n` : ''}  ${ok ? 'ok  ' : 'FAIL'} banner ${i + 1} shows "${seen.text}" in the ${seen.theme} theme`);
+      const wanted = w > PHONE_MAX_WIDTH;
+      const ok = seen.shown === wanted && seen.theme === theme;
+      console.log(`${i === 0 ? `${size} ${theme}: narrower layout\n` : ''}  ${ok ? 'ok  ' : 'FAIL'} banner ${i + 1} ${seen.shown ? 'shows' : 'leaves out'} "${seen.text}" (${wanted ? 'a tablet shows it' : 'a phone leaves it out'}) in the ${seen.theme} theme`);
       if (!ok) failures += 1;
     }
     await context.close();
