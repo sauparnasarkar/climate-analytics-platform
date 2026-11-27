@@ -1,5 +1,7 @@
 // Opens each banner of the landing carousel (paused) in a browser whose scrollbars take room and checks that the two share one KPI strip and one layout:
 // values with a line box that holds them, spacing on the space scale, the same value and label styles and the same column widths and top edges on both banners.
+// From 1101px the figures sit a column gap under the paragraph and the button row is pinned to the foot of the column (SPEC §5.25.1), so the space between the
+// two differs with the text above it; at 1100px and below the space under the figures is the same on both banners.
 // Usage: node scripts/check-landing-kpis.mjs <base url> [WxH ...]   (default sizes 1440x900, 1440x757 and 1280x800)
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -15,7 +17,9 @@ async function measure(width, height, index) {
   const page = await context.newPage();
   await page.goto(base + '/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2500);
-  await page.click('.hero-carousel__btn--playpause');
+  // Play/Pause exists only in the wide layout; below it nothing rotates.
+  const pause = page.locator('.hero-carousel__btn--playpause');
+  if (await pause.isVisible()) await pause.click();
   await (await page.$$('.hero-carousel__btn--dot'))[index].click();
   await page.waitForTimeout(1500);
   const r = await page.evaluate(() => {
@@ -34,7 +38,17 @@ async function measure(width, height, index) {
     const h1 = slide.querySelector('h1');
     const text = h1.parentElement;
     const next = strip.nextElementSibling;
-    return { space, cells, strip: box(strip), text: box(text), panel: box(slide.querySelector('figure')), h1: box(h1), eyebrow: box(text.firstElementChild), below: next ? Math.round(next.getBoundingClientRect().top - strip.getBoundingClientRect().bottom) : null };
+    const buttons = slide.querySelector('.climate-banner__ctas, .landing-hero__ctas').getBoundingClientRect();
+    const column = {
+      wide: matchMedia('(min-width: 1101px)').matches,
+      gap: parseFloat(cs(text).rowGap),
+      aboveStrip: strip.getBoundingClientRect().top - strip.previousElementSibling.getBoundingClientRect().bottom,
+      aboveButtons: buttons.top - strip.getBoundingClientRect().bottom,
+      buttonsBottom: buttons.bottom,
+      columnBottom: text.getBoundingClientRect().bottom,
+      pictureBottom: slide.querySelector('figure').getBoundingClientRect().bottom,
+    };
+    return { column, space, cells, strip: box(strip), text: box(text), panel: box(slide.querySelector('figure')), h1: box(h1), eyebrow: box(text.firstElementChild), below: next ? Math.round(next.getBoundingClientRect().top - strip.getBoundingClientRect().bottom) : null };
   });
   await context.close();
   return r;
@@ -53,12 +67,20 @@ for (const size of (sizes.length ? sizes : ['1440x900', '1440x757', '1280x800'])
     check(`${name}: cell padding is on the space scale (${m.cells[1].padTop}/${m.cells[1].padRight}/${m.cells[1].padBottom}/${m.cells[1].padLeft})`, m.cells.every((c) => [c.padTop, c.padBottom, c.padRight].every((p) => m.space.includes(p)) && (c.padLeft === 0 || m.space.includes(c.padLeft))));
     check(`${name}: clear space of at least ${m.space[3]}px above the value's line and below the label`, m.cells.every((c) => c.padTop >= m.space[3] && c.padBottom >= m.space[3]));
     check(`${name}: the label sits ${m.cells[0].gap}px under the value, on the scale`, m.cells.every((c) => m.space.includes(c.gap)));
+    if (m.column.wide) {
+      const c2 = m.column;
+      const r = (v) => Math.round(v * 10) / 10;
+      check(`${name}: the figures sit one column gap under the paragraph (${r(c2.aboveStrip)}px for a ${r(c2.gap)}px gap)`, Math.abs(c2.aboveStrip - c2.gap) <= 1);
+      check(`${name}: the button row is at the foot of the column, on the picture's bottom edge (${r(c2.buttonsBottom)} / ${r(c2.columnBottom)} / ${r(c2.pictureBottom)})`, Math.abs(c2.buttonsBottom - c2.columnBottom) <= 1 && Math.abs(c2.buttonsBottom - c2.pictureBottom) <= 1);
+      check(`${name}: at least a column gap between the figures and the buttons (${r(c2.aboveButtons)}px)`, c2.aboveButtons >= c2.gap - 1);
+    }
   }
   const same = (what, f) => check(`same ${what} on both banners (${JSON.stringify(f(a))} / ${JSON.stringify(f(b))})`, JSON.stringify(f(a)) === JSON.stringify(f(b)));
   same('value size, weight and line height', (m) => [m.cells[0].value.fs, m.cells[0].value.fw, m.cells[0].value.lh]);
   same('label size, weight and line height', (m) => [m.cells[0].label.fs, m.cells[0].label.fw, m.cells[0].label.lh]);
   same('cell padding', (m) => [m.cells[1].padTop, m.cells[1].padRight, m.cells[1].padBottom, m.cells[1].padLeft]);
-  same('space under the strip', (m) => m.below);
+  if (a.column.wide) same('button row bottom edge', (m) => Math.round(m.column.buttonsBottom));
+  else same('space under the strip', (m) => m.below);
   same('strip width', (m) => m.strip.w);
   same('headline column left edge and width', (m) => [m.text.x, m.text.w]);
   same('panel left edge and width', (m) => [m.panel.x, m.panel.w]);
