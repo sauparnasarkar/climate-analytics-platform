@@ -393,6 +393,16 @@ describe('LandingPage — climate-signal carousel', () => {
     for (const column of document.querySelectorAll('.climate-banner__text, .landing-hero__text')) expect(column.lastElementChild!.className).toMatch(/__ctas$/);
   });
 
+  it('leaves the Forecasts link out of both banners below 1301 px, so each button row is one line', async () => {
+    mountWithClimate();
+    await screen.findByRole('link', { name: 'See the climate signal' });
+    const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
+    expect(css).toMatch(/@media \(max-width: 1300px\) \{\s*\.landing-slide \.climate-banner__forecasts, \.landing-slide \.landing-hero__forecasts \{ display: none; \}\s*\}/);
+    // The rule is the only thing that hides them, and both links are in a banner it reaches.
+    expect(css.match(/__forecasts[^{}]*\{ display: none/g)).toHaveLength(1);
+    for (const link of document.querySelectorAll('.climate-banner__forecasts, .landing-hero__forecasts')) expect(link.closest('.landing-slide')).not.toBeNull();
+  });
+
   it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
     mountWithClimate();
     const band = await screen.findByRole('region', { name: 'How emissions add up to warming' });

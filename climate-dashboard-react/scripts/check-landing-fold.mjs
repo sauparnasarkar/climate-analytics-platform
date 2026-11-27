@@ -3,7 +3,7 @@
 // wider than 1400 px, its heading in full from 700 px of page height and the top of its four steps from 745 px; 1250-1400 px wide, from 720 and 760 px. Narrower than
 // 1250 px a banner's content sets the hero's height and these two are not checked (SPEC §5.25.1). Both headlines hold two lines at 1101-1440 px (the display role)
 // and, wider, on pages up to 800 px tall. Both themes. Sizes are page areas (the window less the browser's bars).
-// Usage: node scripts/check-landing-fold.mjs <base url> [WxH ...]   (default 1408x726, 1440x726, 1425x700, 1440x789, 1536x864, 1920x1080, 2048x1152, 1366x768, 1280x800, 1280x720, and 1399, 1400, 1401, 1439, 1440 and 1441 x800)
+// Usage: node scripts/check-landing-fold.mjs <base url> [WxH ...]   (default 1101x800, 1180x800, 1300x800, 1301x800, 1408x726, 1440x726, 1425x700, 1440x789, 1536x864, 1920x1080, 2048x1152, 1366x768, 1280x800, 1280x720, and 1399, 1400, 1401, 1439, 1440 and 1441 x800)
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,8 +17,8 @@ const GLOBE_MIN = 360;
 const TEXT_GAP_MAX = 25;
 // The sizes at which the button row sits at one height on both banners, on the picture's bottom edge.
 const BUTTON_SIZES = ['1408x726', '1440x726', '1440x800', '1920x1080'];
-// The narrowest window from which the climate banner's three items fit one line (scrollbars taking room).
-const ONE_ROW_MIN_WIDTH = 1301;
+// The narrowest window that shows the "Forecasts to" link beside the buttons; narrower, neither banner has it.
+const FORECASTS_LINK_MIN_WIDTH = 1301;
 // The narrowest window the next-section checks apply to; narrower sizes keep every other check.
 const NEXT_SECTION_MIN_WIDTH = 1250;
 // The widths where the headlines step down to the display role, the height up to which the wider headline is held to two lines too,
@@ -31,7 +31,7 @@ const STEPS_PEEK = 30;
 
 const browser = await chromium.launch({ args: ['--disable-features=OverlayScrollbar'], ignoreDefaultArgs: ['--hide-scrollbars'] });
 let failures = 0;
-for (const [size, theme] of (sizes.length ? sizes : ['1408x726', '1440x726', '1425x700', '1440x789', '1536x864', '1920x1080', '2048x1152', '1366x768', '1280x800', '1280x720', '1399x800', '1400x800', '1401x800', '1439x800', '1440x800', '1441x800']).flatMap((s) => [[s, 'night'], [s, 'tidewater']])) {
+for (const [size, theme] of (sizes.length ? sizes : ['1101x800', '1180x800', '1300x800', '1301x800', '1408x726', '1440x726', '1425x700', '1440x789', '1536x864', '1920x1080', '2048x1152', '1366x768', '1280x800', '1280x720', '1399x800', '1400x800', '1401x800', '1439x800', '1440x800', '1441x800']).flatMap((s) => [[s, 'night'], [s, 'tidewater']])) {
   const [w, h] = size.split('x').map(Number);
   const context = await browser.newContext({ viewport: { width: w, height: h }, serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript((t) => localStorage.setItem('degrees-of-carbon-theme', t), theme);
@@ -56,7 +56,8 @@ for (const [size, theme] of (sizes.length ? sizes : ['1408x726', '1440x726', '14
       const widestGap = Math.round(Math.max(...parts.slice(1).map((r, n) => r.top - parts[n].bottom)));
       const [first, second] = document.querySelector('.chain-band__notes')?.children ?? [];
       const notes = first && second ? [Math.round(first.getBoundingClientRect().top - document.querySelector('.chain-band__steps').getBoundingClientRect().bottom), Math.round(second.getBoundingClientRect().top - first.getBoundingClientRect().bottom)] : null;
-      return { button, ctaRow, widestGap, notes, lines: Math.round(h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight)), theme: document.documentElement.getAttribute('data-syn-theme'), globe: Math.round(document.querySelector('.landing-hero__globe canvas').getBoundingClientRect().width), heading: box(document.querySelector('#chain-heading')), steps: box(document.querySelector('.chain-band__steps')), row: box(document.querySelector('.hero-carousel__controls')), slides: box(slides), content: box(slide.firstElementChild), panel: box(slide.querySelector('figure')), overflow: slide.firstElementChild.getBoundingClientRect().bottom - slides.getBoundingClientRect().bottom, scrollbar: innerWidth - document.documentElement.clientWidth };
+      const forecasts = ctas.querySelector('.climate-banner__forecasts, .landing-hero__forecasts').getBoundingClientRect().height > 0;
+      return { forecasts, button, ctaRow, widestGap, notes, lines: Math.round(h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight)), theme: document.documentElement.getAttribute('data-syn-theme'), globe: Math.round(document.querySelector('.landing-hero__globe canvas').getBoundingClientRect().width), heading: box(document.querySelector('#chain-heading')), steps: box(document.querySelector('.chain-band__steps')), row: box(document.querySelector('.hero-carousel__controls')), slides: box(slides), content: box(slide.firstElementChild), panel: box(slide.querySelector('figure')), overflow: slide.firstElementChild.getBoundingClientRect().bottom - slides.getBoundingClientRect().bottom, scrollbar: innerWidth - document.documentElement.clientWidth };
     }));
   }
   const [a, b] = seen;
@@ -78,10 +79,12 @@ for (const [size, theme] of (sizes.length ? sizes : ['1408x726', '1440x726', '14
   if (w >= NEXT_SECTION_MIN_WIDTH && h >= headingFrom) check(`the next section's heading is fully visible on both banners (${a.heading.bottom} / ${b.heading.bottom})`, a.heading.bottom <= h && b.heading.bottom <= h);
   if (w >= NEXT_SECTION_MIN_WIDTH && h >= stepsFrom) check(`the top of its steps is visible on both banners (from ${a.steps.top} / ${b.steps.top})`, a.steps.top + STEPS_PEEK <= h && b.steps.top + STEPS_PEEK <= h);
   check(`each banner's text stays together at the top (widest gap ${a.widestGap} / ${b.widestGap} px)`, a.widestGap <= TEXT_GAP_MAX && b.widestGap <= TEXT_GAP_MAX);
-  if (w >= ONE_ROW_MIN_WIDTH) check(`each banner's button row is one line (heights ${a.ctaRow} / ${b.ctaRow})`, a.ctaRow <= 50 && b.ctaRow <= 50);
+  check(`each banner's button row is one line (heights ${a.ctaRow} / ${b.ctaRow})`, a.ctaRow <= 50 && b.ctaRow <= 50);
+  const wantsLink = w >= FORECASTS_LINK_MIN_WIDTH;
+  check(`the Forecasts link is ${wantsLink ? 'shown' : 'left out'} on both banners`, a.forecasts === wantsLink && b.forecasts === wantsLink);
   const buttons = `button tops ${a.button.top} / ${b.button.top}, button bottoms ${a.button.bottom} / ${b.button.bottom}, picture bottoms ${a.panel.bottom} / ${b.panel.bottom}`;
+  check(`the buttons are at one height on both banners (button tops ${a.button.top} / ${b.button.top})`, a.button.top === b.button.top);
   if (BUTTON_SIZES.includes(size)) {
-    check(`the buttons are at one height on both banners (${buttons})`, a.button.top === b.button.top);
     check('the buttons end on the picture\'s bottom edge on both banners', Math.abs(a.button.bottom - a.panel.bottom) <= 1 && Math.abs(b.button.bottom - b.panel.bottom) <= 1);
   } else console.log(`  --   ${buttons}`);
   check(`the footnotes are one block, 12 px under the steps and 4-6 px apart (${b.notes})`, Boolean(b.notes) && b.notes[0] === 12 && b.notes[1] >= 4 && b.notes[1] <= 6);

@@ -33,6 +33,10 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // (measured: 1432 px with scrollbars taking room), plus 8 px (SPEC §5.25.1).
 const ROLE_HEADLINE_MAX_PX = 1440;
 
+// The narrowest window from which Banner 1's two buttons and "Forecasts to …" fit one line beside the picture (measured: scrollbars taking room). Narrower, the
+// hero leaves that link out on both banners (Forecasts is in the navigation), so each row is one line and the buttons stay at one height (SPEC §5.25.1).
+const FORECASTS_LINK_MIN_PX = 1301;
+
 // The landing globe is ambient (requirements §2.6): it turns once, continuously, while the year
 // advances one at a time from GLOBE_START_YEAR to the latest, blending colours between years so the change reads as smooth
 // rather than stepped. ~350 ms a year, ~19 s for the whole pass (it was 700 ms / ~38 s). (the earlier decade-by-decade steps are replaced.)
@@ -107,6 +111,9 @@ const STYLES = `
   .climate-banner__text .landing-kpi-strip, .landing-hero__text .landing-kpi-strip { flex: 0 0 auto; }
   .climate-banner .climate-scatter { flex: 1 1 0; min-height: 160px; aspect-ratio: auto; max-height: none; }
 }
+@media (max-width: ${FORECASTS_LINK_MIN_PX - 1}px) {
+  .landing-slide .climate-banner__forecasts, .landing-slide .landing-hero__forecasts { display: none; }
+}
 @media (max-width: 1100px) {
   .landing-slide { grid-template-columns: 1fr; }
   .landing-race { flex-direction: column; align-items: stretch; }
@@ -141,7 +148,6 @@ const STYLES = `
   .climate-banner__chart { min-height: 0; }
   .landing-hero__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .landing-hero__ctas > a { justify-content: center; }
-  .landing-hero__ctas > a.landing-hero__forecasts { display: none; } /* as on Banner 1 and in the design frame: one button; Forecasts is in the menu */
 }
 `;
 
