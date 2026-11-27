@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useRef } from 'react';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -107,7 +108,6 @@ describe('AgentPage', () => {
   it('prefills a starter card on click, focuses the textarea, and does not submit', async () => {
     const submit = vi.fn();
     stubStream({ submit });
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     renderPage();
     const prompt = 'What are the top 10 forecasted emitters in 2040?';
@@ -119,7 +119,6 @@ describe('AgentPage', () => {
 
   it('shows the question heading, progress and a skeleton while loading', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'China trends{Enter}');
@@ -133,7 +132,6 @@ describe('AgentPage', () => {
 
   it('submits a typed question, shows it as an h2 with its category once the answer lands, and keeps earlier answers in order', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     const input = screen.getByLabelText('Ask about climate emissions');
@@ -155,7 +153,6 @@ describe('AgentPage', () => {
 
   it('shows follow-up chips that prefill (not send), and "+ New question" returns to the empty state', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
@@ -178,7 +175,6 @@ describe('AgentPage', () => {
 
   it('renders deep links as in-app links carrying the route as given', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
@@ -189,7 +185,6 @@ describe('AgentPage', () => {
 
   it('shows a stream error with Try again, resubmits the same question, and restores the typed text', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'My question{Enter}');
@@ -207,7 +202,6 @@ describe('AgentPage', () => {
   it('off-topic/opinion results (no widgets) render as an alert with "Try instead" tiles that prefill', async () => {
     const submit = vi.fn();
     const stream = mutableStream({ submit });
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'Who is right?{Enter}');
@@ -221,7 +215,6 @@ describe('AgentPage', () => {
 
   it('renders scope_notes, the lead and the KPI row for a data answer', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'China?{Enter}');
@@ -241,7 +234,6 @@ describe('AgentPage', () => {
 
   it('renders a context_reuse answer once, as markdown, not as an alert', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'More on India{Enter}');
@@ -259,7 +251,6 @@ describe('AgentPage', () => {
 
   it('keeps the thread when the page is left and opened again (in-memory, above the routes)', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const app = () => (
       <MemoryRouter initialEntries={['/ask']}>
@@ -295,7 +286,6 @@ describe('AgentPage', () => {
 
   it('captures an answer that lands while the user is on another page', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const app = () => (
       <MemoryRouter initialEntries={['/ask']}>
@@ -324,7 +314,6 @@ describe('AgentPage', () => {
 
   it('restores the scroll position on return, after the layout resets it to the top', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const scrollTo = vi.fn();
     vi.stubGlobal('scrollTo', scrollTo);
@@ -370,7 +359,6 @@ describe('AgentPage', () => {
 
   it('does not scroll back over an answer that lands before the queued restore frame', async () => {
     const stream = mutableStream();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const scrollTo = vi.fn();
     vi.stubGlobal('scrollTo', scrollTo);

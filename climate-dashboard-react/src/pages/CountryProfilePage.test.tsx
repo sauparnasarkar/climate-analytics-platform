@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Themed } from '../test/Themed';
@@ -130,7 +131,6 @@ describe('CountryProfilePage', () => {
   it('re-fetches with a newly selected, expanded-but-not-featured country', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
     await screen.findByText('CO₂ Emissions — China');
@@ -146,7 +146,6 @@ describe('CountryProfilePage', () => {
   it('expands and restores the CO₂ Emissions chart via ChartCard\'s expandable control (SPEC.md §5.11)', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
     await screen.findByText('CO₂ Emissions — China');
@@ -217,7 +216,6 @@ describe('CountryProfilePage', () => {
 
     it('counts from the first record by default and, with "From a year", asks for emissions from that year and relabels the figures', async () => {
       arrange();
-      const { default: userEvent } = await import('@testing-library/user-event');
       const user = userEvent.setup();
       render(<Themed><MemoryRouter><CountryProfilePage /></MemoryRouter></Themed>);
       await screen.findByText('285 GtCO₂');
