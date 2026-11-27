@@ -1,4 +1,5 @@
-// The globe names its top emitters while the years step, not only when it is paused, and never more than five.
+// The globe names its top emitters while the years step, not only when it is paused, and never more than ten, or five on a phone (SPEC §5.33; the design
+// system hides a label that would touch an earlier one, so fewer can show).
 // Usage: node scripts/check-landing-labels.mjs <base url> [WxH ...]   (default 1440x900)
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -24,7 +25,9 @@ for (const size of (sizes.length ? sizes : ['1440x900'])) {
   const page = await context.newPage();
   await page.goto(base + '/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  await page.click('.hero-carousel__btn--playpause');
+  // Play/Pause exists only in the wide layout; below it nothing rotates.
+  const pause = page.locator('.hero-carousel__btn--playpause');
+  if (await pause.isVisible()) await pause.click();
   await (await page.$$('.hero-carousel__btn--dot'))[1].click();
   await page.waitForTimeout(800);
   const samples = [];
@@ -33,7 +36,9 @@ for (const size of (sizes.length ? sizes : ['1440x900'])) {
   console.log(`${size}: years seen ${[...years].join(',')}; labels per sample ${samples.map((s) => s.pills.length).join(',')}; e.g. ${JSON.stringify(samples[2].pills)}`);
   check('the years are stepping during the samples', years.size > 1);
   check('every sample while stepping has at least one label', samples.every((s) => s.pills.length >= 1));
-  check('never more than five', samples.every((s) => s.pills.length <= 5));
+  // GLOBE_LABEL_COUNT and GLOBE_LABEL_COUNT_PHONE in src/lib/landingData.ts; the phone layout is PHONE_QUERY in src/hooks/useMediaQuery.ts.
+  const most = w <= 640 ? 5 : 10;
+  check(`never more than ${most}`, samples.every((s) => s.pills.length <= most));
   await context.close();
 }
 await browser.close();

@@ -17,7 +17,9 @@ for (const size of (sizes.length ? sizes : ['1440x900', '390x844'])) {
   const page = await context.newPage();
   await page.goto(base + '/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2500);
-  await page.click('.hero-carousel__btn--playpause');
+  // Play/Pause exists only in the wide layout; below it nothing rotates.
+  const pause = page.locator('.hero-carousel__btn--playpause');
+  if (await pause.isVisible()) await pause.click();
   const found = [];
   const dots = await page.$$('.hero-carousel__btn--dot');
   for (let i = 0; i < dots.length; i += 1) {
