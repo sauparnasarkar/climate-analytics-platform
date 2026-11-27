@@ -3,7 +3,7 @@
 // wider than 1400 px, its heading in full from 700 px of page height and the top of its four steps from 745 px; 1250-1400 px wide, from 720 and 760 px. Narrower than
 // 1250 px a banner's content sets the hero's height and these two are not checked (SPEC §5.25.1). Both headlines hold two lines at 1101-1440 px (the display role)
 // and, wider, on pages up to 800 px tall. Both themes. Sizes are page areas (the window less the browser's bars).
-// Usage: node scripts/check-landing-fold.mjs <base url> [WxH ...]   (default 1101x800, 1180x800, 1300x800, 1301x800, 1408x726, 1440x726, 1425x700, 1440x789, 1536x864, 1920x1080, 2048x1152, 1366x768, 1280x800, 1280x720, and 1399, 1400, 1401, 1439, 1440 and 1441 x800)
+// Usage: node scripts/check-landing-fold.mjs <base url> [WxH ...]   (default 1101x800, 1180x800, 1300x800, 1301x800, 1408x726, 1440x726, 1425x700, 1440x789, 1536x864, 1920x1080, 2048x1152, 1366x768, 1280x800, 1280x720, an upright tablet 820x1180, and 1399, 1400, 1401, 1439, 1440 and 1441 x800)
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,8 @@ const GLOBE_MIN = 360;
 const TEXT_GAP_MAX = 25;
 // The sizes at which the button row sits at one height on both banners, on the picture's bottom edge.
 const BUTTON_SIZES = ['1408x726', '1440x726', '1440x800', '1920x1080'];
-// The narrowest window that shows the "Forecasts to" link beside the buttons; narrower, neither banner has it.
+// The wide layout starts here. In it, the "Forecasts to" link is left out on both banners below FORECASTS_LINK_MIN_WIDTH; narrower layouts keep it.
+const WIDE_MIN_WIDTH = 1101;
 const FORECASTS_LINK_MIN_WIDTH = 1301;
 // The narrowest window the next-section checks apply to; narrower sizes keep every other check.
 const NEXT_SECTION_MIN_WIDTH = 1250;
@@ -31,13 +32,31 @@ const STEPS_PEEK = 30;
 
 const browser = await chromium.launch({ args: ['--disable-features=OverlayScrollbar'], ignoreDefaultArgs: ['--hide-scrollbars'] });
 let failures = 0;
-for (const [size, theme] of (sizes.length ? sizes : ['1101x800', '1180x800', '1300x800', '1301x800', '1408x726', '1440x726', '1425x700', '1440x789', '1536x864', '1920x1080', '2048x1152', '1366x768', '1280x800', '1280x720', '1399x800', '1400x800', '1401x800', '1439x800', '1440x800', '1441x800']).flatMap((s) => [[s, 'night'], [s, 'tidewater']])) {
+for (const [size, theme] of (sizes.length ? sizes : ['1101x800', '1180x800', '1300x800', '1301x800', '1408x726', '1440x726', '1425x700', '1440x789', '1536x864', '1920x1080', '2048x1152', '1366x768', '1280x800', '1280x720', '1399x800', '1400x800', '1401x800', '1439x800', '1440x800', '1441x800', '820x1180']).flatMap((s) => [[s, 'night'], [s, 'tidewater']])) {
   const [w, h] = size.split('x').map(Number);
   const context = await browser.newContext({ viewport: { width: w, height: h }, serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript((t) => localStorage.setItem('degrees-of-carbon-theme', t), theme);
   const page = await context.newPage();
   await page.goto(base + '/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2500);
+  if (w < WIDE_MIN_WIDTH) {
+    // A narrower layout (tabs above the banner, the picture under the text): only the link is checked, on each banner.
+    for (const i of [0, 1]) {
+      await (await page.$$('.hero-carousel__btn--dot'))[i].click();
+      await page.waitForTimeout(1200);
+      const seen = await page.evaluate(() => {
+        const slide = document.querySelector('.hero-carousel__slide[data-active="true"]');
+        const link = slide.querySelector('.climate-banner__forecasts, .landing-hero__forecasts');
+        const box = link.getBoundingClientRect();
+        return { theme: document.documentElement.getAttribute('data-syn-theme'), shown: box.height > 0 && box.width > 0 && getComputedStyle(link).visibility === 'visible', text: link.textContent };
+      });
+      const ok = seen.shown && seen.theme === theme;
+      console.log(`${i === 0 ? `${size} ${theme}: narrower layout\n` : ''}  ${ok ? 'ok  ' : 'FAIL'} banner ${i + 1} shows "${seen.text}" in the ${seen.theme} theme`);
+      if (!ok) failures += 1;
+    }
+    await context.close();
+    continue;
+  }
   await page.click('.hero-carousel__btn--playpause');
   const seen = [];
   for (const i of [0, 1]) {
