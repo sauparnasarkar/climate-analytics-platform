@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Themed } from '../test/Themed';
@@ -255,7 +256,6 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
     await screen.findByRole('heading', { name: 'BAU' });
@@ -286,7 +286,6 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
     await screen.findByRole('heading', { name: 'BAU' });
@@ -303,7 +302,6 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
@@ -326,7 +324,6 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
     await screen.findByRole('heading', { name: 'BAU' });
@@ -348,7 +345,6 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
@@ -364,7 +360,6 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
@@ -383,7 +378,6 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE_WITH_LONG_TAIL);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ScenarioComparisonPage /></MemoryRouter></Themed>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 4 Expanded Countries');

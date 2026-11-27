@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { Themed } from '../test/Themed';
@@ -201,7 +202,6 @@ describe('ForecastsPage', () => {
     // jsdom has no real scrollIntoView implementation at all.
     Element.prototype.scrollIntoView = vi.fn();
     mockAllResolved();
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<Themed><MemoryRouter><ForecastsPage /></MemoryRouter></Themed>);
     await screen.findByText('Five-Model Comparison Table (MAE / RMSE)');

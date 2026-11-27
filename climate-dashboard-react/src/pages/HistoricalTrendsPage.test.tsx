@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -131,7 +132,6 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
 
@@ -150,7 +150,6 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions by Country');
@@ -174,7 +173,6 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions by Country');
@@ -252,7 +250,6 @@ describe('HistoricalTrendsPage', () => {
 
     it('switches between the three views without refetching the one it already has', async () => {
       arrange();
-      const { default: userEvent } = await import('@testing-library/user-event');
       const user = userEvent.setup();
       render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
       await screen.findByText('CO₂ Emissions by Country');
@@ -290,7 +287,6 @@ describe('HistoricalTrendsPage', () => {
 
     it('counts from each countrys first record by default, with the counting-from choice shown only in the cumulative views', async () => {
       arrange();
-      const { default: userEvent } = await import('@testing-library/user-event');
       const user = userEvent.setup();
       render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
       await screen.findByText('CO₂ Emissions by Country');
@@ -304,7 +300,6 @@ describe('HistoricalTrendsPage', () => {
 
     it('From a year asks the API to count from 1990 and says what the figures are', async () => {
       arrange();
-      const { default: userEvent } = await import('@testing-library/user-event');
       const user = userEvent.setup();
       render(<MemoryRouter initialEntries={['/historical?view=cumulative']}><HistoricalTrendsPage /></MemoryRouter>);
       await screen.findByText('Cumulative CO₂ Emissions by Country');
@@ -430,7 +425,6 @@ describe('HistoricalTrendsPage: the visitor\'s own default countries', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const query = FEATURED.map((country) => `countries=${encodeURIComponent(country)}`).join('&');
     render(<MemoryRouter initialEntries={[`/historical?${query}`]}><HistoricalTrendsPage /></MemoryRouter>);
@@ -447,7 +441,6 @@ describe('HistoricalTrendsPage: the visitor\'s own default countries', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<DefaultCountriesProvider><MemoryRouter><HistoricalTrendsPage /></MemoryRouter></DefaultCountriesProvider>);
     await screen.findByText('CO₂ Emissions by Country');

@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ComponentType, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -298,7 +299,6 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
@@ -329,7 +329,6 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
@@ -364,7 +363,6 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
@@ -381,7 +379,6 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
@@ -410,7 +407,6 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
@@ -449,7 +445,6 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByRole('rowheader', { name: /^Selected · \d+/ });
@@ -524,7 +519,6 @@ describe('OverviewPage', () => {
 
   it('offers a Table view of every country for the current year (largest first, "No data" included), and back', async () => {
     realMap.on = true;
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
@@ -1260,7 +1254,6 @@ describe('OverviewPage: the visitor\'s own default countries', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<DefaultCountriesProvider><MemoryRouter><OverviewPage /></MemoryRouter></DefaultCountriesProvider>);
     const reset = await screen.findByRole('button', { name: 'Reset to my defaults' });
@@ -1274,7 +1267,6 @@ describe('OverviewPage: the visitor\'s own default countries', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     const query = FEATURED.map((country) => `countries=${encodeURIComponent(country)}`).join('&');
     render(<MemoryRouter initialEntries={[`/overview?${query}`]}><OverviewPage /></MemoryRouter>);
