@@ -69,7 +69,7 @@ for (const size of (sizes.length ? sizes : ['1440x900', '1440x757', '1280x800'])
   const fits = (name, m) => check(`${name}: value line box holds the value (lh ${m.cells[0].value.lh} for ${m.cells[0].value.fs}px, at least 1.15x)`, m.cells.every((c) => c.value.lh >= 1.15 * c.value.fs && c.value.scrollH <= Math.ceil(c.value.h)));
   if (phone) {
     check(`climate banner: two figure tiles (${a.missing ? 'no strip' : a.cells.length})`, !a.missing && a.cells.length === 2);
-    if (!a.missing) fits('climate banner', a);
+    if (!a.missing && a.cells.length === 2) fits('climate banner', a);
     check(`globe banner: two figure cards (${b.missing ? b.cards : 'it has the strip'})`, b.missing && b.cards === 2);
     console.log('  skip the strip spacing and the comparisons between banners: at this width each banner has its own two-figure layout');
     continue;
