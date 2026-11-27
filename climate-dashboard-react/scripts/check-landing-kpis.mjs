@@ -75,6 +75,9 @@ for (const size of (sizes.length ? sizes : ['1440x900', '1440x757', '1280x800'])
     continue;
   }
   if (a.missing || b.missing) { check('both banners use the shared KPI strip (.landing-kpi-strip)', false); continue; }
+  // Only visible cells are measured, so a hidden one has to fail here.
+  for (const [name, m] of [['climate banner', a], ['globe banner', b]]) check(`${name}: three figures in the strip (${m.cells.length})`, m.cells.length === 3);
+  if (a.cells.length !== 3 || b.cells.length !== 3) continue;
   for (const [name, m] of [['climate banner', a], ['globe banner', b]]) {
     fits(name, m);
     check(`${name}: cell padding is on the space scale (${m.cells[1].padTop}/${m.cells[1].padRight}/${m.cells[1].padBottom}/${m.cells[1].padLeft})`, m.cells.every((c) => [c.padTop, c.padBottom, c.padRight].every((p) => m.space.includes(p)) && (c.padLeft === 0 || m.space.includes(c.padLeft))));
