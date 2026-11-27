@@ -1877,7 +1877,7 @@ that actually owns `api/main.py`.
 
 #### 5.25.1 Home: the next section shows under the hero
 
-On a laptop with about 700 px of page height the hero sat at its 504 px floor and the chain section's top padding (about 86 px) filled the strip under the chapter bar, so nothing of the next section showed. Layouts 1101 px wide and up only; phone and upright tablet are unchanged.
+On a laptop with about 700 px of page height the hero sat at its 504 px floor and the chain section's top padding (about 86 px) filled the strip under the chapter bar, so nothing of the next section showed. Layouts 1101 px wide and up, apart from the chain section's footnote block (every width) and the hero's Forecasts link (left out below 1301 px).
 
 | Aspect | Detail |
 |---|---|
