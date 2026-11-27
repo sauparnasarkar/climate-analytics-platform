@@ -393,6 +393,19 @@ describe('LandingPage — climate-signal carousel', () => {
     for (const column of document.querySelectorAll('.climate-banner__text, .landing-hero__text')) expect(column.lastElementChild!.className).toMatch(/__ctas$/);
   });
 
+  it('leaves the Forecasts link out of both banners in the wide layout below 1301 px only, so each button row is one line there', async () => {
+    mountWithClimate();
+    await screen.findByRole('link', { name: 'See the climate signal' });
+    const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
+    expect(css).toMatch(/@media \(min-width: 1101px\) and \(max-width: 1300px\) \{\s*\.landing-slide \.climate-banner__forecasts, \.landing-slide \.landing-hero__forecasts \{ display: none; \}\s*\}/);
+    // Besides that, only the phone's long-standing rule for the globe banner hides it: nothing does between 641 and 1100 px.
+    const hiding = css.match(/[^{}\n]*__forecasts[^{}]*\{ display: none/g)!;
+    expect(hiding).toHaveLength(2);
+    const phone = css.slice(css.indexOf('@media (max-width: 640px)'));
+    expect(phone).toContain('.landing-hero__ctas > a.landing-hero__forecasts { display: none; }');
+    for (const link of document.querySelectorAll('.climate-banner__forecasts, .landing-hero__forecasts')) expect(link.closest('.landing-slide')).not.toBeNull();
+  });
+
   it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
     mountWithClimate();
     const band = await screen.findByRole('region', { name: 'How emissions add up to warming' });
