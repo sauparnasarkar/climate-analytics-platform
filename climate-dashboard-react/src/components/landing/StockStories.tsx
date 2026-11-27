@@ -82,7 +82,7 @@ function Card({ pick, scaleMax, curve, baselineYear, latestYear, cumulativeFrom 
         <Curve points={curve} latestYear={latestYear} baselineYear={baselineYear} label={`${c.name} cumulative CO₂, ${STOCK_CURVE_FROM} to ${curve[curve.length - 1]?.year ?? latestYear}: ${fmtGt(curve[curve.length - 1]?.gt ?? c.cumulativeMt / 1000)} Gt at the end`} />
         {text.key && (
           <div style={{ borderTop: '1px solid var(--syn-color-border-subtle)', paddingTop: 12, display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontSize: 30, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{text.key.value}</span>
+            <span className="syn-figure-md">{text.key.value}</span>
             <span className="syn-caption" style={{ color: 'var(--syn-color-text-secondary)' }}>{text.key.label}{text.key.yearly ? <><br />{text.key.yearly}</> : null}</span>
           </div>
         )}
